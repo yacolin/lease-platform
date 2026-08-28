@@ -1,0 +1,116 @@
+# ============================================================================
+# lease-platform 关键配置
+# 五类关键配置项：数据源 / Redis / MyBatis-Plus / JWT / Security（白名单 + CORS）
+# 开发默认值与本机（reset_db.sh 同款参数）一致；生产环境请用环境变量或 profile
+# 覆盖敏感项（数据库密码、Redis 密码、JWT 密钥）。
+# ============================================================================
+spring:
+  application:
+    name: lease-platform
+
+  # ---------- 1. 数据源（MySQL） ----------
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 库名 lease_db 与 db 设计一致（./reset_db.sh 一键建库）
+    url: jdbc:mysql://127.0.0.1:3306/lease_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+    username: root
+    password: "123456"   # 本机 Homebrew MySQL root 密码（与 reset_db.sh 默认一致），生产用环境变量覆盖
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  # ---------- 2. Redis ----------
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      # password: ""    # 本机 Redis 无密码；有密码时填写（如 Redis 有密码则必须配置）
+      database: 0
+      timeout: 5s
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+  # JSON 序列化统一格式
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+# ---------- 3. MyBatis-Plus ----------
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.example.leaseplatform.entity
+  configuration:
+    # 驼峰命名映射：数据库下划线字段 <-> 实体驼峰属性（如 is_deleted <-> isDeleted）
+    map-underscore-to-camel-case: true
+    # SQL 日志打印（开发期用 StdOutImpl；生产建议改 org.apache.ibatis.logging.slf4j.Slf4jImpl 或留空关闭）
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    banner: false
+    db-config:
+      # 全局主键策略：auto = 数据库自增（与 db 设计 BIGINT UNSIGNED AUTO_INCREMENT 一致）
+      id-type: auto
+      # 全局逻辑删除（业务表统一 is_deleted：0-未删除, 1-已删除）
+      logic-delete-field: isDeleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# ---------- 4. JWT ----------
+jwt:
+  # 签名密钥：Base64 编码，HS256 要求 >= 256 bit（下值为 384 bit 随机生成）
+  # 生产环境务必通过环境变量 JWT_SECRET 覆盖
+  secret: "Iyh/J3RcrpgUbprqYJmbNC6YV5DXAV9q9AUsKuXn7HQ82fNXFakPWoCYWdZuDEbs"
+  # Access Token 过期时间（秒）：2 小时
+  access-token-expire-seconds: 7200
+  # Refresh Token 过期时间（秒）：7 天
+  refresh-token-expire-seconds: 604800
+  # 请求头名称与 Bearer 前缀
+  header: Authorization
+  prefix: "Bearer "
+
+# ---------- 5. Security（白名单 + CORS） ----------
+lease:
+  security:
+    # 无需认证即可访问的路径（小程序登录/注册、商品/菜单/会议室浏览、健康检查）
+    whitelist:
+      - /api/auth/login
+      - /api/auth/register
+      - /api/user/wx-login
+      - /api/categories/**
+      - /api/products/**
+      - /api/menus/**
+      - /api/rooms/**
+      - /error
+      - /actuator/health
+    cors:
+      # 开发期放开；生产改为小程序/后台实际域名列表
+      allowed-origins:
+        - "*"
+      allowed-methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      allowed-headers:
+        - "*"
+      exposed-headers:
+        - Authorization
+      # 携带凭证（cookie）时 allowed-origins 不能为 *，需显式列域名
+      allow-credentials: false
+      max-age: 3600
