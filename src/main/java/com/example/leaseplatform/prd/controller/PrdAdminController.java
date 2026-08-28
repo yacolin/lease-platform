@@ -1,0 +1,153 @@
+package com.example.leaseplatform.prd.controller;
+
+import com.example.leaseplatform.common.ApiResponse;
+import com.example.leaseplatform.common.PageResult;
+import com.example.leaseplatform.prd.dto.CategoryCreateReq;
+import com.example.leaseplatform.prd.dto.CategoryUpdateReq;
+import com.example.leaseplatform.prd.dto.CategoryVO;
+import com.example.leaseplatform.prd.dto.MenuCreateReq;
+import com.example.leaseplatform.prd.dto.MenuUpdateReq;
+import com.example.leaseplatform.prd.dto.MenuVO;
+import com.example.leaseplatform.prd.dto.ProductCreateReq;
+import com.example.leaseplatform.prd.dto.ProductStatusReq;
+import com.example.leaseplatform.prd.dto.ProductUpdateReq;
+import com.example.leaseplatform.prd.dto.ProductVO;
+import com.example.leaseplatform.prd.service.PrdCategoryService;
+import com.example.leaseplatform.prd.service.PrdDailyMenuService;
+import com.example.leaseplatform.prd.service.PrdProductService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDate;
+
+/**
+ * 商家后台商品管理接口（/api/v1/**，需登录；JWT 认证接入后生效）：
+ * 分类 / 商品 / 每日菜单的完整 CRUD。对应 campus_express 管理端分组。
+ */
+@RestController
+@RequestMapping("/api/v1")
+@RequiredArgsConstructor
+public class PrdAdminController {
+
+    private final PrdCategoryService categoryService;
+    private final PrdProductService productService;
+    private final PrdDailyMenuService menuService;
+
+    // ==================== 商品分类 ====================
+
+    @PostMapping("/categories")
+    public ApiResponse<CategoryVO> createCategory(@Valid @RequestBody CategoryCreateReq req) {
+        return ApiResponse.ok(categoryService.create(req));
+    }
+
+    @GetMapping("/categories")
+    public ApiResponse<PageResult<CategoryVO>> listCategories(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) Integer categoryType,
+            @RequestParam(required = false) Integer status) {
+        return ApiResponse.ok(categoryService.page(page, size, categoryType, status));
+    }
+
+    @GetMapping("/categories/{id}")
+    public ApiResponse<CategoryVO> getCategory(@PathVariable Long id) {
+        return ApiResponse.ok(categoryService.getById(id));
+    }
+
+    @PutMapping("/categories/{id}")
+    public ApiResponse<CategoryVO> updateCategory(@PathVariable Long id,
+                                                  @Valid @RequestBody CategoryUpdateReq req) {
+        return ApiResponse.ok(categoryService.update(id, req));
+    }
+
+    @DeleteMapping("/categories/{id}")
+    public ApiResponse<Void> deleteCategory(@PathVariable Long id) {
+        categoryService.delete(id);
+        return ApiResponse.ok(null);
+    }
+
+    // ==================== 商品 ====================
+
+    @PostMapping("/products")
+    public ApiResponse<ProductVO> createProduct(@Valid @RequestBody ProductCreateReq req) {
+        return ApiResponse.ok(productService.create(req));
+    }
+
+    @GetMapping("/products")
+    public ApiResponse<PageResult<ProductVO>> listProducts(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Integer productType,
+            @RequestParam(required = false) Integer isAvailable,
+            @RequestParam(required = false) String keyword) {
+        return ApiResponse.ok(productService.page(page, size, categoryId, productType, isAvailable, keyword));
+    }
+
+    @GetMapping("/products/{id}")
+    public ApiResponse<ProductVO> getProduct(@PathVariable Long id) {
+        return ApiResponse.ok(productService.getById(id));
+    }
+
+    @PutMapping("/products/{id}")
+    public ApiResponse<ProductVO> updateProduct(@PathVariable Long id,
+                                                @Valid @RequestBody ProductUpdateReq req) {
+        return ApiResponse.ok(productService.update(id, req));
+    }
+
+    /** 上下架（对应 campus_express 的 PUT /users/{id}/status 状态推进风格） */
+    @PutMapping("/products/{id}/status")
+    public ApiResponse<ProductVO> updateProductStatus(@PathVariable Long id,
+                                                      @Valid @RequestBody ProductStatusReq req) {
+        return ApiResponse.ok(productService.updateStatus(id, req));
+    }
+
+    @DeleteMapping("/products/{id}")
+    public ApiResponse<Void> deleteProduct(@PathVariable Long id) {
+        productService.delete(id);
+        return ApiResponse.ok(null);
+    }
+
+    // ==================== 每日菜单 ====================
+
+    @PostMapping("/menus")
+    public ApiResponse<MenuVO> createMenu(@Valid @RequestBody MenuCreateReq req) {
+        return ApiResponse.ok(menuService.create(req));
+    }
+
+    @GetMapping("/menus")
+    public ApiResponse<PageResult<MenuVO>> listMenus(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) Long productId) {
+        return ApiResponse.ok(menuService.page(page, size, date, productId));
+    }
+
+    @GetMapping("/menus/{id}")
+    public ApiResponse<MenuVO> getMenu(@PathVariable Long id) {
+        return ApiResponse.ok(menuService.getById(id));
+    }
+
+    @PutMapping("/menus/{id}")
+    public ApiResponse<MenuVO> updateMenu(@PathVariable Long id,
+                                          @Valid @RequestBody MenuUpdateReq req) {
+        return ApiResponse.ok(menuService.update(id, req));
+    }
+
+    @DeleteMapping("/menus/{id}")
+    public ApiResponse<Void> deleteMenu(@PathVariable Long id) {
+        menuService.delete(id);
+        return ApiResponse.ok(null);
+    }
+}

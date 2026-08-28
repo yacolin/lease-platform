@@ -62,6 +62,18 @@
             <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
             <version>${mybatis-plus.version}</version>
         </dependency>
+        <!-- MP 3.5.9+ 分页等依赖 JSqlParser 的插件被拆到独立模块 -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-jsqlparser</artifactId>
+            <version>${mybatis-plus.version}</version>
+        </dependency>
+
+        <!-- JSON 处理（ObjectMapper 序列化规格选项等；SB4 的 webmvc starter 不含 Jackson 自动配置） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-json</artifactId>
+        </dependency>
 
         <!-- Redis（Lettuce 客户端）+ 连接池 -->
         <dependency>

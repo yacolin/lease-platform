@@ -1,0 +1,38 @@
+package com.example.leaseplatform.prd.dto;
+
+import com.fasterxml.jackson.annotation.JsonFormat;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+
+import java.time.LocalDate;
+
+/**
+ * 创建每日菜单项请求。
+ */
+@Data
+public class MenuCreateReq {
+
+    @NotNull(message = "菜单日期不能为空")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate menuDate;
+
+    @NotNull(message = "套餐商品ID不能为空")
+    private Long productId;
+
+    @NotBlank(message = "菜品名称不能为空")
+    @Size(max = 50, message = "菜品名称最多 50 个字符")
+    private String dishName;
+
+    @NotNull(message = "菜品类型不能为空")
+    @Min(value = 1, message = "菜品类型只能是 1-荤菜, 2-素菜, 3-汤, 4-饭")
+    @Max(value = 4, message = "菜品类型只能是 1-荤菜, 2-素菜, 3-汤, 4-饭")
+    private Integer dishType;
+
+    private Integer sortOrder = 0;
+
+    private Integer isAvailable = 1;
+}
