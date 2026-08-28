@@ -52,8 +52,9 @@ public class GlobalExceptionHandler {
                         v.getPropertyPath() == null ? "" : v.getPropertyPath().toString(),
                         v.getMessage()))
                 .toList();
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(ApiResponse.error(ErrorCode.INVALID_PARAMS, "参数校验失败"));
+        ApiResponse<List<FieldErrorVO>> body = ApiResponse.error(ErrorCode.INVALID_PARAMS, "参数校验失败");
+        body.setData(errors);
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
     }
 
     @ExceptionHandler(Exception.class)
@@ -67,7 +68,8 @@ public class GlobalExceptionHandler {
         List<FieldErrorVO> details = fieldErrors.stream()
                 .map(fe -> new FieldErrorVO(fe.getField(), fe.getDefaultMessage()))
                 .toList();
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(ApiResponse.error(ErrorCode.INVALID_PARAMS, "参数校验失败"));
+        ApiResponse<List<FieldErrorVO>> body = ApiResponse.error(ErrorCode.INVALID_PARAMS, "参数校验失败");
+        body.setData(details);
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
     }
 }
