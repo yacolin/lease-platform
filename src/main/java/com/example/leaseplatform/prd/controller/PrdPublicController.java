@@ -20,11 +20,11 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * 小程序公开接口（/api/v1/wx/**，白名单放行，无需登录）：
- * 商品分类 / 商品浏览 / 每日菜单。
+ * 公开接口（/api/v1/public/**，白名单放行，无需登录）：
+ * 面向任意客户端（小程序 / H5 / App 等）的商品分类 / 商品浏览 / 每日菜单。
  */
 @RestController
-@RequestMapping("/api/v1/wx")
+@RequestMapping("/api/v1/public")
 @RequiredArgsConstructor
 public class PrdPublicController {
 
