@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
+import com.example.leaseplatform.common.TimeUtil;
 import com.example.leaseplatform.prd.dto.MenuCreateReq;
 import com.example.leaseplatform.prd.dto.MenuUpdateReq;
 import com.example.leaseplatform.prd.dto.MenuVO;
@@ -141,8 +142,8 @@ public class PrdDailyMenuService {
         vo.setDishType(entity.getDishType());
         vo.setSortOrder(entity.getSortOrder());
         vo.setIsAvailable(entity.getIsAvailable());
-        vo.setCreatedAt(entity.getCreatedAt());
-        vo.setUpdatedAt(entity.getUpdatedAt());
+        vo.setCreatedAt(TimeUtil.toEpochMillis(entity.getCreatedAt()));
+        vo.setUpdatedAt(TimeUtil.toEpochMillis(entity.getUpdatedAt()));
         return vo;
     }
 }

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
+import com.example.leaseplatform.common.TimeUtil;
 import com.example.leaseplatform.prd.dto.ProductCreateReq;
 import com.example.leaseplatform.prd.dto.ProductStatusReq;
 import com.example.leaseplatform.prd.dto.ProductUpdateReq;
@@ -208,8 +209,8 @@ public class PrdProductService {
         vo.setIsAvailable(entity.getIsAvailable());
         vo.setStock(entity.getStock());
         vo.setSortOrder(entity.getSortOrder());
-        vo.setCreatedAt(entity.getCreatedAt());
-        vo.setUpdatedAt(entity.getUpdatedAt());
+        vo.setCreatedAt(TimeUtil.toEpochMillis(entity.getCreatedAt()));
+        vo.setUpdatedAt(TimeUtil.toEpochMillis(entity.getUpdatedAt()));
         return vo;
     }
 }

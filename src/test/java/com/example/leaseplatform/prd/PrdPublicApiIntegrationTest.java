@@ -46,7 +46,9 @@ class PrdPublicApiIntegrationTest {
                 .andExpect(jsonPath("$.data.total").value(8))
                 .andExpect(jsonPath("$.data.list[0].productName").value("美式"))
                 .andExpect(jsonPath("$.data.list[0].categoryName").value("咖啡"))
-                .andExpect(jsonPath("$.data.list[0].specOptions.cup_size[0]").value("大杯"));
+                .andExpect(jsonPath("$.data.list[0].specOptions.cup_size[0]").value("大杯"))
+                // 时间字段为数字时间戳（epoch 毫秒），非字符串
+                .andExpect(jsonPath("$.data.list[0].createdAt").isNumber());
     }
 
     @Test
@@ -73,7 +75,10 @@ class PrdPublicApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(11))
                 .andExpect(jsonPath("$.data[0].dishName").value("红烧肉"))
-                .andExpect(jsonPath("$.data[0].productName").value("3荤1素套餐"));
+                .andExpect(jsonPath("$.data[0].productName").value("3荤1素套餐"))
+                // 日期字段保持字符串、时间字段为数字时间戳
+                .andExpect(jsonPath("$.data[0].menuDate").value("2026-08-30"))
+                .andExpect(jsonPath("$.data[0].createdAt").isNumber());
     }
 
     @Test

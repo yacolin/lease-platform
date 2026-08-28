@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
+import com.example.leaseplatform.common.TimeUtil;
 import com.example.leaseplatform.prd.dto.CategoryCreateReq;
 import com.example.leaseplatform.prd.dto.CategoryUpdateReq;
 import com.example.leaseplatform.prd.dto.CategoryVO;
@@ -99,8 +100,8 @@ public class PrdCategoryService {
         vo.setCategoryType(entity.getCategoryType());
         vo.setSortOrder(entity.getSortOrder());
         vo.setStatus(entity.getStatus());
-        vo.setCreatedAt(entity.getCreatedAt());
-        vo.setUpdatedAt(entity.getUpdatedAt());
+        vo.setCreatedAt(TimeUtil.toEpochMillis(entity.getCreatedAt()));
+        vo.setUpdatedAt(TimeUtil.toEpochMillis(entity.getUpdatedAt()));
         return vo;
     }
 

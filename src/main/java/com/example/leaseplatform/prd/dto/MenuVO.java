@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 /**
  * 每日菜单视图对象（含套餐名称）。
@@ -14,6 +13,7 @@ public class MenuVO {
 
     private Long id;
 
+    /** 菜单日期（日期非时刻，保持 yyyy-MM-dd，避免时区歧义） */
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate menuDate;
 
@@ -30,9 +30,9 @@ public class MenuVO {
 
     private Integer isAvailable;
 
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime createdAt;
+    /** 创建时间（epoch 毫秒时间戳） */
+    private Long createdAt;
 
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime updatedAt;
+    /** 更新时间（epoch 毫秒时间戳） */
+    private Long updatedAt;
 }
