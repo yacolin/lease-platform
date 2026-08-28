@@ -84,15 +84,27 @@ jwt:
   header: Authorization
   prefix: "Bearer "
 
+# ---------- 接口文档（springdoc-openapi / Swagger UI） ----------
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+
 # ---------- 5. Security（白名单 + CORS） ----------
 lease:
   security:
-    # 无需认证即可访问的路径（登录/注册、公开浏览接口、健康检查）
+    # 无需认证即可访问的路径（登录/注册、公开浏览接口、接口文档、健康检查）
     whitelist:
       - /api/v1/auth/**
       - /api/v1/public/categories/**
       - /api/v1/public/products/**
       - /api/v1/public/menus/**
+      - /v3/api-docs/**
+      - /swagger-ui/**
+      - /swagger-ui.html
       - /error
       - /actuator/health
     cors:
