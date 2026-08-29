@@ -13,7 +13,7 @@ import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 
 /**
- * 全局异常处理（对应 campus_express pkg/middleware/errorhandler + response.BindError）：
+ * 全局异常处理：
  * - 业务异常 BizException：按携带的 HTTP 状态返回 {code, message}
  * - 参数校验失败：422 + 字段级错误明细 {field, message}
  * - 其余异常：500，对外不暴露细节
@@ -22,7 +22,7 @@ import java.util.List;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    /** 字段校验错误明细（对应 campus_express 的 ValidationFieldError） */
+    /** 字段校验错误明细 */
     public record FieldErrorVO(String field, String message) {
     }
 

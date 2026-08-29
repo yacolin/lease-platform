@@ -4,7 +4,7 @@ import lombok.Data;
 
 /**
  * 统一 API 响应格式：{code, message, data}。
- * code=0 表示成功；非 0 见 {@link ErrorCode}。参照 campus_express 的 response 包。
+ * code=0 表示成功；非 0 见 {@link ErrorCode}。
  */
 @Data
 public class ApiResponse<T> {

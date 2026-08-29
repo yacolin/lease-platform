@@ -34,7 +34,7 @@ import java.time.LocalDate;
 
 /**
  * 商家后台商品管理接口（/api/v1/**，需登录；JWT 认证接入后生效）：
- * 分类 / 商品 / 每日菜单的完整 CRUD。对应 campus_express 管理端分组。
+ * 分类 / 商品 / 每日菜单的完整 CRUD。
  */
 @Tag(name = "商品管理（管理端）", description = "需登录，JWT 认证接入后生效")
 @RestController
@@ -117,7 +117,7 @@ public class PrdAdminController {
         return ApiResponse.ok(productService.update(id, req));
     }
 
-    /** 上下架（对应 campus_express 的 PUT /users/{id}/status 状态推进风格） */
+    /** 上下架（状态推进风格） */
     @Operation(summary = "商品上下架")
     @PutMapping("/products/{id}/status")
     public ApiResponse<ProductVO> updateProductStatus(@PathVariable Long id,

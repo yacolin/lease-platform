@@ -1,7 +1,7 @@
 package com.example.leaseplatform.common;
 
 /**
- * 业务错误码（对应 campus_express pkg/errcode）。
+ * 业务错误码。
  * HTTP 状态码与业务码解耦：同一语义错误（如参数错误）用固定业务码，
  * HTTP 状态由 GlobalExceptionHandler 按异常类型映射。
  */
