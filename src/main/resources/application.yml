@@ -76,8 +76,10 @@ wechat:
   # 小程序 AppID / AppSecret（开发期留空，用 mock openid 登录；生产用环境变量覆盖）
   appid: ""
   secret: ""
-  # 开发 mock：true 时 code2session 直接返回 mock openid（wx_{code}），无需真实微信环境
+  # 开发 mock：true 时跳过 code2session 真实调用，固定复用 mock-openid
+  # （wx.login() 的 code 是一次性随机值，不能拿它拼 openid，否则每次登录都会注册新用户）
   mock-enabled: true
+  mock-openid: "mock_dev_user"
 
 # ---------- 5. JWT ----------
 jwt:
@@ -114,6 +116,12 @@ lease:
       - /swagger-ui.html
       - /error
       - /actuator/health
+    # 管理端路径：仅后台管理员（/api/v1/auth/login 登录，user_type=1）可访问，
+    # 新增管理端接口（企业审核/订单管理/会议室管理等）时按路径补入
+    admin-paths:
+      - /api/v1/products/**
+      - /api/v1/categories/**
+      - /api/v1/menus/**
     cors:
       # 开发期放开；生产改为小程序/后台实际域名列表
       allowed-origins:

@@ -38,12 +38,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * 商家后台管理接口 Web 层测试。
- * 管理端路径不在白名单内，通过 @WithMockUser 走真实 Security 链（authenticated）。
+ * 管理端路径不在白名单内且要求 ROLE_ADMIN（user_type=1），
+ * 通过 @WithMockUser(roles = "ADMIN") 走真实 Security 链。
  */
 @WebMvcTest(PrdAdminController.class)
 @Import(SecurityConfig.class)
 @EnableConfigurationProperties(SecurityProperties.class)
-@WithMockUser
+@WithMockUser(roles = "ADMIN")
 class PrdAdminControllerTest {
 
     @Autowired

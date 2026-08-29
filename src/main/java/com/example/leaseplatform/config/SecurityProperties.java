@@ -19,6 +19,9 @@ public class SecurityProperties {
     /** 无需认证即可访问的路径（Ant 风格，支持 /** 通配） */
     private List<String> whitelist = new ArrayList<>();
 
+    /** 管理端路径：仅后台管理员（user_type=1，/api/v1/auth/login 登录）可访问（Ant 风格） */
+    private List<String> adminPaths = new ArrayList<>();
+
     /** CORS 跨域配置 */
     private Cors cors = new Cors();
 

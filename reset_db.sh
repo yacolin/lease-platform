@@ -47,6 +47,7 @@ DROP TABLE IF EXISTS usr_enterprise_members;       -- 用户域，依赖 usr_ent
 DROP TABLE IF EXISTS usr_member_levels;            -- 用户域，无依赖
 DROP TABLE IF EXISTS usr_enterprises;              -- 用户域，无依赖
 DROP TABLE IF EXISTS usr_users;                    -- 用户域
+DROP TABLE IF EXISTS usr_admins;                   -- 用户域，后台管理员（无依赖）
 SET FOREIGN_KEY_CHECKS = 1;
 SQL
 

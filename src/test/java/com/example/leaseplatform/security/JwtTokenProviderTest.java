@@ -50,13 +50,14 @@ class JwtTokenProviderTest {
     }
 
     @Test
-    void refreshToken_roundtrip_shouldCarryJti() {
-        String token = provider.createRefreshToken(42L);
+    void refreshToken_roundtrip_shouldCarryJtiAndUserType() {
+        String token = provider.createRefreshToken(42L, 1);
 
         Claims claims = provider.parse(token);
         assertThat(claims.getSubject()).isEqualTo("42");
         assertThat(claims.get(JwtTokenProvider.CLAIM_TOKEN_TYPE, String.class))
                 .isEqualTo(JwtTokenProvider.TYPE_REFRESH);
+        assertThat(claims.get(JwtTokenProvider.CLAIM_USER_TYPE, Integer.class)).isEqualTo(1);
         assertThat(claims.getId()).isNotBlank();
     }
 

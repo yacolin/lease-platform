@@ -8,12 +8,13 @@
 -- 约定：主键 BIGINT UNSIGNED AUTO_INCREMENT；金额 DECIMAL(10,2)（元）；
 -- 逻辑删除 is_deleted（默认 0）；创建/更新时间 created_at / updated_at。
 
--- 反向依赖顺序删除（usr_member_purchases → usr_enterprise_members → usr_member_levels / usr_enterprises → usr_users）
+-- 反向依赖顺序删除（usr_member_purchases → usr_enterprise_members → usr_member_levels / usr_enterprises → usr_users → usr_admins）
 DROP TABLE IF EXISTS `usr_member_purchases`;
 DROP TABLE IF EXISTS `usr_enterprise_members`;
 DROP TABLE IF EXISTS `usr_member_levels`;
 DROP TABLE IF EXISTS `usr_enterprises`;
 DROP TABLE IF EXISTS `usr_users`;
+DROP TABLE IF EXISTS `usr_admins`;
 
 -- 用户表：所有用户（超级管理员 / 企业员工 / 路人用户）
 CREATE TABLE `usr_users` (
@@ -131,3 +132,23 @@ INSERT INTO `usr_member_levels`
   ('BASIC', '基础版', 0.00, 0.95, 0, 0, 0, 80.00, '老板本人9折/95折'),
   ('VIP',   'VIP版',   5000.00, 0.90, 4, 2, 1, 80.00, '全公司员工8折/9折'),
   ('SVIP',  'SVIP版',  12000.00, 0.85, 8, 1, 2, 80.00, '全公司员工7折/85折');
+
+-- 后台管理员表：管理端登录（/api/v1/auth/login，username + password），
+-- 与小程序用户（usr_users，/api/v1/auth/wx-login）天然隔离
+CREATE TABLE `usr_admins` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '管理员ID',
+  `username` VARCHAR(32) NOT NULL COMMENT '登录用户名',
+  `password_hash` VARCHAR(255) NOT NULL COMMENT '密码 bcrypt 哈希',
+  `name` VARCHAR(64) NOT NULL COMMENT '姓名',
+  `role` TINYINT NOT NULL DEFAULT 2 COMMENT '角色：1-超级管理员, 2-运营管理员',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0-禁用, 1-启用',
+  `last_login_at` DATETIME DEFAULT NULL COMMENT '最后登录时间',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='后台管理员表';
+
+-- 种子数据：初始超级管理员（密码 123456，bcrypt）
+INSERT INTO `usr_admins` (`username`, `password_hash`, `name`, `role`, `status`) VALUES
+  ('admin', '$2a$10$ZUXdPnydoz4kKJQYT7aRw.rT9dhuPOgr6GySeCmwolTGl1r1LvdMO', '超级管理员', 1, 1);

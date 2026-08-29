@@ -10,8 +10,9 @@ import java.util.Map;
 
 /**
  * 微信登录服务：code2session。
- * - 开发 mock（wechat.mock-enabled=true）：按 code 确定性生成 mock openid（wx_{code}），
- *   无需真实微信环境，前后端可直接联调；
+ * - 开发 mock（wechat.mock-enabled=true）：固定复用 wechat.mock-openid（默认 mock_dev_user），
+ *   无需真实微信环境，前后端可直接联调；注意 wx.login() 的 code 是一次性随机值、
+ *   每次调用都不同，不能拿它拼 openid（否则每次登录都会注册新用户）；
  * - 生产：调用微信 jscode2session 换取 openid / unionid。
  */
 @Service
@@ -29,7 +30,7 @@ public class WechatService {
 
     public WechatSession code2session(String code) {
         if (properties.isMockEnabled()) {
-            return new WechatSession("wx_" + code, null);
+            return new WechatSession(properties.getMockOpenid(), null);
         }
         Map<?, ?> resp = restClient.get()
                 .uri(uriBuilder -> uriBuilder

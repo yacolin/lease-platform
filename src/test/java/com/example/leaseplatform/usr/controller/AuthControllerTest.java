@@ -23,6 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * 认证接口 Web 层测试（/api/v1/auth/** 在白名单内，无需认证）。
+ * 双登录：/login 后台管理员（username+password）、/wx-login 微信小程序（code）。
  */
 @WebMvcTest(AuthController.class)
 @Import(SecurityConfig.class)
@@ -42,12 +43,12 @@ class AuthControllerTest {
     }
 
     @Test
-    void login_shouldReturnTokenVO() throws Exception {
-        when(authService.login("abc")).thenReturn(tokenVO());
+    void adminLogin_shouldReturnTokenVO() throws Exception {
+        when(authService.adminLogin("admin", "123456")).thenReturn(tokenVO());
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"code\":\"abc\"}"))
+                        .content("{\"username\":\"admin\",\"password\":\"123456\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.accessToken").value("at"))
@@ -57,8 +58,28 @@ class AuthControllerTest {
     }
 
     @Test
-    void login_missingCode_shouldReturn422() throws Exception {
+    void adminLogin_missingFields_shouldReturn422() throws Exception {
         mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"admin\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value(40000));
+    }
+
+    @Test
+    void wxLogin_shouldReturnTokenVO() throws Exception {
+        when(authService.wxLogin("abc")).thenReturn(tokenVO());
+
+        mockMvc.perform(post("/api/v1/auth/wx-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"abc\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accessToken").value("at"));
+    }
+
+    @Test
+    void wxLogin_missingCode_shouldReturn422() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/wx-login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isUnprocessableEntity())

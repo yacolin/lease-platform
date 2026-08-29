@@ -52,13 +52,16 @@ public class JwtTokenProvider {
                 .compact();
     }
 
-    /** 签发 refresh token（过期时间见 jwt.refresh-token-expire-seconds） */
-    public String createRefreshToken(Long userId) {
+    /** 签发 refresh token（过期时间见 jwt.refresh-token-expire-seconds）。
+     *  携带 userType：usr_admins 与 usr_users 自增 id 各自从 1 开始，刷新时必须按
+     *  (userType, userId) 复合身份定位会话。 */
+    public String createRefreshToken(Long userId, Integer userType) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .id(UUID.randomUUID().toString())
                 .claim(CLAIM_TOKEN_TYPE, TYPE_REFRESH)
+                .claim(CLAIM_USER_TYPE, userType == null ? 3 : userType)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(properties.getRefreshTokenExpireSeconds())))
                 .signWith(key())

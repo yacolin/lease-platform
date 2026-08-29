@@ -19,6 +19,10 @@ public class WechatProperties {
     /** 小程序 AppSecret */
     private String secret;
 
-    /** 开发 mock：true 时跳过 code2session 真实调用，按 code 生成确定性 openid */
+    /** 开发 mock：true 时跳过 code2session 真实调用，固定复用 {@link #mockOpenid} */
     private boolean mockEnabled = true;
+
+    /** 开发模式固定 openid（未配置微信时使用；wx.login() 的 code 一次性随机，
+     *  不能拿它拼 openid，否则每次登录都会注册新用户） */
+    private String mockOpenid = "mock_dev_user";
 }
