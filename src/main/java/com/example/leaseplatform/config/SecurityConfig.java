@@ -1,5 +1,7 @@
 package com.example.leaseplatform.config;
 
+import com.example.leaseplatform.security.JwtAuthenticationFilter;
+import com.example.leaseplatform.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,16 +12,18 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
- * Spring Security 配置骨架：
+ * Spring Security 配置：
  * - 白名单路径放行（lease.security.whitelist，如登录/注册、商品/菜单/会议室浏览）
+ * - JWT 认证过滤器（Authorization: Bearer → 写入 SecurityContext，见 security 包）
  * - 全局 CORS（lease.security.cors）
  * - 无状态 API：关闭 CSRF / 表单登录 / httpBasic
- * - 其余请求暂要求认证；JWT 认证过滤器接入后按 token 校验（见 jwt.* 配置）
+ * - 其余请求要求认证；未携带有效 token 时按未认证处理（默认 403）
  */
 @Configuration
 @EnableWebSecurity
@@ -27,6 +31,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     private final SecurityProperties securityProperties;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -34,6 +39,9 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // JWT 认证：解析 Bearer token → 校验签名/过期 → 写入 SecurityContext
+                .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider),
+                        UsernamePasswordAuthenticationFilter.class)
                 .authorizeHttpRequests(auth -> auth
                         // CORS 预检请求直接放行
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()

@@ -13,6 +13,9 @@ public final class ErrorCode {
     /** 参数错误（含校验失败，HTTP 422） */
     public static final int INVALID_PARAMS = 40000;
 
+    /** 未登录 / 令牌无效或过期（HTTP 401） */
+    public static final int UNAUTHORIZED = 40100;
+
     /** 资源不存在（HTTP 404） */
     public static final int NOT_FOUND = 40400;
 

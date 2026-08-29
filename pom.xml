@@ -93,7 +93,7 @@
             <artifactId>commons-pool2</artifactId>
         </dependency>
 
-        <!-- JWT（jjwt，HS256 签名） -->
+        <!-- JWT（jjwt，HMAC-SHA 签名：HS256/HS384/HS512） -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>

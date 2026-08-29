@@ -1,0 +1,48 @@
+package com.example.leaseplatform.usr.controller;
+
+import com.example.leaseplatform.common.ApiResponse;
+import com.example.leaseplatform.usr.dto.LoginReq;
+import com.example.leaseplatform.usr.dto.LogoutReq;
+import com.example.leaseplatform.usr.dto.RefreshReq;
+import com.example.leaseplatform.usr.dto.TokenVO;
+import com.example.leaseplatform.usr.service.AuthService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * 认证接口（/api/v1/auth/**，白名单放行）：
+ * 微信登录、令牌刷新、登出。
+ */
+@Tag(name = "认证", description = "微信登录 / 令牌刷新 / 登出（白名单，无需认证）")
+@RestController
+@RequestMapping("/api/v1/auth")
+@RequiredArgsConstructor
+public class AuthController {
+
+    private final AuthService authService;
+
+    @Operation(summary = "微信登录（code2session）")
+    @PostMapping("/login")
+    public ApiResponse<TokenVO> login(@Valid @RequestBody LoginReq req) {
+        return ApiResponse.ok(authService.login(req.getCode()));
+    }
+
+    @Operation(summary = "刷新令牌（access + refresh 轮换）")
+    @PostMapping("/refresh")
+    public ApiResponse<TokenVO> refresh(@Valid @RequestBody RefreshReq req) {
+        return ApiResponse.ok(authService.refresh(req.getRefreshToken()));
+    }
+
+    @Operation(summary = "登出（作废刷新令牌）")
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(@RequestBody(required = false) LogoutReq req) {
+        authService.logout(req == null ? null : req.getRefreshToken());
+        return ApiResponse.ok(null);
+    }
+}

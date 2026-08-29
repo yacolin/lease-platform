@@ -26,6 +26,11 @@ public class BizException extends RuntimeException {
         return new BizException(ErrorCode.NOT_FOUND, message, HttpStatus.NOT_FOUND);
     }
 
+    /** 未登录 / 令牌无效或过期（HTTP 401） */
+    public static BizException unauthorized(String message) {
+        return new BizException(ErrorCode.UNAUTHORIZED, message, HttpStatus.UNAUTHORIZED);
+    }
+
     public static BizException conflict(String message) {
         return new BizException(ErrorCode.CONFLICT, message, HttpStatus.CONFLICT);
     }

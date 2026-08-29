@@ -1,6 +1,6 @@
 # ============================================================================
 # lease-platform 关键配置
-# 五类关键配置项：数据源 / Redis / MyBatis-Plus / JWT / Security（白名单 + CORS）
+# 六类关键配置项：数据源 / Redis / MyBatis-Plus / 微信登录 / JWT / Security（白名单 + CORS）
 # 开发默认值与本机（reset_db.sh 同款参数）一致；生产环境请用环境变量或 profile
 # 覆盖敏感项（数据库密码、Redis 密码、JWT 密钥）。
 # ============================================================================
@@ -55,7 +55,7 @@ server:
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
   # 实体别名包（按域追加，如 com.example.leaseplatform.usr.entity）
-  type-aliases-package: com.example.leaseplatform.prd.entity
+  type-aliases-package: com.example.leaseplatform.prd.entity,com.example.leaseplatform.usr.entity
   configuration:
     # 驼峰命名映射：数据库下划线字段 <-> 实体驼峰属性（如 is_deleted <-> isDeleted）
     map-underscore-to-camel-case: true
@@ -71,10 +71,17 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 
-# ---------- 4. JWT ----------
+# ---------- 4. 微信登录 ----------
+wechat:
+  # 小程序 AppID / AppSecret（开发期留空，用 mock openid 登录；生产用环境变量覆盖）
+  appid: ""
+  secret: ""
+  # 开发 mock：true 时 code2session 直接返回 mock openid（wx_{code}），无需真实微信环境
+  mock-enabled: true
+
+# ---------- 5. JWT ----------
 jwt:
-  # 签名密钥：Base64 编码，HS256 要求 >= 256 bit（下值为 384 bit 随机生成）
-  # 生产环境务必通过环境变量 JWT_SECRET 覆盖
+  # 签名密钥：Base64 编码（64 字符 = 384 bit，HS384；生产环境务必通过环境变量 JWT_SECRET 覆盖）
   secret: "Iyh/J3RcrpgUbprqYJmbNC6YV5DXAV9q9AUsKuXn7HQ82fNXFakPWoCYWdZuDEbs"
   # Access Token 过期时间（秒）：2 小时
   access-token-expire-seconds: 7200
@@ -93,7 +100,7 @@ springdoc:
     tags-sorter: alpha
     operations-sorter: alpha
 
-# ---------- 5. Security（白名单 + CORS） ----------
+# ---------- 6. Security（白名单 + CORS） ----------
 lease:
   security:
     # 无需认证即可访问的路径（登录/注册、公开浏览接口、接口文档、健康检查）

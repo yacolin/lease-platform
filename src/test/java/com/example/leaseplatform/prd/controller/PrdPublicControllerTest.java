@@ -9,6 +9,7 @@ import com.example.leaseplatform.prd.dto.ProductVO;
 import com.example.leaseplatform.prd.service.PrdCategoryService;
 import com.example.leaseplatform.prd.service.PrdDailyMenuService;
 import com.example.leaseplatform.prd.service.PrdProductService;
+import com.example.leaseplatform.security.JwtTokenProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -45,6 +46,9 @@ class PrdPublicControllerTest {
     private PrdProductService productService;
     @MockitoBean
     private PrdDailyMenuService menuService;
+    /** SecurityConfig 装配 JWT 过滤器需要；公开接口走白名单，过滤器不参与认证 */
+    @MockitoBean
+    private JwtTokenProvider jwtTokenProvider;
 
     private CategoryVO categoryVO() {
         CategoryVO vo = new CategoryVO();
