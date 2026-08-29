@@ -22,8 +22,11 @@ public class OpenApiConfig {
                         .title("租赁平台 API")
                         .description("""
                                 租赁小程序平台 1.0 接口文档。
-                                - /api/v1/public/**：公开浏览接口，无需认证
-                                - /api/v1/**：商家后台管理接口，需 Bearer Token（JWT 接入后生效）""")
+                                接口按端分组（springdoc group-configs，各端独立 JSON，便于生成前端请求文件）：
+                                - 管理端（/v3/api-docs/admin）：管理员登录 + 分类/商品/菜单等后台接口
+                                - 公开/小程序端（/v3/api-docs/public）：公开浏览 + 微信登录/刷新/登出 + 我的资料
+                                - 全部（/v3/api-docs，Swagger UI 顶部按端切换）
+                                认证方式：请求头 Authorization: Bearer <accessToken>""")
                         .version("1.0.0"))
                 .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
                 .components(new Components().addSecuritySchemes("bearerAuth",

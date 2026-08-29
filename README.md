@@ -62,6 +62,31 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 ## 接口一览
 
 统一响应：`{code, message, data}`（code=0 成功）；分页：`data: {total, list}`；时间字段为 epoch 毫秒数字。
+认证方式：请求头 `Authorization: Bearer <accessToken>`；未携带/无效 token 访问受保护接口返回 403。
+
+接口按端分组（springdoc group-configs，见「接口分组与前端请求文件生成」）：
+**管理端**（admin token）与 **公开/小程序端**（公开浏览 + 登录用户）。
+
+### 管理端（`/api/v1/**`，仅 `user_type=1` 管理员 token 可访问，路径见 `lease.security.admin-paths`）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/v1/auth/login` | 后台管理员登录 `{username, password}`（bcrypt 校验 usr_admins；种子 admin/123456；签发 user_type=1 的 token） |
+| POST | `/api/v1/auth/logout` | 登出 `{refreshToken}`（作废 Redis 会话，管理端/小程序共用） |
+| POST | `/api/v1/categories` | 创建分类 |
+| GET | `/api/v1/categories` | 分类分页列表 |
+| GET/PUT/DELETE | `/api/v1/categories/{id}` | 分类详情 / 更新 / 删除 |
+| POST | `/api/v1/products` | 创建商品 |
+| GET | `/api/v1/products` | 商品分页列表（分类/类型/上下架/关键词筛选） |
+| GET/PUT/DELETE | `/api/v1/products/{id}` | 商品详情 / 更新 / 删除 |
+| PUT | `/api/v1/products/{id}/status` | 商品上下架 |
+| POST | `/api/v1/menus` | 创建菜单项 |
+| GET | `/api/v1/menus` | 菜单分页列表 |
+| GET/PUT/DELETE | `/api/v1/menus/{id}` | 菜单项详情 / 更新 / 删除 |
+
+> 小程序用户（user_type=2/3）访问管理端接口返回 403（类型隔离）。
+
+### 公开/小程序端
 
 **公开浏览（`/api/v1/public/**`，白名单放行，无需登录）**
 
@@ -72,20 +97,35 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 | GET | `/api/v1/public/products/{id}` | 商品详情（下架视为 404） |
 | GET | `/api/v1/public/menus?date=` | 每日菜单（缺省今天，含套餐名） |
 
-**认证与我的（`/api/v1/auth/**` 白名单放行；`/api/v1/me` 需登录）** —— 双登录设计：
+**认证（`/api/v1/auth/**`，白名单放行）**
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/v1/auth/login` | **后台管理员登录** `{username, password}`（bcrypt 校验 usr_admins；种子 admin/123456；签发 user_type=1 的 token） |
-| POST | `/api/v1/auth/wx-login` | **微信小程序登录** `{code}`（开发 mock 固定复用 `mock_dev_user`，不会每次建新用户；签发 user_type=2/3 的 token） |
+| POST | `/api/v1/auth/wx-login` | 微信小程序登录 `{code}`（开发 mock 固定复用 `mock_dev_user`；签发 user_type=2/3 的 token） |
 | POST | `/api/v1/auth/refresh` | 刷新令牌 `{refreshToken}`（轮换，旧 refresh 作废） |
 | POST | `/api/v1/auth/logout` | 登出 `{refreshToken}`（作废 Redis 会话） |
-| GET | `/api/v1/me` | 我的资料（微信用户：昵称/头像/手机号 + 余额 + 会员等级） |
+
+**我的（`/api/v1/me`，需登录）**
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/me` | 我的资料（昵称/头像/手机号 + 余额 + 会员等级） |
 | PUT | `/api/v1/me` | 更新资料（昵称/头像/手机号） |
 
-认证方式：请求头 `Authorization: Bearer <accessToken>`；未携带/无效 token 访问受保护接口返回 403。
+### 接口分组与前端请求文件生成
 
-**管理端接口（`/api/v1/**`，仅 `user_type=1` 管理员 token 可访问，路径见 `lease.security.admin-paths`）**：分类/商品/菜单的完整 CRUD（`POST`/`GET` 分页/`GET {id}`/`PUT {id}`/`DELETE {id}`），另含 `PUT /api/v1/products/{id}/status` 商品上下架。小程序用户（user_type=2/3）访问管理端接口返回 403（类型隔离）。
+springdoc 按端输出独立 OpenAPI JSON（`/v3/api-docs/{group}`，Security 白名单已放行）：
+
+| 组 | 覆盖接口 | OpenAPI JSON | 前端产物 |
+|---|---|---|---|
+| `admin` | 管理员登录/登出 + 分类/商品/菜单管理 | `/v3/api-docs/admin` | 管理后台请求文件（如 `api/admin/*.js`） |
+| `public` | 公开浏览 + 微信登录/刷新/登出 + 我的 | `/v3/api-docs/public` | 小程序请求文件（如 `api/miniprogram/*.js`） |
+| 全部 | 所有接口 | `/v3/api-docs` | Swagger UI 顶部按端切换 |
+
+生成方式：按组拉取 JSON 后按模块拆分为 `api/*.js`，每个文件顶部注明后端契约路径
+（如 `// 后端契约：POST /api/v1/auth/wx-login`），配合统一请求封装 `utils/request.js`
+（BASE_URL + token 注入 + 401 自动重新登录 + 统一响应解包）。示例可参照小程序端
+既有工程的 `utils/request.js + api/auth.js + api/order.js` 组织方式。
 
 ## 数据库设计（1.0）
 
