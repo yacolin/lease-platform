@@ -19,7 +19,8 @@ import java.time.LocalDateTime;
 @TableName("usr_users")
 public class UsrUser {
 
-    @TableId(type = IdType.AUTO)
+    /** 雪花 ID（用户表是系统根节点，被订单/交易/会议室等所有业务表关联，见 db/README.md 主键 ID 策略） */
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** 微信 OpenID（唯一） */

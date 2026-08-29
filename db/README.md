@@ -6,20 +6,54 @@
 
 | 文件 | 业务域 | 表 |
 |---|---|---|
-| `01_usr.sql` | 用户域 `usr_` | usr_users, usr_enterprises, usr_member_levels, usr_enterprise_members, usr_member_purchases |
+| `01_usr.sql` | 用户域 `usr_` | usr_users, usr_admins, usr_enterprises, usr_member_levels, usr_enterprise_members, usr_member_purchases |
 | `02_prd.sql` | 商品域 `prd_` | prd_categories, prd_products, prd_daily_menus |
 | `03_ord.sql` | 订单域 `ord_` | ord_orders, ord_order_items, ord_meal_reservations, ord_meal_reservation_items |
 | `04_mtg.sql` | 会议室域 `mtg_` | mtg_rooms, mtg_reservations |
 | `05_trd.sql` | 交易域 `trd_` | trd_recharge_tiers, trd_recharge_records, trd_balance_transactions |
 | `06_sys.sql` | 系统域 `sys_` | sys_notifications, sys_operation_logs |
 
-> 说明：表结构遵照 1.0 版本共享对话的 MySQL 设计（19 张表，覆盖用户体系 /
+> 说明：表结构遵照 1.0 版本共享对话的 MySQL 设计（20 张表，覆盖用户体系 /
 > 充值系统 / 折扣系统 / 咖啡点单 / 正餐预订 / 会议室预约 / 商家后台），仅表名按域
-> 加了前缀。主键 `BIGINT UNSIGNED AUTO_INCREMENT`，金额 `DECIMAL(10,2)`（元），
+> 加了前缀。主键 `BIGINT UNSIGNED AUTO_INCREMENT`（DDL 保留自增属性，实际 ID 生成
+> 策略由 MyBatis-Plus 按表控制，见下「主键 ID 策略」），金额 `DECIMAL(10,2)`（元），
 > 编号字段建唯一索引，外键字段建普通索引，业务表含 `created_at, updated_at`
 > （纯流水表如 `trd_balance_transactions` / `ord_order_items` 只保留 `created_at`）。
-> 种子数据共五处：`01_usr.sql` 底部（会员等级）、`02_prd.sql` 底部（商品分类 /
+> 种子数据共六处：`01_usr.sql` 底部（会员等级、后台管理员）、`02_prd.sql` 底部（商品分类 /
 > 商品 / 每日菜单）、`04_mtg.sql` 底部（会议室）、`05_trd.sql` 底部（充值档位）。
+
+## 主键 ID 策略（2.0 共享对话决策 + usr_admins）
+
+参照共享对话的 ID 方案（核心/资金/流水表用雪花，配置/枚举/字典表用自增），
+对 20 张表统一决策如下。**实体类用 `@TableId` 显式声明，DDL 已同步落地**：
+雪花表去掉 `AUTO_INCREMENT`（避免 DB 误生成小 ID 混入雪花空间），全量重建见
+`db/0*.sql`，增量迁移见 `db/migrations/003_snowflake_ids.sql`：
+
+| 策略 | 表 | 说明 |
+|---|---|---|
+| ✅ 雪花 `IdType.ASSIGN_ID` | usr_users | 根节点，被订单/交易/会议室/会员购买关联，最高优先级 |
+| ✅ 雪花 | usr_enterprises | 企业主体，被用户/订单关联 |
+| ✅ 雪花 | usr_enterprise_members | 关系表，存雪花 user_id/enterprise_id，统一类型 |
+| ✅ 雪花 | usr_member_purchases | 购买记录，数据积累 |
+| ✅ 雪花 | prd_products | 商品主表，被订单明细关联 |
+| ✅ 雪花 | prd_daily_menus | 每日菜单按天生成，持续积累 |
+| ✅ 雪花 | ord_orders | 数据量最大，未来必然分表 |
+| ✅ 雪花 | ord_order_items | 订单子表 |
+| ✅ 雪花 | ord_meal_reservations | 订餐预订，持续增长 |
+| ✅ 雪花 | ord_meal_reservation_items | 订餐子项 |
+| ✅ 雪花 | mtg_reservations | 预订记录，数据量可能不小 |
+| ✅ 雪花 | trd_recharge_records | 资金流水，绝对不可重复 |
+| ✅ 雪花 | trd_balance_transactions | 余额流水，资金相关 |
+| ✅ 雪花 | sys_operation_logs | 海量日志，为按 ID 分表留后路 |
+| ❌ 自增 `IdType.AUTO` | usr_member_levels | 会员等级配置，就几条 |
+| ❌ 自增 | prd_categories | 分类配置，数据量小且稳定 |
+| ❌ 自增 | mtg_rooms | 会议室配置 |
+| ❌ 自增 | trd_recharge_tiers | 充值档位配置 |
+| ❌ 自增 | sys_notifications | 通知模板/站内信，量小 |
+| ❌ 自增 | **usr_admins** | **新增（管理端登录配套）：管理员账号量级极小、不被业务表外键关联（ID 仅出现在 JWT/会话），归账号配置类 → 自增** |
+
+> 新增业务表默认雪花（全局 `mybatis-plus.global-config.db-config.id-type: assign_id`），
+> 配置/枚举/账号类表显式 `@TableId(type = IdType.AUTO)`。
 
 ## 执行方式
 

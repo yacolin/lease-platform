@@ -5,7 +5,8 @@
 --
 -- 表结构遵照 1.0 版本共享对话的 MySQL 设计（数据库 lease_db）；
 -- 表名按 beauty_salon 约定加域前缀 `usr_`；跨域关系由服务层保证，本库暂不加外键约束。
--- 约定：主键 BIGINT UNSIGNED AUTO_INCREMENT；金额 DECIMAL(10,2)（元）；
+-- 约定：业务表主键 BIGINT UNSIGNED（雪花，无自增；配置/账号类表如 usr_member_levels /
+-- usr_admins 自增，见 db/README.md 主键 ID 策略）；金额 DECIMAL(10,2)（元）；
 -- 逻辑删除 is_deleted（默认 0）；创建/更新时间 created_at / updated_at。
 
 -- 反向依赖顺序删除（usr_member_purchases → usr_enterprise_members → usr_member_levels / usr_enterprises → usr_users → usr_admins）
@@ -18,7 +19,7 @@ DROP TABLE IF EXISTS `usr_admins`;
 
 -- 用户表：所有用户（超级管理员 / 企业员工 / 路人用户）
 CREATE TABLE `usr_users` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '用户ID',
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID（雪花）',
   `openid` VARCHAR(64) NOT NULL COMMENT '微信OpenID',
   `unionid` VARCHAR(64) DEFAULT NULL COMMENT '微信UnionID',
   `nickname` VARCHAR(50) DEFAULT NULL COMMENT '昵称',
@@ -43,7 +44,7 @@ CREATE TABLE `usr_users` (
 
 -- 企业表：企业实名认证信息
 CREATE TABLE `usr_enterprises` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '企业ID',
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '企业ID（雪花）',
   `enterprise_name` VARCHAR(100) NOT NULL COMMENT '企业名称',
   `unified_social_credit_code` VARCHAR(50) NOT NULL COMMENT '统一社会信用代码',
   `business_license_url` VARCHAR(255) NOT NULL COMMENT '营业执照图片URL',
@@ -88,7 +89,7 @@ CREATE TABLE `usr_member_levels` (
 
 -- 企业员工表：记录企业与其员工的关联关系
 CREATE TABLE `usr_enterprise_members` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '记录ID',
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '记录ID（雪花）',
   `enterprise_id` BIGINT UNSIGNED NOT NULL COMMENT '企业ID',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
   `role` TINYINT NOT NULL DEFAULT 0 COMMENT '角色：0-普通员工, 1-企业管理员',
@@ -105,7 +106,7 @@ CREATE TABLE `usr_enterprise_members` (
 
 -- 会员购买记录表：记录企业购买会员服务包的记录
 CREATE TABLE `usr_member_purchases` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '购买ID',
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '购买ID（雪花）',
   `purchase_no` VARCHAR(32) NOT NULL COMMENT '购买编号',
   `enterprise_id` BIGINT UNSIGNED NOT NULL COMMENT '企业ID',
   `member_level_id` BIGINT UNSIGNED NOT NULL COMMENT '会员等级ID',

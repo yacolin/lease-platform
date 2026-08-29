@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 @TableName("usr_admins")
 public class UsrAdmin {
 
+    /** 自增 ID（管理员账号量级极小，归账号配置类，见 db/README.md 主键 ID 策略） */
     @TableId(type = IdType.AUTO)
     private Long id;
 

@@ -5,7 +5,8 @@
 --
 -- 表结构遵照 1.0 版本共享对话的 MySQL 设计（数据库 lease_db）；
 -- 表名按 beauty_salon 约定加域前缀 `prd_`；跨域关系由服务层保证，本库暂不加外键约束。
--- 约定：主键 BIGINT UNSIGNED AUTO_INCREMENT；金额 DECIMAL(10,2)（元）；
+-- 约定：业务表主键 BIGINT UNSIGNED（雪花，无自增；分类配置 prd_categories 自增，
+-- 见 db/README.md 主键 ID 策略）；金额 DECIMAL(10,2)（元）；
 -- 规格等结构化信息用 JSON 存储（spec_options / dish_details）。
 
 -- 反向依赖顺序删除（prd_daily_menus → prd_products → prd_categories）
@@ -28,8 +29,9 @@ CREATE TABLE `prd_categories` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品分类表';
 
 -- 商品表：咖啡和正餐的商品信息（规格用 JSON 存储）
+-- 雪花 ID（业务主表，见 db/README.md 主键 ID 策略；种子显式指定 id）
 CREATE TABLE `prd_products` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '商品ID',
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '商品ID（雪花）',
   `category_id` BIGINT UNSIGNED NOT NULL COMMENT '分类ID',
   `product_name` VARCHAR(100) NOT NULL COMMENT '商品名称',
   `product_type` TINYINT NOT NULL COMMENT '商品类型：1-咖啡, 2-正餐, 3-加饭/加菜, 4-加汤',
@@ -49,8 +51,9 @@ CREATE TABLE `prd_products` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品表';
 
 -- 每日菜单表：正餐每日菜单（每天的荤/素菜品明细）
+-- 雪花 ID（按天自动生成、数据持续积累，见 db/README.md 主键 ID 策略；种子显式指定 id）
 CREATE TABLE `prd_daily_menus` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '菜单ID',
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '菜单ID（雪花）',
   `menu_date` DATE NOT NULL COMMENT '菜单日期',
   `product_id` BIGINT UNSIGNED NOT NULL COMMENT '关联套餐商品ID',
   `dish_name` VARCHAR(50) NOT NULL COMMENT '菜品名称',
@@ -84,19 +87,19 @@ INSERT INTO `prd_products` (`id`, `category_id`, `product_name`, `product_type`,
   (7, 3, '加菜', 3, 5.00, '额外加一份菜品', NULL),
   (8, 4, '加汤', 4, 8.00, '额外加一份汤', NULL);
 
--- 3. 每日菜单示例（2026-08-30；product_id 对应上方套餐/加汤商品）
-INSERT INTO `prd_daily_menus` (`menu_date`, `product_id`, `dish_name`, `dish_type`, `sort_order`) VALUES
+-- 3. 每日菜单示例（2026-08-30；product_id 对应上方套餐/加汤商品；id 显式指定，雪花表无自增）
+INSERT INTO `prd_daily_menus` (`id`, `menu_date`, `product_id`, `dish_name`, `dish_type`, `sort_order`) VALUES
   -- 3荤1素套餐（product_id=4）的菜品
-  ('2026-08-30', 4, '红烧肉',   1, 1),
-  ('2026-08-30', 4, '宫保鸡丁', 1, 2),
-  ('2026-08-30', 4, '鱼香肉丝', 1, 3),
-  ('2026-08-30', 4, '清炒时蔬', 2, 4),
+  (1,  '2026-08-30', 4, '红烧肉',   1, 1),
+  (2,  '2026-08-30', 4, '宫保鸡丁', 1, 2),
+  (3,  '2026-08-30', 4, '鱼香肉丝', 1, 3),
+  (4,  '2026-08-30', 4, '清炒时蔬', 2, 4),
   -- 4荤1素套餐（product_id=5）的菜品
-  ('2026-08-30', 5, '红烧排骨',   1, 1),
-  ('2026-08-30', 5, '辣子鸡',     1, 2),
-  ('2026-08-30', 5, '水煮牛肉',   1, 3),
-  ('2026-08-30', 5, '梅菜扣肉',   1, 4),
-  ('2026-08-30', 5, '蒜蓉西兰花', 2, 5),
+  (5,  '2026-08-30', 5, '红烧排骨',   1, 1),
+  (6,  '2026-08-30', 5, '辣子鸡',     1, 2),
+  (7,  '2026-08-30', 5, '水煮牛肉',   1, 3),
+  (8,  '2026-08-30', 5, '梅菜扣肉',   1, 4),
+  (9,  '2026-08-30', 5, '蒜蓉西兰花', 2, 5),
   -- 加汤（product_id=8）
-  ('2026-08-30', 8, '紫菜蛋花汤', 3, 1),
-  ('2026-08-30', 8, '番茄蛋汤',   3, 2);
+  (10, '2026-08-30', 8, '紫菜蛋花汤', 3, 1),
+  (11, '2026-08-30', 8, '番茄蛋汤',   3, 2);

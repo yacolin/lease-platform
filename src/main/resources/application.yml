@@ -64,8 +64,10 @@ mybatis-plus:
   global-config:
     banner: false
     db-config:
-      # 全局主键策略：auto = 数据库自增（与 db 设计 BIGINT UNSIGNED AUTO_INCREMENT 一致）
-      id-type: auto
+      # 全局主键策略：assign_id = MyBatis-Plus 雪花 ID（业务表默认雪花，为分库分表留后路；
+      # 配置/枚举/账号类表在实体上用 @TableId(type = IdType.AUTO) 显式自增，
+      # 完整决策表见 db/README.md「主键 ID 策略」）
+      id-type: assign_id
       # 全局逻辑删除（业务表统一 is_deleted：0-未删除, 1-已删除）
       logic-delete-field: isDeleted
       logic-delete-value: 1

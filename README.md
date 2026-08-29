@@ -9,7 +9,7 @@
 | 层 | 选型 |
 |---|---|
 | 语言/框架 | Java 21 + Spring Boot 4.1.1 |
-| 数据库访问 | MyBatis-Plus 3.5.17（`mybatis-plus-spring-boot4-starter`，分页插件独立模块） |
+| 数据库访问 | MyBatis-Plus 3.5.17（`mybatis-plus-spring-boot4-starter`，分页插件独立模块；业务表雪花 ID、配置表自增，见 `db/README.md`） |
 | 数据库 | MySQL 8（`lease_db`，表结构由 SQL 文件与迁移双轨管理） |
 | 缓存 | Redis（Lettuce + commons-pool2，预留 refresh token 会话） |
 | 安全 | Spring Security（无状态 API + 白名单 + 管理端隔离 + CORS + JWT Bearer 认证过滤器） |

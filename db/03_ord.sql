@@ -5,8 +5,8 @@
 --
 -- 表结构遵照 1.0 版本共享对话的 MySQL 设计（数据库 lease_db）；
 -- 表名按 beauty_salon 约定加域前缀 `ord_`；跨域关系由服务层保证，本库暂不加外键约束。
--- 约定：主键 BIGINT UNSIGNED AUTO_INCREMENT；金额 DECIMAL(10,2)（元）；
--- 业务编号（order_no / reservation_no / purchase_no）建唯一索引。
+-- 约定：业务表主键 BIGINT UNSIGNED（雪花，无自增，见 db/README.md 主键 ID 策略）；
+-- 金额 DECIMAL(10,2)（元）；业务编号（order_no / reservation_no / purchase_no）建唯一索引。
 
 -- 反向依赖顺序删除（ord_meal_reservation_items → ord_meal_reservations → ord_order_items → ord_orders）
 DROP TABLE IF EXISTS `ord_meal_reservation_items`;
@@ -16,7 +16,7 @@ DROP TABLE IF EXISTS `ord_orders`;
 
 -- 订单主表：存储所有类型的订单（咖啡点单、正餐预订）
 CREATE TABLE `ord_orders` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '订单ID',
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '订单ID（雪花）',
   `order_no` VARCHAR(32) NOT NULL COMMENT '订单编号',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '下单用户ID',
   `enterprise_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '企业ID（若为企业用户）',
@@ -57,7 +57,7 @@ CREATE TABLE `ord_orders` (
 
 -- 订单明细表：订单中每个商品的详细信息（含规格快照）
 CREATE TABLE `ord_order_items` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '明细ID',
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '明细ID（雪花）',
   `order_id` BIGINT UNSIGNED NOT NULL COMMENT '订单ID',
   `product_id` BIGINT UNSIGNED NOT NULL COMMENT '商品ID',
   `product_name` VARCHAR(100) NOT NULL COMMENT '商品名称（快照）',
@@ -75,7 +75,7 @@ CREATE TABLE `ord_order_items` (
 
 -- 正餐预订表：正餐预订与普通咖啡点单分开管理
 CREATE TABLE `ord_meal_reservations` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '预订ID',
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '预订ID（雪花）',
   `reservation_no` VARCHAR(32) NOT NULL COMMENT '预订编号',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '预订用户ID',
   `enterprise_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '企业ID（若为企业用户）',
@@ -114,7 +114,7 @@ CREATE TABLE `ord_meal_reservations` (
 
 -- 正餐预订明细表：正餐预订中每个套餐的详细信息
 CREATE TABLE `ord_meal_reservation_items` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '明细ID',
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '明细ID（雪花）',
   `reservation_id` BIGINT UNSIGNED NOT NULL COMMENT '预订ID',
   `product_id` BIGINT UNSIGNED NOT NULL COMMENT '套餐商品ID',
   `product_name` VARCHAR(100) NOT NULL COMMENT '套餐名称（快照）',

@@ -4,7 +4,8 @@
 --
 -- 表结构遵照 1.0 版本共享对话的 MySQL 设计（数据库 lease_db）；
 -- 表名按 beauty_salon 约定加域前缀 `mtg_`；跨域关系由服务层保证，本库暂不加外键约束。
--- 约定：主键 BIGINT UNSIGNED AUTO_INCREMENT；金额 DECIMAL(10,2)（元）；
+-- 约定：业务表主键 BIGINT UNSIGNED（雪花，无自增，见 db/README.md 主键 ID 策略；
+-- 会议室配置 mtg_rooms 自增）；金额 DECIMAL(10,2)（元）；
 -- 时间字段统一 DATETIME（预约日期 DATE + 时段 TIME）。
 
 -- 反向依赖顺序删除（mtg_reservations → mtg_rooms）
@@ -29,7 +30,7 @@ CREATE TABLE `mtg_rooms` (
 
 -- 会议室预约表：会议室预约记录
 CREATE TABLE `mtg_reservations` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '预约ID',
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '预约ID（雪花）',
   `reservation_no` VARCHAR(32) NOT NULL COMMENT '预约编号',
   `room_id` BIGINT UNSIGNED NOT NULL COMMENT '会议室ID',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '预约用户ID',

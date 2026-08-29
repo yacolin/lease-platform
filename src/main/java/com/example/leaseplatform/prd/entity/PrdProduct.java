@@ -17,7 +17,8 @@ import java.time.LocalDateTime;
 @TableName("prd_products")
 public class PrdProduct {
 
-    @TableId(type = IdType.AUTO)
+    /** 雪花 ID（商品主表，被订单明细关联，见 db/README.md 主键 ID 策略） */
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** 分类ID（prd_categories.id） */

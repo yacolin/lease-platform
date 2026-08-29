@@ -4,7 +4,8 @@
 --
 -- 表结构遵照 1.0 版本共享对话的 MySQL 设计（数据库 lease_db）；
 -- 表名按 beauty_salon 约定加域前缀 `sys_`；跨域关系由服务层保证，本库暂不加外键约束。
--- 约定：主键 BIGINT UNSIGNED AUTO_INCREMENT；纯流水表只保留 created_at。
+-- 约定：业务表主键 BIGINT UNSIGNED（雪花，无自增，见 db/README.md 主键 ID 策略；
+-- 通知记录 sys_notifications 自增）；纯流水表只保留 created_at。
 
 -- 反向依赖顺序删除（sys_notifications → sys_operation_logs）
 DROP TABLE IF EXISTS `sys_notifications`;
@@ -29,7 +30,7 @@ CREATE TABLE `sys_notifications` (
 
 -- 操作日志表：管理员和后台的操作行为
 CREATE TABLE `sys_operation_logs` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '日志ID',
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '日志ID（雪花）',
   `operator_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '操作人ID（后台管理员）',
   `operator_type` TINYINT NOT NULL DEFAULT 1 COMMENT '操作人类型：1-系统管理员, 2-企业管理员',
   `operation_type` VARCHAR(50) NOT NULL COMMENT '操作类型（如审核企业、上架商品等）',

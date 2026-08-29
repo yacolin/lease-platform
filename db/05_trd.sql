@@ -5,7 +5,8 @@
 --
 -- 表结构遵照 1.0 版本共享对话的 MySQL 设计（数据库 lease_db）；
 -- 表名按 beauty_salon 约定加域前缀 `trd_`；跨域关系由服务层保证，本库暂不加外键约束。
--- 约定：主键 BIGINT UNSIGNED AUTO_INCREMENT；金额 DECIMAL(10,2)（元）；
+-- 约定：业务表主键 BIGINT UNSIGNED（雪花，无自增，见 db/README.md 主键 ID 策略；
+-- 充值档位配置 trd_recharge_tiers 自增）；金额 DECIMAL(10,2)（元）；
 -- 纯流水表（trd_balance_transactions）只保留 created_at。
 
 -- 反向依赖顺序删除（trd_balance_transactions → trd_recharge_records → trd_recharge_tiers）
@@ -30,7 +31,7 @@ CREATE TABLE `trd_recharge_tiers` (
 
 -- 充值记录表：用户充值流水
 CREATE TABLE `trd_recharge_records` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '记录ID',
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '记录ID（雪花）',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
   `tier_id` BIGINT UNSIGNED NOT NULL COMMENT '充值档位ID',
   `recharge_amount` DECIMAL(10,2) NOT NULL COMMENT '充值金额',
@@ -53,7 +54,7 @@ CREATE TABLE `trd_recharge_records` (
 
 -- 余额流水表：所有余额变动明细（充值、消费、退款）
 CREATE TABLE `trd_balance_transactions` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '流水ID',
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '流水ID（雪花）',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
   `transaction_type` TINYINT NOT NULL COMMENT '类型：1-充值, 2-消费, 3-退款, 4-赠送, 5-调整',
   `amount` DECIMAL(10,2) NOT NULL COMMENT '变动金额（正数增加，负数减少）',

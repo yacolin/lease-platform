@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 @TableName("prd_categories")
 public class PrdCategory {
 
+    /** 自增 ID（分类配置表，量小且稳定，见 db/README.md 主键 ID 策略） */
     @TableId(type = IdType.AUTO)
     private Long id;
 

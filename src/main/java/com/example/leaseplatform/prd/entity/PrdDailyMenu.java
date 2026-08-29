@@ -17,7 +17,8 @@ import java.time.LocalDateTime;
 @TableName("prd_daily_menus")
 public class PrdDailyMenu {
 
-    @TableId(type = IdType.AUTO)
+    /** 雪花 ID（每日菜单按天自动生成、数据持续积累，见 db/README.md 主键 ID 策略） */
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /** 菜单日期 */
