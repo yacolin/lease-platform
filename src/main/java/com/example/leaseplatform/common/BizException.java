@@ -31,6 +31,11 @@ public class BizException extends RuntimeException {
         return new BizException(ErrorCode.UNAUTHORIZED, message, HttpStatus.UNAUTHORIZED);
     }
 
+    /** 已登录但无权限（HTTP 403） */
+    public static BizException forbidden(String message) {
+        return new BizException(ErrorCode.FORBIDDEN, message, HttpStatus.FORBIDDEN);
+    }
+
     public static BizException conflict(String message) {
         return new BizException(ErrorCode.CONFLICT, message, HttpStatus.CONFLICT);
     }

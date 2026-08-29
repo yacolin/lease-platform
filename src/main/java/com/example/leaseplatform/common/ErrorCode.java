@@ -16,6 +16,9 @@ public final class ErrorCode {
     /** 未登录 / 令牌无效或过期（HTTP 401） */
     public static final int UNAUTHORIZED = 40100;
 
+    /** 已登录但无权限（HTTP 403） */
+    public static final int FORBIDDEN = 40300;
+
     /** 资源不存在（HTTP 404） */
     public static final int NOT_FOUND = 40400;
 

@@ -104,8 +104,8 @@ springdoc:
     tags-sorter: alpha
     operations-sorter: alpha
   # 按端分组输出 OpenAPI JSON（前端请求文件生成按组拉取，见 README「接口分组与前端请求文件生成」）：
-  # - admin  管理端：管理员登录/登出 + 分类/商品/菜单等后台接口
-  # - public 公开/小程序端：公开浏览 + 微信登录/刷新/登出 + 我的
+  # - admin  管理端：管理员登录/登出 + 分类/商品/菜单/企业审核等后台接口
+  # - public 公开/小程序端：公开浏览 + 微信登录/刷新/登出 + 我的（含我的企业）
   # group 为文档 URL 后缀（/v3/api-docs/{group}），display-name 为 Swagger UI 下拉显示名
   group-configs:
     - group: admin
@@ -116,6 +116,7 @@ springdoc:
         - /api/v1/products/**
         - /api/v1/categories/**
         - /api/v1/menus/**
+        - /api/v1/enterprises/**
     - group: public
       display-name: 公开/小程序端
       paths-to-match:
@@ -134,6 +135,7 @@ lease:
       - /api/v1/public/categories/**
       - /api/v1/public/products/**
       - /api/v1/public/menus/**
+      - /api/v1/public/member-levels/**
       - /v3/api-docs/**
       - /swagger-ui/**
       - /swagger-ui.html
@@ -145,6 +147,7 @@ lease:
       - /api/v1/products/**
       - /api/v1/categories/**
       - /api/v1/menus/**
+      - /api/v1/enterprises/**
     cors:
       # 开发期放开；生产改为小程序/后台实际域名列表
       allowed-origins:
