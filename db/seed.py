@@ -37,30 +37,30 @@ CORE_PRODUCTS = [
     (8, 4, "加汤", 4, 800, "额外加一份汤", None),
 ]
 
-# 扩充商品（id 100+，开发演示用）
+# 扩充商品（id 9+ 连续，与核心 1-8 衔接；开发演示用）
 EXTRA_PRODUCTS = [
     # 咖啡
-    (100, 1, "卡布奇诺", 1, 2200, None, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
-    (101, 1, "摩卡", 1, 2500, None, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
-    (102, 1, "焦糖玛奇朵", 1, 2800, None, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
-    (103, 1, "澳白", 1, 2600, None, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖"]}'),
-    (104, 1, "燕麦拿铁", 1, 2300, None, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖"]}'),
-    (105, 1, "生椰拿铁", 1, 2400, None, '{"cup_size":["大杯","中杯"],"temperature":["冰"],"sugar":["无糖","少糖"]}'),
-    (106, 1, "冷萃", 1, 2800, None, '{"cup_size":["大杯","中杯"],"ice":["多冰","少冰"]}'),
-    (107, 1, "气泡美式", 1, 2500, None, '{"cup_size":["大杯","中杯"],"temperature":["冰"]}'),
-    (108, 1, "榛果拿铁", 1, 2000, None, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
-    (109, 1, "香草拿铁", 1, 2000, None, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
-    (110, 1, "冰美式", 1, 1300, None, '{"cup_size":["大杯","中杯"],"ice":["多冰","少冰"]}'),
-    (111, 1, "冰拿铁", 1, 1600, None, '{"cup_size":["大杯","中杯"],"ice":["多冰","少冰"],"sugar":["无糖","少糖","正常"]}'),
+    (9, 1, "卡布奇诺", 1, 2200, None, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
+    (10, 1, "摩卡", 1, 2500, None, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
+    (11, 1, "焦糖玛奇朵", 1, 2800, None, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
+    (12, 1, "澳白", 1, 2600, None, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖"]}'),
+    (13, 1, "燕麦拿铁", 1, 2300, None, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖"]}'),
+    (14, 1, "生椰拿铁", 1, 2400, None, '{"cup_size":["大杯","中杯"],"temperature":["冰"],"sugar":["无糖","少糖"]}'),
+    (15, 1, "冷萃", 1, 2800, None, '{"cup_size":["大杯","中杯"],"ice":["多冰","少冰"]}'),
+    (16, 1, "气泡美式", 1, 2500, None, '{"cup_size":["大杯","中杯"],"temperature":["冰"]}'),
+    (17, 1, "榛果拿铁", 1, 2000, None, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
+    (18, 1, "香草拿铁", 1, 2000, None, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
+    (19, 1, "冰美式", 1, 1300, None, '{"cup_size":["大杯","中杯"],"ice":["多冰","少冰"]}'),
+    (20, 1, "冰拿铁", 1, 1600, None, '{"cup_size":["大杯","中杯"],"ice":["多冰","少冰"],"sugar":["无糖","少糖","正常"]}'),
     # 正餐套餐
-    (120, 2, "牛肉面套餐", 2, 2200, "每日更新菜单，牛肉面+配菜", None),
-    (121, 2, "鸡腿饭套餐", 2, 2000, "每日更新菜单，鸡腿饭+配菜", None),
-    (122, 2, "2荤2素套餐", 2, 1800, "每日更新菜单，2种荤菜+2种素菜", None),
-    (123, 2, "5荤1素套餐", 2, 3000, "每日更新菜单，5种荤菜+1种素菜", None),
+    (21, 2, "牛肉面套餐", 2, 2200, "每日更新菜单，牛肉面+配菜", None),
+    (22, 2, "鸡腿饭套餐", 2, 2000, "每日更新菜单，鸡腿饭+配菜", None),
+    (23, 2, "2荤2素套餐", 2, 1800, "每日更新菜单，2种荤菜+2种素菜", None),
+    (24, 2, "5荤1素套餐", 2, 3000, "每日更新菜单，5种荤菜+1种素菜", None),
     # 加餐 / 加汤
-    (130, 3, "加蛋", 3, 200, "额外加一个蛋", None),
-    (131, 3, "加卤蛋", 3, 300, "额外加一个卤蛋", None),
-    (132, 4, "玉米排骨汤", 4, 1000, "额外加一份汤", None),
+    (25, 3, "加蛋", 3, 200, "额外加一个蛋", None),
+    (26, 3, "加卤蛋", 3, 300, "额外加一个卤蛋", None),
+    (27, 4, "玉米排骨汤", 4, 1000, "额外加一份汤", None),
 ]
 
 # 每日菜单菜谱：套餐 product_id -> [(菜品, dish_type), ...]（扩充菜单按天循环取）
@@ -129,11 +129,19 @@ def esc(v):
 
 def build_sql():
     sql = []
-    # ---------- 清空（幂等；自增表重置保证 id 稳定） ----------
+    # ---------- 清空全部业务表（幂等；含测试/手动操作产生的残留，保证种子后为全新一致状态） ----------
     tables = [
+        # 系统域
+        "sys_operation_logs", "sys_notifications",
+        # 订单域
+        "ord_meal_reservation_items", "ord_meal_reservations", "ord_order_items", "ord_orders",
+        # 商品域
         "prd_daily_menus", "prd_products", "prd_categories",
+        # 会议室域
         "mtg_reservations", "mtg_rooms",
+        # 交易域
         "trd_balance_transactions", "trd_recharge_records", "trd_recharge_tiers",
+        # 用户域
         "usr_member_purchases", "usr_enterprise_members", "usr_member_levels",
         "usr_enterprises", "usr_users", "usr_admins",
     ]
@@ -143,12 +151,13 @@ def build_sql():
     sql.append("ALTER TABLE `mtg_rooms` AUTO_INCREMENT = 1;")
     sql.append("ALTER TABLE `trd_recharge_tiers` AUTO_INCREMENT = 1;")
     sql.append("ALTER TABLE `usr_member_levels` AUTO_INCREMENT = 1;")
+    sql.append("ALTER TABLE `usr_admins` AUTO_INCREMENT = 1;")
 
     # ---------- 商品分类（4 分类，测试断言） ----------
     sql.append("INSERT INTO `prd_categories` (`category_name`, `category_type`, `sort_order`) VALUES "
                "('咖啡', 1, 1), ('正餐', 2, 2), ('加餐/加菜', 2, 3), ('加汤', 2, 4);")
 
-    # ---------- 商品（核心 1-8 + 扩充 100+） ----------
+    # ---------- 商品（核心 1-8 + 扩充 9-27，id 连续） ----------
     products = CORE_PRODUCTS + EXTRA_PRODUCTS
     rows = ", ".join(
         f"({pid}, {cid}, '{esc(name)}', {ptype}, {price}, "
@@ -170,7 +179,7 @@ def build_sql():
         (11, "2026-08-30", 8, "番茄蛋汤", 3, 2),
     ]
     menu_rows.extend(core_menu)
-    mid = 1000
+    mid = 12  # 核心 1-11 之后连续编号
     for offset in (1, 2, 3):
         day = (date.today() + timedelta(days=offset)).isoformat()
         for pid in sorted(MENU_RECIPES):
@@ -211,17 +220,17 @@ def build_sql():
     # ---------- 演示用户 + 企业（仅开发，openid 避开测试用的 mock_dev_user） ----------
     sql.append("INSERT INTO `usr_users` (`id`, `openid`, `nickname`, `user_type`, `enterprise_id`, "
                "`member_level`, `is_enterprise_admin`, `balance`, `gift_balance`, `status`) VALUES "
-               "(100, 'mock_demo_admin', '演示企业主', 2, 100, 2, 1, 200000, 50000, 1), "
-               "(101, 'mock_demo_employee', '演示员工', 2, 100, 0, 0, 15000, 0, 1), "
-               "(102, 'mock_demo_walker', '演示路人', 3, NULL, 0, 0, 3000, 0, 1);")
+               "(1, 'mock_demo_admin', '演示企业主', 2, 1, 2, 1, 200000, 50000, 1), "
+               "(2, 'mock_demo_employee', '演示员工', 2, 1, 0, 0, 15000, 0, 1), "
+               "(3, 'mock_demo_walker', '演示路人', 3, NULL, 0, 0, 3000, 0, 1);")
     sql.append("INSERT INTO `usr_enterprises` (`id`, `enterprise_name`, `unified_social_credit_code`, "
                "`business_license_url`, `legal_person_name`, `legal_person_id_card_front`, "
                "`legal_person_id_card_back`, `contact_name`, `contact_phone`, `enterprise_type`, "
                "`member_level`, `audit_status`, `status`) VALUES "
-               "(100, '演示科技有限公司', 'DEMO91440300MA5X000001', 'https://demo/license.png', '张三', "
+               "(1, '演示科技有限公司', 'DEMO91440300MA5X000001', 'https://demo/license.png', '张三', "
                "'https://demo/id_front.png', 'https://demo/id_back.png', '李四', '13800000001', 1, 2, 1, 1);")
     sql.append("INSERT INTO `usr_enterprise_members` (`id`, `enterprise_id`, `user_id`, `role`, "
-               "`invite_status`) VALUES (100, 100, 100, 1, 1), (101, 100, 101, 0, 1);")
+               "`invite_status`) VALUES (1, 1, 1, 1, 1), (2, 1, 2, 0, 1);")
 
     return sql
 
