@@ -169,4 +169,28 @@ public class PrdAdminController {
         menuService.delete(id);
         return ApiResponse.ok(null);
     }
+
+    @Operation(summary = "整单配置菜单（覆盖指定日期全部菜品）")
+    @PostMapping("/menus/batch")
+    public ApiResponse<java.util.List<MenuVO>> batchMenus(
+            @Valid @RequestBody com.example.leaseplatform.prd.dto.MenuBatchReq req) {
+        return ApiResponse.ok(menuService.batchCreate(req));
+    }
+
+    @Operation(summary = "复制整单菜单（sourceDate → targetDate，目标日期先清空）")
+    @PostMapping("/menus/copy")
+    public ApiResponse<Void> copyMenus(
+            @Valid @RequestBody com.example.leaseplatform.prd.dto.MenuCopyReq req) {
+        menuService.copy(req);
+        return ApiResponse.ok(null);
+    }
+
+    @Operation(summary = "按日期清空菜单")
+    @DeleteMapping("/menus")
+    public ApiResponse<Void> deleteMenusByDate(
+            @RequestParam @org.springframework.format.annotation.DateTimeFormat(
+                    iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate date) {
+        menuService.deleteByDate(date);
+        return ApiResponse.ok(null);
+    }
 }

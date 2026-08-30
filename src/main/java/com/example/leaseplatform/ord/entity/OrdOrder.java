@@ -64,6 +64,21 @@ public class OrdOrder {
     /** 取餐码（咖啡） */
     private String pickupCode;
 
+    /** 配送方式（正餐）：1-到店自取, 2-楼内配送, 3-周边配送 */
+    private Integer deliveryType;
+
+    /** 配送费 */
+    private BigDecimal deliveryFee;
+
+    /** 配送地址（周边配送） */
+    private String deliveryAddress;
+
+    /** 预约日期（正餐） */
+    private java.time.LocalDate reservationDate;
+
+    /** 预约时段（正餐） */
+    private java.time.LocalTime reservationTime;
+
     /** 订单备注 */
     private String remark;
 

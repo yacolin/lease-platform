@@ -16,14 +16,8 @@ import com.example.leaseplatform.ord.mapper.OrdOrderItemMapper;
 import com.example.leaseplatform.ord.mapper.OrdOrderMapper;
 import com.example.leaseplatform.prd.entity.PrdProduct;
 import com.example.leaseplatform.prd.mapper.PrdProductMapper;
-import com.example.leaseplatform.trd.entity.TrdRechargeRecord;
-import com.example.leaseplatform.trd.entity.TrdRechargeTier;
-import com.example.leaseplatform.trd.mapper.TrdRechargeRecordMapper;
-import com.example.leaseplatform.trd.mapper.TrdRechargeTierMapper;
 import com.example.leaseplatform.trd.service.BalanceService;
-import com.example.leaseplatform.usr.entity.UsrMemberLevel;
 import com.example.leaseplatform.usr.entity.UsrUser;
-import com.example.leaseplatform.usr.mapper.UsrMemberLevelMapper;
 import com.example.leaseplatform.usr.mapper.UsrUserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -68,15 +62,11 @@ public class OrderService {
     /** 订单类型 */
     public static final int TYPE_COFFEE = 1;
 
-    private static final BigDecimal ONE = BigDecimal.ONE;
-
     private final OrdOrderMapper orderMapper;
     private final OrdOrderItemMapper itemMapper;
     private final PrdProductMapper productMapper;
     private final UsrUserMapper userMapper;
-    private final UsrMemberLevelMapper memberLevelMapper;
-    private final TrdRechargeTierMapper rechargeTierMapper;
-    private final TrdRechargeRecordMapper rechargeRecordMapper;
+    private final DiscountCalculator discountCalculator;
     private final BalanceService balanceService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -88,8 +78,8 @@ public class OrderService {
     public OrderVO create(Long userId, OrderCreateReq req) {
         UsrUser user = requireUser(userId);
         // 计算会员折扣率与充值折扣率（叠加）
-        BigDecimal memberRate = memberDiscountRate(user);
-        BigDecimal rechargeRate = rechargeDiscountRate(userId);
+        BigDecimal memberRate = discountCalculator.memberDiscountRate(user);
+        BigDecimal rechargeRate = discountCalculator.rechargeDiscountRate(userId);
 
         // 明细快照 + 原价
         List<OrdOrderItem> items = new ArrayList<>();
@@ -299,40 +289,6 @@ public class OrderService {
         return orderMapper.selectCount(new LambdaQueryWrapper<OrdOrder>()
                 .ge(OrdOrder::getCreatedAt, start).lt(OrdOrder::getCreatedAt, end)
                 .eq(OrdOrder::getOrderStatus, status));
-    }
-
-    // ==================== 折扣率 ====================
-
-    /** 会员折扣率：member_level 1/2/3 → BASIC/VIP/SVIP 的 discount_rate；非会员 1.0 */
-    private BigDecimal memberDiscountRate(UsrUser user) {
-        String levelCode = switch (user.getMemberLevel() == null ? 0 : user.getMemberLevel()) {
-            case 1 -> "BASIC";
-            case 2 -> "VIP";
-            case 3 -> "SVIP";
-            default -> null;
-        };
-        if (levelCode == null) {
-            return ONE;
-        }
-        UsrMemberLevel level = memberLevelMapper.selectOne(new LambdaQueryWrapper<UsrMemberLevel>()
-                .eq(UsrMemberLevel::getLevelCode, levelCode)
-                .eq(UsrMemberLevel::getStatus, 1));
-        return level == null || level.getDiscountRate() == null ? ONE : level.getDiscountRate();
-    }
-
-    /** 充值折扣率：最近一次成功充值档位的 equivalent_discount；未充值 1.0 */
-    private BigDecimal rechargeDiscountRate(Long userId) {
-        TrdRechargeRecord latest = rechargeRecordMapper.selectOne(new LambdaQueryWrapper<TrdRechargeRecord>()
-                .eq(TrdRechargeRecord::getUserId, userId)
-                .eq(TrdRechargeRecord::getPaymentStatus, 1)
-                .orderByDesc(TrdRechargeRecord::getId)
-                .last("LIMIT 1"));
-        if (latest == null) {
-            return ONE;
-        }
-        TrdRechargeTier tier = rechargeTierMapper.selectById(latest.getTierId());
-        return tier == null || tier.getEquivalentDiscount() == null
-                ? ONE : tier.getEquivalentDiscount();
     }
 
     // ==================== 内部工具 ====================

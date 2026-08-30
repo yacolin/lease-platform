@@ -127,6 +127,7 @@ springdoc:
         - /api/v1/enterprises/**
         - /api/v1/recharge-tiers/**
         - /api/v1/orders/**
+        - /api/v1/meal-reservations/**
     - group: public
       display-name: 公开/小程序端
       paths-to-match:
@@ -161,6 +162,8 @@ lease:
       - /api/v1/menus/**
       - /api/v1/enterprises/**
       - /api/v1/recharge-tiers/**
+      - /api/v1/orders/**
+      - /api/v1/meal-reservations/**
       - /api/v1/orders/**
     cors:
       # 开发期放开；生产改为小程序/后台实际域名列表

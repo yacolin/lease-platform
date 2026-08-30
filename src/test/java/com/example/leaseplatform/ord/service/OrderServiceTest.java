@@ -15,14 +15,8 @@ import com.example.leaseplatform.ord.mapper.OrdOrderItemMapper;
 import com.example.leaseplatform.ord.mapper.OrdOrderMapper;
 import com.example.leaseplatform.prd.entity.PrdProduct;
 import com.example.leaseplatform.prd.mapper.PrdProductMapper;
-import com.example.leaseplatform.trd.entity.TrdRechargeRecord;
-import com.example.leaseplatform.trd.entity.TrdRechargeTier;
-import com.example.leaseplatform.trd.mapper.TrdRechargeRecordMapper;
-import com.example.leaseplatform.trd.mapper.TrdRechargeTierMapper;
 import com.example.leaseplatform.trd.service.BalanceService;
-import com.example.leaseplatform.usr.entity.UsrMemberLevel;
 import com.example.leaseplatform.usr.entity.UsrUser;
-import com.example.leaseplatform.usr.mapper.UsrMemberLevelMapper;
 import com.example.leaseplatform.usr.mapper.UsrUserMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -60,11 +54,7 @@ class OrderServiceTest {
     @Mock
     private UsrUserMapper userMapper;
     @Mock
-    private UsrMemberLevelMapper memberLevelMapper;
-    @Mock
-    private TrdRechargeTierMapper rechargeTierMapper;
-    @Mock
-    private TrdRechargeRecordMapper rechargeRecordMapper;
+    private DiscountCalculator discountCalculator;
     @Mock
     private BalanceService balanceService;
 
@@ -75,9 +65,6 @@ class OrderServiceTest {
         // 无 Spring 上下文时 Lambda 条件需手动初始化实体 TableInfo 缓存
         initTableInfo(OrdOrder.class);
         initTableInfo(OrdOrderItem.class);
-        initTableInfo(TrdRechargeRecord.class);
-        initTableInfo(TrdRechargeTier.class);
-        initTableInfo(UsrMemberLevel.class);
     }
 
     private static void initTableInfo(Class<?> clazz) {
@@ -88,7 +75,7 @@ class OrderServiceTest {
     void setUp() {
         // 须在 @Mock 注入后构造（字段初始化器在注入前执行会拿到 null mock）
         service = new OrderService(orderMapper, itemMapper, productMapper, userMapper,
-                memberLevelMapper, rechargeTierMapper, rechargeRecordMapper, balanceService);
+                discountCalculator, balanceService);
     }
 
     private UsrUser user(int memberLevel, Long enterpriseId) {
@@ -118,13 +105,6 @@ class OrderServiceTest {
         return req;
     }
 
-    private TrdRechargeTier tier(BigDecimal discount) {
-        TrdRechargeTier t = new TrdRechargeTier();
-        t.setId(2L);
-        t.setEquivalentDiscount(discount);
-        return t;
-    }
-
     // ==================== 下单 + 折扣叠加 ====================
 
     @Test
@@ -132,7 +112,8 @@ class OrderServiceTest {
         when(userMapper.selectById(1L)).thenReturn(user(0, null));
         when(productMapper.selectById(1L)).thenReturn(product(1L, "美式", "12.00"));
         // 非会员 + 无充值 → 原价
-        when(rechargeRecordMapper.selectOne(any(Wrapper.class))).thenReturn(null);
+        when(discountCalculator.memberDiscountRate(any())).thenReturn(BigDecimal.ONE);
+        when(discountCalculator.rechargeDiscountRate(1L)).thenReturn(BigDecimal.ONE);
         when(orderMapper.insert(any(OrdOrder.class))).thenAnswer(inv -> {
             ((OrdOrder) inv.getArgument(0)).setId(100L);
             return 1;
@@ -157,14 +138,8 @@ class OrderServiceTest {
         // VIP 会员 0.90 × 充值 0.89 → 应付 = 24 × 0.801 = 19.22
         when(userMapper.selectById(1L)).thenReturn(user(2, 5L));
         when(productMapper.selectById(1L)).thenReturn(product(1L, "美式", "12.00"));
-        UsrMemberLevel vip = new UsrMemberLevel();
-        vip.setLevelCode("VIP");
-        vip.setDiscountRate(new BigDecimal("0.90"));
-        when(memberLevelMapper.selectOne(any(Wrapper.class))).thenReturn(vip);
-        TrdRechargeRecord latest = new TrdRechargeRecord();
-        latest.setTierId(2L);
-        when(rechargeRecordMapper.selectOne(any(Wrapper.class))).thenReturn(latest);
-        when(rechargeTierMapper.selectById(2L)).thenReturn(tier(new BigDecimal("0.89")));
+        when(discountCalculator.memberDiscountRate(any())).thenReturn(new BigDecimal("0.90"));
+        when(discountCalculator.rechargeDiscountRate(1L)).thenReturn(new BigDecimal("0.89"));
         when(orderMapper.insert(any(OrdOrder.class))).thenAnswer(inv -> {
             ((OrdOrder) inv.getArgument(0)).setId(100L);
             return 1;

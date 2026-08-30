@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.common.TimeUtil;
+import com.example.leaseplatform.prd.dto.MenuBatchReq;
+import com.example.leaseplatform.prd.dto.MenuCopyReq;
 import com.example.leaseplatform.prd.dto.MenuCreateReq;
 import com.example.leaseplatform.prd.dto.MenuUpdateReq;
 import com.example.leaseplatform.prd.dto.MenuVO;
@@ -72,6 +74,53 @@ public class PrdDailyMenuService {
     public void delete(Long id) {
         require(id);
         menuMapper.deleteById(id);
+    }
+
+    /** 整单配置：覆盖式替换指定日期的全部菜品（先删后插，事务内） */
+    @org.springframework.transaction.annotation.Transactional
+    public List<MenuVO> batchCreate(MenuBatchReq req) {
+        deleteByDate(req.getMenuDate());
+        List<PrdDailyMenu> created = new java.util.ArrayList<>();
+        for (MenuBatchReq.MenuBatchItem item : req.getItems()) {
+            requireProduct(item.getProductId());
+            PrdDailyMenu entity = new PrdDailyMenu();
+            entity.setMenuDate(req.getMenuDate());
+            entity.setProductId(item.getProductId());
+            entity.setDishName(item.getDishName());
+            entity.setDishType(item.getDishType());
+            entity.setSortOrder(item.getSortOrder() == null ? 0 : item.getSortOrder());
+            entity.setIsAvailable(1);
+            menuMapper.insert(entity);
+            created.add(entity);
+        }
+        return toVOList(created);
+    }
+
+    /** 复制整单：把 sourceDate 的菜品复制到 targetDate（目标日期先清空） */
+    @org.springframework.transaction.annotation.Transactional
+    public void copy(MenuCopyReq req) {
+        List<PrdDailyMenu> source = menuMapper.selectList(new LambdaQueryWrapper<PrdDailyMenu>()
+                .eq(PrdDailyMenu::getMenuDate, req.getSourceDate()));
+        if (source.isEmpty()) {
+            throw BizException.notFound("源日期没有菜单可复制");
+        }
+        deleteByDate(req.getTargetDate());
+        for (PrdDailyMenu s : source) {
+            PrdDailyMenu entity = new PrdDailyMenu();
+            entity.setMenuDate(req.getTargetDate());
+            entity.setProductId(s.getProductId());
+            entity.setDishName(s.getDishName());
+            entity.setDishType(s.getDishType());
+            entity.setSortOrder(s.getSortOrder());
+            entity.setIsAvailable(s.getIsAvailable());
+            menuMapper.insert(entity);
+        }
+    }
+
+    /** 按日期清空整单 */
+    public void deleteByDate(LocalDate menuDate) {
+        menuMapper.delete(new LambdaQueryWrapper<PrdDailyMenu>()
+                .eq(PrdDailyMenu::getMenuDate, menuDate));
     }
 
     /** 小程序公开查询：指定日期（缺省今天）菜单，仅供应中，按套餐/类型/排序 */
