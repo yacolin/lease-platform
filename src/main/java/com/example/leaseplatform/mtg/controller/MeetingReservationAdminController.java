@@ -22,7 +22,7 @@ import java.time.LocalDate;
  * 会议室预约管理（商家后台 /api/v1/meeting-reservations/**，仅 user_type=1 管理员 token，
  * 路径已注册到 lease.security.admin-paths）。
  */
-@Tag(name = "会议室预约管理（管理端）", description = "预约分页/详情/确认完成")
+@Tag(name = "meetingReservationAdmin", description = "会议室预约管理（管理端）：预约分页/详情/确认完成")
 @RestController
 @RequestMapping("/api/v1/meeting-reservations")
 @RequiredArgsConstructor

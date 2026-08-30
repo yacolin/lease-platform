@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 充值档位管理（管理端 /api/v1/recharge-tiers/**，仅 user_type=1 管理员 token，
  * 路径已注册到 lease.security.admin-paths）。
  */
-@Tag(name = "充值档位管理（管理端）", description = "充值赠送规则配置 CRUD")
+@Tag(name = "rechargeTierAdmin", description = "充值档位管理（管理端）：充值赠送规则配置 CRUD")
 @RestController
 @RequestMapping("/api/v1/recharge-tiers")
 @RequiredArgsConstructor

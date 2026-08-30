@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 我的会议室预约（小程序端 /api/v1/me/meeting-reservations/**，需登录）。
  */
-@Tag(name = "我的会议室预约", description = "当前登录用户：预约（冲突校验/免费时长/超时计费）/支付/取消/查询（需登录）")
+@Tag(name = "myMeetingReservations", description = "我的会议室预约：当前登录用户：预约（冲突校验/免费时长/超时计费）/支付/取消/查询（需登录）")
 @RestController
 @RequestMapping("/api/v1/me/meeting-reservations")
 @RequiredArgsConstructor

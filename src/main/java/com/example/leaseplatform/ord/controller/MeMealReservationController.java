@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 我的正餐预订（小程序端 /api/v1/me/meal-reservations/**，需登录）。
  */
-@Tag(name = "我的正餐预订", description = "当前登录用户：按日期+时段预订/余额支付/取消/查询（需登录）")
+@Tag(name = "myMealReservations", description = "我的正餐预订：当前登录用户：按日期+时段预订/余额支付/取消/查询（需登录）")
 @RestController
 @RequestMapping("/api/v1/me/meal-reservations")
 @RequiredArgsConstructor

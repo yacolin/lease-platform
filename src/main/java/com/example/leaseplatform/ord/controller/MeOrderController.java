@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 我的订单（小程序端 /api/v1/me/orders/**，需登录）：咖啡点单。
  */
-@Tag(name = "我的订单", description = "当前登录用户：咖啡下单/余额支付/取消/订单查询（需登录）")
+@Tag(name = "myOrders", description = "我的订单：当前登录用户：咖啡下单/余额支付/取消/订单查询（需登录）")
 @RestController
 @RequestMapping("/api/v1/me/orders")
 @RequiredArgsConstructor

@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 企业审核（管理端 /api/v1/enterprises/**，仅 user_type=1 管理员 token，
  * 路径已注册到 lease.security.admin-paths）。
  */
-@Tag(name = "企业审核（管理端）", description = "企业实名注册审核：分页/详情/通过/拒绝")
+@Tag(name = "enterpriseAudit", description = "企业审核（管理端）：企业实名注册审核：分页/详情/通过/拒绝")
 @RestController
 @RequestMapping("/api/v1/enterprises")
 @RequiredArgsConstructor

@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * 充值档位公开列表（/api/v1/public/recharge-tiers，白名单，无需登录）。
  */
-@Tag(name = "充值档位浏览（公开）", description = "无需认证，面向小程序端")
+@Tag(name = "rechargeTierPublic", description = "充值档位浏览（公开）：无需认证，面向小程序端")
 @RestController
 @RequestMapping("/api/v1/public/recharge-tiers")
 @RequiredArgsConstructor

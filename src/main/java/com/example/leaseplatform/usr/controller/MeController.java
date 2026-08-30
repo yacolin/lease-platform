@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 我的接口（/api/v1/me，需登录）：
  * 个人资料 + 余额 + 会员等级。
  */
-@Tag(name = "我的", description = "当前登录用户（需登录，JWT Bearer）")
+@Tag(name = "me", description = "我的：当前登录用户（需登录，JWT Bearer）")
 @RestController
 @RequestMapping("/api/v1/me")
 @RequiredArgsConstructor

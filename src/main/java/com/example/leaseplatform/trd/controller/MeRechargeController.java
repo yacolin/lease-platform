@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 我的充值与余额（小程序端 /api/v1/me/**，需登录）。
  */
-@Tag(name = "我的充值/余额", description = "当前登录用户：充值下单/mock 直充/查单/记录/余额流水（需登录）")
+@Tag(name = "myRecharge", description = "我的充值/余额：当前登录用户：充值下单/mock 直充/查单/记录/余额流水（需登录）")
 @RestController
 @RequestMapping("/api/v1/me")
 @RequiredArgsConstructor

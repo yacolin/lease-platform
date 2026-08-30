@@ -32,7 +32,7 @@ import java.util.List;
  * 我的企业（小程序端 /api/v1/me/enterprise/**，需登录）：
  * 企业注册 / 我的企业 / 员工管理 / 邀请 / 会员购买。
  */
-@Tag(name = "我的企业", description = "当前登录用户的企业：注册/资料/员工/邀请/会员购买（需登录）")
+@Tag(name = "myEnterprise", description = "我的企业：当前登录用户的企业：注册/资料/员工/邀请/会员购买（需登录）")
 @RestController
 @RequestMapping("/api/v1/me/enterprise")
 @RequiredArgsConstructor

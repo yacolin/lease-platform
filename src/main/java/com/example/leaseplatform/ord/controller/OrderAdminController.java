@@ -28,7 +28,7 @@ import java.time.LocalDate;
  * 订单管理（商家后台 /api/v1/orders/**，仅 user_type=1 管理员 token，
  * 路径已注册到 lease.security.admin-paths）。
  */
-@Tag(name = "订单管理（管理端）", description = "咖啡订单：分页/详情/状态推进/取餐码核销/统计")
+@Tag(name = "orderAdmin", description = "订单管理（管理端）：咖啡订单：分页/详情/状态推进/取餐码核销/统计")
 @RestController
 @RequestMapping("/api/v1/orders")
 @RequiredArgsConstructor

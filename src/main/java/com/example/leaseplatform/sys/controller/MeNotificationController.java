@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 我的通知（小程序端 /api/v1/me/notifications/**，需登录）。
  */
-@Tag(name = "我的通知", description = "站内通知：列表/未读数/已读（需登录）")
+@Tag(name = "myNotifications", description = "我的通知：站内通知：列表/未读数/已读（需登录）")
 @RestController
 @RequestMapping("/api/v1/me/notifications")
 @RequiredArgsConstructor

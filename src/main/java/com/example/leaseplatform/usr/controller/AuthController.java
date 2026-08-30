@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
  * - POST /refresh  令牌刷新（轮换）
  * - POST /logout   登出（作废 refresh token）
  */
-@Tag(name = "认证", description = "后台管理员登录 / 微信小程序登录 / 令牌刷新 / 登出（白名单，无需认证）")
+@Tag(name = "auth", description = "认证：后台管理员登录 / 微信小程序登录 / 令牌刷新 / 登出（白名单，无需认证）")
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor

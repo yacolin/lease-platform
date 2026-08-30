@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 操作日志查询（管理端 /api/v1/operation-logs/**，仅 user_type=1 管理员 token，
  * 路径已注册到 lease.security.admin-paths）。
  */
-@Tag(name = "操作日志（管理端）", description = "后台操作审计：分页/操作人/操作类型筛选")
+@Tag(name = "operationLogAdmin", description = "操作日志（管理端）：后台操作审计：分页/操作人/操作类型筛选")
 @RestController
 @RequestMapping("/api/v1/operation-logs")
 @RequiredArgsConstructor

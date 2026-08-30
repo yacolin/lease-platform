@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * 会员等级公开浏览（/api/v1/public/member-levels，白名单，无需登录）。
  */
-@Tag(name = "会员等级浏览（公开）", description = "无需认证，面向小程序端")
+@Tag(name = "memberLevelPublic", description = "会员等级浏览（公开）：无需认证，面向小程序端")
 @RestController
 @RequestMapping("/api/v1/public/member-levels")
 @RequiredArgsConstructor

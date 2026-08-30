@@ -25,7 +25,7 @@ import java.util.List;
  * 公开接口（/api/v1/public/**，白名单放行，无需登录）：
  * 面向任意客户端（小程序 / H5 / App 等）的商品分类 / 商品浏览 / 每日菜单。
  */
-@Tag(name = "商品浏览（公开）", description = "无需认证，面向任意客户端（小程序/H5/App）")
+@Tag(name = "productPublic", description = "商品浏览（公开）：无需认证，面向任意客户端（小程序/H5/App）")
 @RestController
 @RequestMapping("/api/v1/public")
 @RequiredArgsConstructor

@@ -17,7 +17,7 @@ import java.util.Map;
  * 微信支付结果回调（POST /api/v1/wx/payments/notify，白名单，微信服务器调用，无需业务鉴权头）。
  * 微信支付未配置（开发环境）时返回失败，前端走 mock-pay 直充。
  */
-@Tag(name = "微信支付回调", description = "微信服务器调用（白名单）；开发环境未配置微信支付时不可用")
+@Tag(name = "wxPaymentNotify", description = "微信支付回调：微信服务器调用（白名单）；开发环境未配置微信支付时不可用")
 @RestController
 @RequestMapping("/api/v1/wx/payments")
 @RequiredArgsConstructor

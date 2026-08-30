@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * 会议室公开列表（/api/v1/public/rooms，白名单，无需登录）。
  */
-@Tag(name = "会议室浏览（公开）", description = "无需认证，面向小程序端")
+@Tag(name = "roomPublic", description = "会议室浏览（公开）：无需认证，面向小程序端")
 @RestController
 @RequestMapping("/api/v1/public/rooms")
 @RequiredArgsConstructor

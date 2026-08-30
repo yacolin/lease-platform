@@ -37,7 +37,7 @@ import java.time.LocalDate;
  * 商家后台商品管理接口（/api/v1/**，需登录；JWT 认证接入后生效）：
  * 分类 / 商品 / 每日菜单的完整 CRUD。
  */
-@Tag(name = "商品管理（管理端）", description = "需登录，JWT 认证接入后生效")
+@Tag(name = "productAdmin", description = "商品管理（管理端）：需登录，JWT 认证接入后生效")
 @RestController
 @RequestMapping("/api/v1")
 @RequiredArgsConstructor

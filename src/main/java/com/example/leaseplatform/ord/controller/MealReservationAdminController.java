@@ -24,7 +24,7 @@ import java.time.LocalDate;
  * 正餐预订管理（商家后台 /api/v1/meal-reservations/**，仅 user_type=1 管理员 token，
  * 路径已注册到 lease.security.admin-paths）。
  */
-@Tag(name = "正餐预订管理（管理端）", description = "备餐状态流转：分页/详情/1→2→3、1/2→5 退款")
+@Tag(name = "mealReservationAdmin", description = "正餐预订管理（管理端）：备餐状态流转：分页/详情/1→2→3、1/2→5 退款")
 @RestController
 @RequestMapping("/api/v1/meal-reservations")
 @RequiredArgsConstructor
