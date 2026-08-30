@@ -1,0 +1,19 @@
+# ============================================================================
+# 开发环境（spring.profiles.active=dev，或默认配置）
+# 开发默认配置集中在 application.yml；本文件仅显式声明开发语义，
+# 敏感项（DB/Redis 密码、JWT 密钥）保持默认值，便于本地直接运行。
+# 启动：make run（默认）或 SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
+# ============================================================================
+spring:
+  flyway:
+    # 开发用 ./reset_db.sh 全量重建，禁用 Flyway 避免与既有表冲突
+    enabled: false
+
+# 开发 mock：微信登录固定 openid、充值走 mock-pay
+wechat:
+  mock-enabled: true
+
+mybatis-plus:
+  configuration:
+    # 开发期打印 SQL
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl

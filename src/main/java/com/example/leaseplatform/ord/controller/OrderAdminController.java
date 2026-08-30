@@ -1,5 +1,6 @@
 package com.example.leaseplatform.ord.controller;
 
+import com.example.leaseplatform.sys.log.OperationLog;
 import com.example.leaseplatform.common.ApiResponse;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.ord.dto.OrderStatsVO;
@@ -53,6 +54,8 @@ public class OrderAdminController {
     }
 
     @Operation(summary = "状态推进（1→2→3；1/2→5 退款）")
+
+    @OperationLog("订单状态推进")
     @PutMapping("/{id}/status")
     public ApiResponse<OrderVO> updateStatus(@PathVariable Long id,
                                              @Valid @RequestBody OrderStatusReq req) {

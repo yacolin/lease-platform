@@ -1,5 +1,6 @@
 package com.example.leaseplatform.usr.controller;
 
+import com.example.leaseplatform.sys.log.OperationLog;
 import com.example.leaseplatform.common.ApiResponse;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.usr.dto.EnterpriseAuditReq;
@@ -46,6 +47,8 @@ public class EnterpriseAdminController {
     }
 
     @Operation(summary = "审核企业（1-通过, 2-拒绝；拒绝必填原因）")
+
+    @OperationLog("审核企业")
     @PutMapping("/{id}/audit")
     public ApiResponse<EnterpriseVO> audit(@PathVariable Long id,
                                            @Valid @RequestBody EnterpriseAuditReq req) {

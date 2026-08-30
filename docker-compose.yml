@@ -1,0 +1,73 @@
+# ============================================================================
+# 一键部署：MySQL + Redis + 应用（prod profile，环境变量注入敏感项）
+# 用法：docker compose up -d --build
+# 首次启动自动建库（MySQL 初始化脚本 db/init/01_create_db.sql 挂载执行），
+# 应用以 prod profile 启动，Flyway 自动迁移 V1~V4 建表 + 种子数据。
+# 环境变量：复制 .env.example 为 .env 并填写 DB_PASSWORD / JWT_SECRET 等。
+# ============================================================================
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: lease-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-123456}
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 初始化：建库（空密码时创建 lease_db）
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_PASSWORD:-123456}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: lease-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    container_name: lease-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:mysql://mysql:3306/lease_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+      DB_USERNAME: root
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      JWT_SECRET: ${JWT_SECRET:}
+      WECHAT_APPID: ${WECHAT_APPID:-}
+      WECHAT_SECRET: ${WECHAT_SECRET:-}
+      WECHAT_PAY_MCH_ID: ${WECHAT_PAY_MCH_ID:-}
+      WECHAT_PAY_API_V3_KEY: ${WECHAT_PAY_API_V3_KEY:-}
+      WECHAT_PAY_PRIVATE_KEY_PATH: ${WECHAT_PAY_PRIVATE_KEY_PATH:-}
+      WECHAT_PAY_MCH_SERIAL_NO: ${WECHAT_PAY_MCH_SERIAL_NO:-}
+      WECHAT_PAY_NOTIFY_URL: ${WECHAT_PAY_NOTIFY_URL:-}
+    ports:
+      - "8080:8080"
+
+volumes:
+  mysql-data:
+  redis-data:

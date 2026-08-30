@@ -1,0 +1,13 @@
+.git
+.gitignore
+.idea
+.vscode
+.m2home
+target
+logs
+*.iml
+todo.md
+reset_db.sh
+db/migrations
+docker-compose.yml
+Dockerfile

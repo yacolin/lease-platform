@@ -3,10 +3,14 @@
 增量迁移文件，与 `db/*.sql`（全量重建脚本）**双轨并行**：
 
 - `db/*.sql`：开发期 `reset_db.sh` 全量重建用（可重复执行）；
-- `db/migrations/`：上线后增量演进用（Spring Boot 接入 Flyway 等迁移工具后由工具执行；
-  目前开发期由 `reset_db.sh` 末尾的 `schema_migrations` 同步标记为已应用）。
+- `db/migrations/`：增量演进基线（开发期由 `reset_db.sh` 末尾的 `schema_migrations` 标记已应用）；
+- `src/main/resources/db/migration/`：**Flyway 迁移脚本（V1~V4）**，生产 profile
+  （`SPRING_PROFILES_ACTIVE=prod`）启动时由 `FlywayMigrationRunner` 自动执行。
+  注意：Spring Boot 4 已移除 Flyway 自动配置，本仓库用 Flyway Java API 驱动；
+  复制到 Flyway 目录时需去掉 `-- +migrate Down` 回滚段（Flyway 整文件执行）。
 
-**改表结构时必须同时更新两处**，保持最终形态一致。
+**改表结构时必须同时更新两处**（`db/*.sql` 与 `db/migrations/NNN_*.sql`），
+并同步 `src/main/resources/db/migration/Vx__*.sql`，保持三处最终形态一致。
 
 ## 文件格式
 
@@ -35,7 +39,8 @@ DROP TABLE ...
 
 ## 开发流程
 
-- 开发期仍然 `./reset_db.sh`（全量重建，库名 `lease_db`）；
+- 开发期仍然 `./reset_db.sh`（全量重建，库名 `lease_db`；Flyway 默认禁用）；
 - 已有数据的环境（含测试环境）接入迁移工具后一律增量升级，**禁止**改 `db/*.sql` 后重跑重建；
-- 接入 Flyway 时：把本目录内容同步到 `src/main/resources/db/migration/`（按 Flyway
-  命名规范 `V001__init.sql`），并配置 `spring.flyway.*` 数据源参数。
+- **Flyway（已接入）**：改表时同步 `src/main/resources/db/migration/`（Flyway 命名
+  `Vx__desc.sql`，去掉 `+migrate Down` 段），生产启动自动迁移；已验证全新库
+  V1~V4 建 21 表 + 种子数据。

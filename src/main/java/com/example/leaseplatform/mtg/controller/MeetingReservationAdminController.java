@@ -1,5 +1,6 @@
 package com.example.leaseplatform.mtg.controller;
 
+import com.example.leaseplatform.sys.log.OperationLog;
 import com.example.leaseplatform.common.ApiResponse;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.mtg.dto.MeetingReservationVO;
@@ -47,6 +48,8 @@ public class MeetingReservationAdminController {
     }
 
     @Operation(summary = "确认完成（已确认 → 已完成）")
+
+    @OperationLog("会议室预约完成")
     @PutMapping("/{id}/complete")
     public ApiResponse<MeetingReservationVO> complete(@PathVariable Long id) {
         return ApiResponse.ok(reservationService.adminComplete(id));

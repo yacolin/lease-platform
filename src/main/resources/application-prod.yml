@@ -1,0 +1,51 @@
+# ============================================================================
+# 生产环境（spring.profiles.active=prod）
+# 所有敏感项一律环境变量注入（docker-compose / k8s / 部署平台设置）：
+#   DB_URL / DB_USERNAME / DB_PASSWORD
+#   REDIS_HOST / REDIS_PORT / REDIS_PASSWORD
+#   JWT_SECRET / WECHAT_APPID / WECHAT_SECRET
+#   WECHAT_PAY_MCH_ID / WECHAT_PAY_API_V3_KEY / WECHAT_PAY_PRIVATE_KEY_PATH /
+#   WECHAT_PAY_MCH_SERIAL_NO / WECHAT_PAY_NOTIFY_URL
+# 启动：SPRING_PROFILES_ACTIVE=prod java -jar app.jar
+# ============================================================================
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN:5}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+  flyway:
+    # 生产启用自动迁移：全新库启动时执行 V1~V4（与 db/migrations 双轨同步）
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+# 生产关闭 SQL 打印
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+wechat:
+  appid: ${WECHAT_APPID:}
+  secret: ${WECHAT_SECRET:}
+  # 生产关闭 mock，真实 code2session
+  mock-enabled: false
+  pay:
+    mch-id: ${WECHAT_PAY_MCH_ID:}
+    api-v3-key: ${WECHAT_PAY_API_V3_KEY:}
+    private-key-path: ${WECHAT_PAY_PRIVATE_KEY_PATH:}
+    mch-serial-no: ${WECHAT_PAY_MCH_SERIAL_NO:}
+    notify-url: ${WECHAT_PAY_NOTIFY_URL:}
+
+jwt:
+  # 生产必须设置 JWT_SECRET（>= 256 bit 的 Base64）
+  secret: ${JWT_SECRET}

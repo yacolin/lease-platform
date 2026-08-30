@@ -22,6 +22,14 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
 
+  # ---------- Flyway（数据库自动迁移） ----------
+  # 开发默认关闭（库由 ./reset_db.sh 全量重建）；生产 profile（application-prod.yml）启用，
+  # 全新库启动时自动执行 src/main/resources/db/migration（V1~V4，与 db/migrations 双轨同步）
+  flyway:
+    enabled: false
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
   # ---------- 2. Redis ----------
   data:
     redis:
@@ -130,6 +138,7 @@ springdoc:
         - /api/v1/meal-reservations/**
         - /api/v1/rooms/**
         - /api/v1/meeting-reservations/**
+        - /api/v1/operation-logs/**
     - group: public
       display-name: 公开/小程序端
       paths-to-match:
@@ -169,6 +178,7 @@ lease:
       - /api/v1/meal-reservations/**
       - /api/v1/rooms/**
       - /api/v1/meeting-reservations/**
+      - /api/v1/operation-logs/**
     cors:
       # 开发期放开；生产改为小程序/后台实际域名列表
       allowed-origins:

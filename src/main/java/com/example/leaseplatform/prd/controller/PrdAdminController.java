@@ -1,5 +1,6 @@
 package com.example.leaseplatform.prd.controller;
 
+import com.example.leaseplatform.sys.log.OperationLog;
 import com.example.leaseplatform.common.ApiResponse;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.prd.dto.CategoryCreateReq;
@@ -119,6 +120,8 @@ public class PrdAdminController {
 
     /** 上下架（状态推进风格） */
     @Operation(summary = "商品上下架")
+
+    @OperationLog("商品上下架")
     @PutMapping("/products/{id}/status")
     public ApiResponse<ProductVO> updateProductStatus(@PathVariable Long id,
                                                       @Valid @RequestBody ProductStatusReq req) {
