@@ -1,5 +1,6 @@
 package com.example.leaseplatform.prd.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -23,6 +24,7 @@ public class ProductUpdateReq {
     @NotNull(message = "商品类型不能为空")
     @Min(value = 1, message = "商品类型只能是 1-咖啡, 2-正餐, 3-加饭/加菜, 4-加汤")
     @Max(value = 4, message = "商品类型只能是 1-咖啡, 2-正餐, 3-加饭/加菜, 4-加汤")
+    @Schema(description = "商品类型：1-咖啡, 2-正餐, 3-加饭/加菜, 4-加汤")
     private Integer productType;
 
     @NotNull(message = "价格不能为空")

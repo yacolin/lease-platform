@@ -1,5 +1,6 @@
 package com.example.leaseplatform.prd.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 /**
@@ -17,6 +18,8 @@ public class ProductVO {
 
     private String productName;
 
+    /** 商品类型：1-咖啡, 2-正餐, 3-加饭/加菜, 4-加汤（注意与菜品类型 dish_type 的枚举不同，勿混淆） */
+    @Schema(description = "商品类型：1-咖啡, 2-正餐, 3-加饭/加菜, 4-加汤")
     private Integer productType;
 
     /** 原价（分） */

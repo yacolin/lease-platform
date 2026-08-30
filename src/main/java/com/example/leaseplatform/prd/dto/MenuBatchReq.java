@@ -1,5 +1,6 @@
 package com.example.leaseplatform.prd.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -36,6 +37,7 @@ public class MenuBatchReq {
 
         /** 菜品类型：1-荤菜, 2-素菜, 3-汤, 4-饭 */
         @NotNull(message = "菜品类型不能为空")
+        @Schema(description = "菜品类型：1-荤菜, 2-素菜, 3-汤, 4-饭")
         private Integer dishType;
 
         private Integer sortOrder = 0;

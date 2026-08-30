@@ -1,6 +1,7 @@
 package com.example.leaseplatform.prd.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -30,6 +31,7 @@ public class MenuUpdateReq {
     @NotNull(message = "菜品类型不能为空")
     @Min(value = 1, message = "菜品类型只能是 1-荤菜, 2-素菜, 3-汤, 4-饭")
     @Max(value = 4, message = "菜品类型只能是 1-荤菜, 2-素菜, 3-汤, 4-饭")
+    @Schema(description = "菜品类型：1-荤菜, 2-素菜, 3-汤, 4-饭")
     private Integer dishType;
 
     private Integer sortOrder = 0;
