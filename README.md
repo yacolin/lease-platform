@@ -61,7 +61,8 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 
 ## 接口一览
 
-> 完整约定见 **`docs/接口规范.md`**（路径/双轨模式/权限分层/响应错误码/新增接口流程）。
+> 完整约定见 **`docs/接口规范.md`**（路径/双轨模式/权限分层/响应错误码/新增接口流程），
+> 交付全景见 **`docs/交付总结.md`**（P0~P6 功能全景/设计决策/测试/部署/遗留项）。
 
 统一响应：`{code, message, data}`（code=0 成功）；分页：`data: {total, list}`；时间字段为 epoch 毫秒数字。
 认证方式：请求头 `Authorization: Bearer <accessToken>`；未携带/无效 token 访问受保护接口返回 403。
