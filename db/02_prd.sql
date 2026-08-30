@@ -6,7 +6,7 @@
 -- 表结构遵照 1.0 版本共享对话的 MySQL 设计（数据库 lease_db）；
 -- 表名按 beauty_salon 约定加域前缀 `prd_`；跨域关系由服务层保证，本库暂不加外键约束。
 -- 约定：业务表主键 BIGINT UNSIGNED（雪花，无自增；分类配置 prd_categories 自增，
--- 见 db/README.md 主键 ID 策略）；金额 DECIMAL(10,2)（元）；
+-- 见 db/README.md 主键 ID 策略）；金额 BIGINT（分，最小单位整数，全链路统一以「分」为单位）；
 -- 规格等结构化信息用 JSON 存储（spec_options / dish_details）。
 
 -- 反向依赖顺序删除（prd_daily_menus → prd_products → prd_categories）
@@ -35,7 +35,7 @@ CREATE TABLE `prd_products` (
   `category_id` BIGINT UNSIGNED NOT NULL COMMENT '分类ID',
   `product_name` VARCHAR(100) NOT NULL COMMENT '商品名称',
   `product_type` TINYINT NOT NULL COMMENT '商品类型：1-咖啡, 2-正餐, 3-加饭/加菜, 4-加汤',
-  `price` DECIMAL(10,2) NOT NULL COMMENT '原价',
+  `price` BIGINT NOT NULL COMMENT '原价（分）',
   `description` VARCHAR(255) DEFAULT NULL COMMENT '商品描述',
   `image_url` VARCHAR(255) DEFAULT NULL COMMENT '商品图片URL',
   `spec_options` JSON DEFAULT NULL COMMENT '规格选项JSON（如杯型、温度、糖度）',
@@ -78,14 +78,14 @@ INSERT INTO `prd_categories` (`category_name`, `category_type`, `sort_order`) VA
 -- 2. 商品（id 显式指定，供 prd_daily_menus 种子以 product_id 引用；
 --    咖啡清单按共享对话截断前的商品补齐，后续可继续追加）
 INSERT INTO `prd_products` (`id`, `category_id`, `product_name`, `product_type`, `price`, `description`, `spec_options`) VALUES
-  (1, 1, '美式', 1, 12.00, NULL, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
-  (2, 1, '拿铁', 1, 15.00, NULL, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
-  (3, 1, '奶茶', 1, 18.00, NULL, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
-  (4, 2, '3荤1素套餐', 2, 20.00, '每日更新菜单，3种荤菜+1种素菜', NULL),
-  (5, 2, '4荤1素套餐', 2, 25.00, '每日更新菜单，4种荤菜+1种素菜', NULL),
-  (6, 3, '加饭', 3, 5.00, '额外加一份米饭', NULL),
-  (7, 3, '加菜', 3, 5.00, '额外加一份菜品', NULL),
-  (8, 4, '加汤', 4, 8.00, '额外加一份汤', NULL);
+  (1, 1, '美式', 1, 1200, NULL, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
+  (2, 1, '拿铁', 1, 1500, NULL, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
+  (3, 1, '奶茶', 1, 1800, NULL, '{"cup_size":["大杯","中杯"],"temperature":["热","冰"],"sugar":["无糖","少糖","正常"]}'),
+  (4, 2, '3荤1素套餐', 2, 2000, '每日更新菜单，3种荤菜+1种素菜', NULL),
+  (5, 2, '4荤1素套餐', 2, 2500, '每日更新菜单，4种荤菜+1种素菜', NULL),
+  (6, 3, '加饭', 3, 500, '额外加一份米饭', NULL),
+  (7, 3, '加菜', 3, 500, '额外加一份菜品', NULL),
+  (8, 4, '加汤', 4, 800, '额外加一份汤', NULL);
 
 -- 3. 每日菜单示例（2026-08-30；product_id 对应上方套餐/加汤商品；id 显式指定，雪花表无自增）
 INSERT INTO `prd_daily_menus` (`id`, `menu_date`, `product_id`, `dish_name`, `dish_type`, `sort_order`) VALUES

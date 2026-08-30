@@ -20,7 +20,6 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -174,7 +173,7 @@ class MeEnterpriseControllerTest {
         MemberPurchaseVO vo = new MemberPurchaseVO();
         vo.setId(500L);
         vo.setMemberLevelCode("VIP");
-        vo.setPayPrice(new BigDecimal("5000.00"));
+        vo.setPayPrice(500000L);
         vo.setPaymentStatus(0);
         when(purchaseService.createPurchase(any())).thenReturn(vo);
 

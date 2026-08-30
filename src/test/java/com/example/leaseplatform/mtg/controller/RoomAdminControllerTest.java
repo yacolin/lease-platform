@@ -16,7 +16,6 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -51,7 +50,7 @@ class RoomAdminControllerTest {
         RoomVO vo = new RoomVO();
         vo.setId(1L);
         vo.setRoomName("会议室A");
-        vo.setHourlyFee(new BigDecimal("80.00"));
+        vo.setHourlyFee(8000L);
         return vo;
     }
 
@@ -61,7 +60,7 @@ class RoomAdminControllerTest {
 
         mockMvc.perform(post("/api/v1/rooms")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"roomName\":\"会议室A\",\"capacity\":10,\"hourlyFee\":80.00}"))
+                        .content("{\"roomName\":\"会议室A\",\"capacity\":10,\"hourlyFee\":8000}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.roomName").value("会议室A"));
     }
@@ -90,7 +89,7 @@ class RoomAdminControllerTest {
 
         mockMvc.perform(put("/api/v1/rooms/1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"roomName\":\"会议室A\",\"capacity\":10,\"hourlyFee\":80.00}"))
+                        .content("{\"roomName\":\"会议室A\",\"capacity\":10,\"hourlyFee\":8000}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
     }

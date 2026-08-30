@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -27,20 +26,20 @@ public class TrdBalanceTransaction {
     /** 类型：1-充值, 2-消费, 3-退款, 4-赠送, 5-调整 */
     private Integer transactionType;
 
-    /** 变动金额（正数增加，负数减少） */
-    private BigDecimal amount;
+    /** 变动金额（分，正数增加，负数减少） */
+    private Long amount;
 
-    /** 变动前余额 */
-    private BigDecimal balanceBefore;
+    /** 变动前余额（分） */
+    private Long balanceBefore;
 
-    /** 变动后余额 */
-    private BigDecimal balanceAfter;
+    /** 变动后余额（分） */
+    private Long balanceAfter;
 
-    /** 变动前赠送余额 */
-    private BigDecimal giftBalanceBefore;
+    /** 变动前赠送余额（分） */
+    private Long giftBalanceBefore;
 
-    /** 变动后赠送余额 */
-    private BigDecimal giftBalanceAfter;
+    /** 变动后赠送余额（分） */
+    private Long giftBalanceAfter;
 
     /** 关联订单 ID（订单表） */
     private Long relatedOrderId;

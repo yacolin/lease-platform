@@ -57,11 +57,11 @@ public class MealReservationService {
     public static final int STATUS_CANCELLED = 4;
     public static final int STATUS_REFUNDED = 5;
 
-    /** 配送费：周边配送 5 元，自取/楼内 0 */
-    private static final BigDecimal SURROUNDING_DELIVERY_FEE = new BigDecimal("5.00");
+    /** 配送费：周边配送 5 元（500 分），自取/楼内 0 */
+    private static final long SURROUNDING_DELIVERY_FEE = 500L;
     private static final int DELIVERY_SURROUNDING = 3;
 
-    private static final BigDecimal DELIVERY_ZERO = BigDecimal.ZERO;
+    private static final long DELIVERY_ZERO = 0L;
 
     private final OrdMealReservationMapper reservationMapper;
     private final OrdMealReservationItemMapper itemMapper;
@@ -98,19 +98,17 @@ public class MealReservationService {
             throw BizException.badRequest("周边配送请填写配送地址");
         }
 
-        // 折扣（会员 × 充值叠加）
+        // 折扣（会员 × 充值叠加；金额整数「分」，仅折扣率用 BigDecimal 乘法后舍入到分）
         BigDecimal memberRate = discountCalculator.memberDiscountRate(user);
         BigDecimal rechargeRate = discountCalculator.rechargeDiscountRate(userId);
         int qty = req.getQuantity();
-        BigDecimal total = product.getPrice().multiply(BigDecimal.valueOf(qty));
-        BigDecimal discountedPrice = product.getPrice().multiply(memberRate).multiply(rechargeRate)
-                .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal discountedSubtotal = discountedPrice.multiply(BigDecimal.valueOf(qty))
-                .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal afterMember = total.multiply(memberRate).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal memberDiscount = total.subtract(afterMember);
-        BigDecimal rechargeDiscount = total.subtract(memberDiscount).subtract(discountedSubtotal);
-        BigDecimal deliveryFee = deliveryFee(req.getDeliveryType());
+        long total = product.getPrice() * qty;
+        long discountedPrice = roundCents(BigDecimal.valueOf(product.getPrice()).multiply(memberRate).multiply(rechargeRate));
+        long discountedSubtotal = discountedPrice * qty;
+        long afterMember = roundCents(BigDecimal.valueOf(total).multiply(memberRate));
+        long memberDiscount = total - afterMember;
+        long rechargeDiscount = total - memberDiscount - discountedSubtotal;
+        long deliveryFee = deliveryFee(req.getDeliveryType());
 
         // 关联订单（order_type=2 正餐）
         OrdOrder order = new OrdOrder();
@@ -120,10 +118,10 @@ public class MealReservationService {
         order.setOrderType(2);
         order.setOrderStatus(STATUS_PENDING);
         order.setTotalAmount(total);
-        order.setDiscountAmount(total.subtract(discountedSubtotal));
+        order.setDiscountAmount(total - discountedSubtotal);
         order.setMemberDiscount(memberDiscount);
         order.setRechargeDiscount(rechargeDiscount);
-        order.setPayableAmount(discountedSubtotal.add(deliveryFee));
+        order.setPayableAmount(discountedSubtotal + deliveryFee);
         order.setPaymentMethod(1);
         order.setDeliveryType(req.getDeliveryType());
         order.setDeliveryFee(deliveryFee);
@@ -149,8 +147,8 @@ public class MealReservationService {
         reservation.setDeliveryFee(deliveryFee);
         reservation.setDeliveryAddress(req.getDeliveryAddress());
         reservation.setTotalAmount(total);
-        reservation.setDiscountAmount(total.subtract(discountedSubtotal));
-        reservation.setPayableAmount(discountedSubtotal.add(deliveryFee));
+        reservation.setDiscountAmount(total - discountedSubtotal);
+        reservation.setPayableAmount(discountedSubtotal + deliveryFee);
         reservation.setPaymentMethod(1);
         reservation.setOutTradeNo(order.getOutTradeNo());
         reservation.setStatus(STATUS_PENDING);
@@ -199,7 +197,7 @@ public class MealReservationService {
             throw BizException.conflict("预订备餐中，暂不可取消");
         }
         if (status == STATUS_READY) {
-            balanceService.credit(userId, reservation.getPayableAmount(), BigDecimal.ZERO,
+            balanceService.credit(userId, reservation.getPayableAmount(), 0L,
                     BalanceService.TX_REFUND, reservation.getOrderId(), null, "预订取消退款");
         }
         reservation.setStatus(STATUS_CANCELLED);
@@ -227,7 +225,7 @@ public class MealReservationService {
             throw BizException.conflict("非法的状态流转：" + cur + " → " + target);
         }
         if (target == STATUS_REFUNDED) {
-            balanceService.credit(reservation.getUserId(), reservation.getPayableAmount(), BigDecimal.ZERO,
+            balanceService.credit(reservation.getUserId(), reservation.getPayableAmount(), 0L,
                     BalanceService.TX_REFUND, reservation.getOrderId(), null, "商家退款");
         }
         reservation.setStatus(target);
@@ -282,9 +280,14 @@ public class MealReservationService {
         }
     }
 
-    private BigDecimal deliveryFee(Integer deliveryType) {
+    private long deliveryFee(Integer deliveryType) {
         return deliveryType != null && deliveryType == DELIVERY_SURROUNDING
                 ? SURROUNDING_DELIVERY_FEE : DELIVERY_ZERO;
+    }
+
+    /** 金额（分）乘折扣率后舍入到整数分（HALF_UP） */
+    private static long roundCents(BigDecimal value) {
+        return value.setScale(0, RoundingMode.HALF_UP).longValueExact();
     }
 
     /** 时段 → ord_orders.reservation_time（午餐 11:30 / 晚餐 17:30） */

@@ -2,8 +2,6 @@ package com.example.leaseplatform.mtg.dto;
 
 import lombok.Data;
 
-import java.math.BigDecimal;
-
 /**
  * 会议室视图对象。
  */
@@ -25,8 +23,8 @@ public class RoomVO {
 
     private String imageUrl;
 
-    /** 超出费用（元/小时） */
-    private BigDecimal hourlyFee;
+    /** 超出费用（分/小时） */
+    private Long hourlyFee;
 
     /** 状态：0-维护中, 1-可预约 */
     private Integer status;

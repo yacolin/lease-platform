@@ -5,7 +5,7 @@
 -- 表结构遵照 1.0 版本共享对话的 MySQL 设计（数据库 lease_db）；
 -- 表名按 beauty_salon 约定加域前缀 `mtg_`；跨域关系由服务层保证，本库暂不加外键约束。
 -- 约定：业务表主键 BIGINT UNSIGNED（雪花，无自增，见 db/README.md 主键 ID 策略；
--- 会议室配置 mtg_rooms 自增）；金额 DECIMAL(10,2)（元）；
+-- 会议室配置 mtg_rooms 自增）；金额 BIGINT（分，最小单位整数，全链路统一以「分」为单位）；
 -- 时间字段统一 DATETIME（预约日期 DATE + 时段 TIME）。
 
 -- 反向依赖顺序删除（mtg_reservations → mtg_rooms）
@@ -20,7 +20,7 @@ CREATE TABLE `mtg_rooms` (
   `equipment` VARCHAR(255) DEFAULT NULL COMMENT '设备（投影仪、白板、音响等）',
   `suitable_scenes` VARCHAR(255) DEFAULT NULL COMMENT '适用场景（沙龙、培训、路演、商务洽谈）',
   `image_url` VARCHAR(255) DEFAULT NULL COMMENT '会议室图片',
-  `hourly_fee` DECIMAL(10,2) NOT NULL COMMENT '超出费用（元/小时）',
+  `hourly_fee` BIGINT NOT NULL COMMENT '超出费用（分/小时）',
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0-维护中, 1-可预约',
   `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0-未删除, 1-已删除',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -42,7 +42,7 @@ CREATE TABLE `mtg_reservations` (
   `meeting_topic` VARCHAR(100) NOT NULL COMMENT '会议主题',
   `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态：0-待确认, 1-已确认, 2-已完成, 3-已取消, 4-已过期',
   `is_free` TINYINT NOT NULL DEFAULT 0 COMMENT '是否免费：0-否（超出免费时长）, 1-是',
-  `fee_amount` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '费用（元）',
+  `fee_amount` BIGINT NOT NULL DEFAULT 0 COMMENT '费用（分）',
   `cancelled_at` DATETIME DEFAULT NULL COMMENT '取消时间',
   `cancel_reason` VARCHAR(255) DEFAULT NULL COMMENT '取消原因',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -58,6 +58,6 @@ CREATE TABLE `mtg_reservations` (
 
 -- ---------- 种子数据（会议室） ----------
 INSERT INTO `mtg_rooms` (`room_name`, `capacity`, `equipment`, `suitable_scenes`, `hourly_fee`) VALUES
-  ('会议室A', 10, '投影仪、白板、音响', '沙龙、培训、路演、商务洽谈', 80.00),
-  ('会议室B', 10, '投影仪、白板、音响', '沙龙、培训、路演、商务洽谈', 80.00),
-  ('会议室C', 10, '投影仪、白板、音响', '沙龙、培训、路演、商务洽谈', 80.00);
+  ('会议室A', 10, '投影仪、白板、音响', '沙龙、培训、路演、商务洽谈', 8000),
+  ('会议室B', 10, '投影仪、白板、音响', '沙龙、培训、路演、商务洽谈', 8000),
+  ('会议室C', 10, '投影仪、白板、音响', '沙龙、培训、路演、商务洽谈', 8000);

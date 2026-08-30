@@ -1,14 +1,11 @@
 package com.example.leaseplatform.mtg.dto;
 
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
-
-import java.math.BigDecimal;
 
 /**
  * 会议室创建/更新请求（管理端）。
@@ -35,8 +32,8 @@ public class RoomReq {
     private String imageUrl;
 
     @NotNull(message = "超出费用不能为空")
-    @DecimalMin(value = "0.00", message = "超出费用不能为负")
-    private BigDecimal hourlyFee;
+    @Min(value = 0, message = "超出费用不能为负")
+    private Long hourlyFee;
 
     private Integer status = 1;
 }

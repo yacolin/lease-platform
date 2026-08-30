@@ -6,7 +6,6 @@ import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -50,11 +49,11 @@ public class UsrUser {
     /** 是否企业管理员：0-否, 1-是 */
     private Integer isEnterpriseAdmin;
 
-    /** 余额（充值金额） */
-    private BigDecimal balance;
+    /** 余额（分） */
+    private Long balance;
 
-    /** 赠送余额 */
-    private BigDecimal giftBalance;
+    /** 赠送余额（分） */
+    private Long giftBalance;
 
     /** 状态：0-禁用, 1-正常 */
     private Integer status;

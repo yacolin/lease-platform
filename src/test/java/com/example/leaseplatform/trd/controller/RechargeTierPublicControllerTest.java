@@ -13,7 +13,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import static org.mockito.Mockito.when;
@@ -41,14 +40,14 @@ class RechargeTierPublicControllerTest {
     void list_shouldReturnEnabledTiers() throws Exception {
         RechargeTierVO vo = new RechargeTierVO();
         vo.setId(1L);
-        vo.setRechargeAmount(new BigDecimal("200.00"));
-        vo.setBonusAmount(new BigDecimal("20.00"));
-        vo.setActualAmount(new BigDecimal("220.00"));
+        vo.setRechargeAmount(20000L);
+        vo.setBonusAmount(2000L);
+        vo.setActualAmount(22000L);
         when(tierService.publicList()).thenReturn(List.of(vo));
 
         mockMvc.perform(get("/api/v1/public/recharge-tiers"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].rechargeAmount").value(200.0))
-                .andExpect(jsonPath("$.data[0].actualAmount").value(220.0));
+                .andExpect(jsonPath("$.data[0].rechargeAmount").value(20000))
+                .andExpect(jsonPath("$.data[0].actualAmount").value(22000));
     }
 }

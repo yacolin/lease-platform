@@ -13,7 +13,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,7 +43,7 @@ class RoomServiceTest {
         r.setId(id);
         r.setRoomName("会议室A");
         r.setCapacity(10);
-        r.setHourlyFee(new BigDecimal("80.00"));
+        r.setHourlyFee(8000L);
         r.setStatus(1);
         return r;
     }
@@ -56,7 +55,7 @@ class RoomServiceTest {
         List<RoomVO> list = service.publicList();
 
         assertThat(list).hasSize(1);
-        assertThat(list.get(0).getHourlyFee()).isEqualByComparingTo("80.00");
+        assertThat(list.get(0).getHourlyFee()).isEqualTo(8000L);
     }
 
     @Test
@@ -68,7 +67,7 @@ class RoomServiceTest {
         RoomReq req = new RoomReq();
         req.setRoomName("会议室D");
         req.setCapacity(20);
-        req.setHourlyFee(new BigDecimal("100.00"));
+        req.setHourlyFee(10000L);
 
         RoomVO vo = service.create(req);
 

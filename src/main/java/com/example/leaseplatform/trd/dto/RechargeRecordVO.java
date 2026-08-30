@@ -2,8 +2,6 @@ package com.example.leaseplatform.trd.dto;
 
 import lombok.Data;
 
-import java.math.BigDecimal;
-
 /**
  * 充值记录视图对象。
  */
@@ -18,14 +16,14 @@ public class RechargeRecordVO {
     /** 充值档位 ID */
     private Long tierId;
 
-    /** 充值金额 */
-    private BigDecimal rechargeAmount;
+    /** 充值金额（分） */
+    private Long rechargeAmount;
 
-    /** 赠送金额 */
-    private BigDecimal bonusAmount;
+    /** 赠送金额（分） */
+    private Long bonusAmount;
 
-    /** 到账总金额（充值 + 赠送） */
-    private BigDecimal totalAmount;
+    /** 到账总金额（分，充值 + 赠送） */
+    private Long totalAmount;
 
     /** 支付方式：1-微信支付, 2-余额支付 */
     private Integer paymentMethod;

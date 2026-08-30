@@ -18,7 +18,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -66,7 +65,7 @@ class PrdPublicControllerTest {
         vo.setCategoryId(1L);
         vo.setCategoryName("咖啡");
         vo.setProductName("美式");
-        vo.setPrice(new BigDecimal("12.00"));
+        vo.setPrice(1200L);
         vo.setIsAvailable(1);
         return vo;
     }

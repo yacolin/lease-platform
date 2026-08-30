@@ -13,7 +13,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import static org.mockito.Mockito.when;
@@ -43,12 +42,12 @@ class MemberLevelPublicControllerTest {
         vo.setId(1L);
         vo.setLevelCode("BASIC");
         vo.setLevelName("基础版");
-        vo.setPrice(new BigDecimal("0.00"));
+        vo.setPrice(0L);
         when(purchaseService.publicLevels()).thenReturn(List.of(vo));
 
         mockMvc.perform(get("/api/v1/public/member-levels"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].levelCode").value("BASIC"))
-                .andExpect(jsonPath("$.data[0].price").value(0.0));
+                .andExpect(jsonPath("$.data[0].price").value(0));
     }
 }

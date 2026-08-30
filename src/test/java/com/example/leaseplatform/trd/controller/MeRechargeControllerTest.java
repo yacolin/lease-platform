@@ -22,7 +22,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -132,11 +131,11 @@ class MeRechargeControllerTest {
         BalanceTransactionVO tx = new BalanceTransactionVO();
         tx.setId(1L);
         tx.setTransactionType(1);
-        tx.setAmount(new BigDecimal("220.00"));
+        tx.setAmount(22000L);
         when(balanceService.myTransactions(any(), eq(1), eq(10))).thenReturn(PageResult.of(1, List.of(tx)));
 
         mockMvc.perform(get("/api/v1/me/balance-transactions"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.list[0].amount").value(220.0));
+                .andExpect(jsonPath("$.data.list[0].amount").value(22000));
     }
 }

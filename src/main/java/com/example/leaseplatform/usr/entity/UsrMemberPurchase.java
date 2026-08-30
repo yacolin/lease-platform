@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -30,11 +29,11 @@ public class UsrMemberPurchase {
     /** 会员等级 ID（usr_member_levels.id） */
     private Long memberLevelId;
 
-    /** 原价 */
-    private BigDecimal originalPrice;
+    /** 原价（分） */
+    private Long originalPrice;
 
-    /** 实付价格 */
-    private BigDecimal payPrice;
+    /** 实付价格（分） */
+    private Long payPrice;
 
     /** 支付方式：1-微信支付, 2-余额支付 */
     private Integer paymentMethod;

@@ -2,8 +2,6 @@ package com.example.leaseplatform.prd.dto;
 
 import lombok.Data;
 
-import java.math.BigDecimal;
-
 /**
  * 商品视图对象（含分类名称；specOptions 解析为 JSON 对象返回）。
  */
@@ -21,7 +19,8 @@ public class ProductVO {
 
     private Integer productType;
 
-    private BigDecimal price;
+    /** 原价（分） */
+    private Long price;
 
     private String description;
 

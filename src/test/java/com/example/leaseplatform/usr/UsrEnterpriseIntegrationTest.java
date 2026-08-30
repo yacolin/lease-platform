@@ -20,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.math.BigDecimal;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -99,8 +98,8 @@ class UsrEnterpriseIntegrationTest {
         u.setUserType(3);
         u.setMemberLevel(0);
         u.setIsEnterpriseAdmin(0);
-        u.setBalance(BigDecimal.ZERO);
-        u.setGiftBalance(BigDecimal.ZERO);
+        u.setBalance(0L);
+        u.setGiftBalance(0L);
         u.setStatus(1);
         userMapper.insert(u);
         return u;

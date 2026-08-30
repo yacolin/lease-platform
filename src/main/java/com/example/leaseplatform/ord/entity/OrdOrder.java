@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -37,20 +36,20 @@ public class OrdOrder {
     /** 订单状态：0-待支付, 1-待取餐, 2-制作中, 3-已完成, 4-已取消, 5-已退款 */
     private Integer orderStatus;
 
-    /** 商品原价总金额 */
-    private BigDecimal totalAmount;
+    /** 商品原价总金额（分） */
+    private Long totalAmount;
 
-    /** 折扣优惠金额（合计） */
-    private BigDecimal discountAmount;
+    /** 折扣优惠金额（合计，分） */
+    private Long discountAmount;
 
-    /** 会员等级折扣金额 */
-    private BigDecimal memberDiscount;
+    /** 会员等级折扣金额（分） */
+    private Long memberDiscount;
 
-    /** 充值赠送折扣金额 */
-    private BigDecimal rechargeDiscount;
+    /** 充值赠送折扣金额（分） */
+    private Long rechargeDiscount;
 
-    /** 应付金额（折后） */
-    private BigDecimal payableAmount;
+    /** 应付金额（分，折后） */
+    private Long payableAmount;
 
     /** 支付方式：1-余额支付, 2-微信支付 */
     private Integer paymentMethod;
@@ -67,8 +66,8 @@ public class OrdOrder {
     /** 配送方式（正餐）：1-到店自取, 2-楼内配送, 3-周边配送 */
     private Integer deliveryType;
 
-    /** 配送费 */
-    private BigDecimal deliveryFee;
+    /** 配送费（分） */
+    private Long deliveryFee;
 
     /** 配送地址（周边配送） */
     private String deliveryAddress;

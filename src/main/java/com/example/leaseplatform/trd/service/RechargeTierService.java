@@ -72,15 +72,15 @@ public class RechargeTierService {
     private void apply(TrdRechargeTier tier, RechargeTierReq req) {
         tier.setRechargeAmount(req.getRechargeAmount());
         tier.setBonusAmount(req.getBonusAmount());
-        // 实际到账 = 充值 + 赠送
-        tier.setActualAmount(req.getRechargeAmount().add(req.getBonusAmount()));
+        // 实际到账 = 充值 + 赠送（整数分）
+        tier.setActualAmount(req.getRechargeAmount() + req.getBonusAmount());
         tier.setEquivalentDiscount(req.getEquivalentDiscount());
         tier.setSortOrder(req.getSortOrder() == null ? 0 : req.getSortOrder());
         tier.setStatus(req.getStatus() == null ? 1 : req.getStatus());
     }
 
     /** 充值金额唯一（uk_recharge_amount），预检查给出友好错误 */
-    private void checkDuplicateAmount(BigDecimal amount, Long excludeId) {
+    private void checkDuplicateAmount(long amount, Long excludeId) {
         Long count = tierMapper.selectCount(new LambdaQueryWrapper<TrdRechargeTier>()
                 .eq(TrdRechargeTier::getRechargeAmount, amount)
                 .ne(excludeId != null, TrdRechargeTier::getId, excludeId));

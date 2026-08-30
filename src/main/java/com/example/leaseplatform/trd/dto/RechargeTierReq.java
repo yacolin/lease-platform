@@ -2,7 +2,6 @@ package com.example.leaseplatform.trd.dto;
 
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -18,14 +17,12 @@ import java.math.BigDecimal;
 public class RechargeTierReq {
 
     @NotNull(message = "充值金额不能为空")
-    @DecimalMin(value = "0.01", message = "充值金额必须大于 0")
-    @Digits(integer = 8, fraction = 2, message = "充值金额最多 2 位小数")
-    private BigDecimal rechargeAmount;
+    @Min(value = 1, message = "充值金额必须大于 0")
+    private Long rechargeAmount;
 
     @NotNull(message = "赠送金额不能为空")
-    @DecimalMin(value = "0.00", message = "赠送金额不能为负")
-    @Digits(integer = 8, fraction = 2, message = "赠送金额最多 2 位小数")
-    private BigDecimal bonusAmount;
+    @Min(value = 0, message = "赠送金额不能为负")
+    private Long bonusAmount;
 
     @NotNull(message = "相当于折扣不能为空")
     @DecimalMin(value = "0.01", message = "折扣率范围 0.01~9.99")

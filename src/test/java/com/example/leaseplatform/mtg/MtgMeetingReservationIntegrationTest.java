@@ -102,7 +102,7 @@ class MtgMeetingReservationIntegrationTest {
         mockMvc.perform(get("/api/v1/public/rooms"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(3))
-                .andExpect(jsonPath("$.data[0].hourlyFee").value(80.0));
+                .andExpect(jsonPath("$.data[0].hourlyFee").value(8000));
 
         // 2. 个人用户预约 2h（9:00-11:00）→ 无免费时长 → 160 元待确认
         String body = mockMvc.perform(post("/api/v1/me/meeting-reservations")
@@ -110,7 +110,7 @@ class MtgMeetingReservationIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reserveBody(LocalTime.of(9, 0), LocalTime.of(11, 0))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.feeAmount").value(160.0))
+                .andExpect(jsonPath("$.data.feeAmount").value(16000))
                 .andExpect(jsonPath("$.data.isFree").value(0))
                 .andExpect(jsonPath("$.data.status").value(0))
                 .andReturn().getResponse().getContentAsString();
@@ -132,8 +132,8 @@ class MtgMeetingReservationIntegrationTest {
         mockMvc.perform(get("/api/v1/me")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.balance").value(400.0))
-                .andExpect(jsonPath("$.data.giftBalance").value(0.0));
+                .andExpect(jsonPath("$.data.balance").value(40000))
+                .andExpect(jsonPath("$.data.giftBalance").value(0));
 
         // 5. 取消 → 退款入余额（400+160=560）
         mockMvc.perform(post("/api/v1/me/meeting-reservations/" + reservationId + "/cancel")
@@ -145,7 +145,7 @@ class MtgMeetingReservationIntegrationTest {
         mockMvc.perform(get("/api/v1/me")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.balance").value(560.0));
+                .andExpect(jsonPath("$.data.balance").value(56000));
     }
 
     @Test
@@ -180,7 +180,7 @@ class MtgMeetingReservationIntegrationTest {
                         .content(reserveBody(LocalTime.of(8, 0), LocalTime.of(10, 0))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.isFree").value(1))
-                .andExpect(jsonPath("$.data.feeAmount").value(0.0))
+                .andExpect(jsonPath("$.data.feeAmount").value(0))
                 .andExpect(jsonPath("$.data.status").value(1))
                 .andReturn().getResponse().getContentAsString();
         long r1Id = objectMapper.readTree(r1).path("data").path("id").asLong();
@@ -208,7 +208,7 @@ class MtgMeetingReservationIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reserveBody(LocalTime.of(12, 0), LocalTime.of(14, 0))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.feeAmount").value(160.0))
+                .andExpect(jsonPath("$.data.feeAmount").value(16000))
                 .andExpect(jsonPath("$.data.isFree").value(0))
                 .andExpect(jsonPath("$.data.status").value(0));
 
@@ -240,7 +240,7 @@ class MtgMeetingReservationIntegrationTest {
         past.setDurationHours(new BigDecimal("1.0"));
         past.setMeetingTopic("过期会议");
         past.setStatus(1);
-        past.setFeeAmount(BigDecimal.ZERO);
+        past.setFeeAmount(0L);
         past.setIsFree(1);
         reservationMapper.insert(past);
 

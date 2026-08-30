@@ -28,7 +28,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -88,7 +87,7 @@ class MemberPurchaseServiceTest {
         l.setId(2L);
         l.setLevelCode("VIP");
         l.setLevelName("VIP版");
-        l.setPrice(new BigDecimal("5000.00"));
+        l.setPrice(500000L);
         l.setStatus(1);
         return l;
     }
@@ -99,7 +98,7 @@ class MemberPurchaseServiceTest {
         p.setEnterpriseId(enterpriseId);
         p.setMemberLevelId(levelId);
         p.setPaymentStatus(0);
-        p.setOriginalPrice(new BigDecimal("5000.00"));
+        p.setOriginalPrice(500000L);
         p.setStartDate(java.time.LocalDate.now());
         p.setEndDate(java.time.LocalDate.now().plusYears(1));
         return p;

@@ -6,7 +6,6 @@ import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -30,8 +29,8 @@ public class PrdProduct {
     /** 商品类型：1-咖啡, 2-正餐, 3-加饭/加菜, 4-加汤 */
     private Integer productType;
 
-    /** 原价 */
-    private BigDecimal price;
+    /** 原价（分） */
+    private Long price;
 
     /** 商品描述 */
     private String description;

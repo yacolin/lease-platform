@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -55,20 +54,20 @@ public class OrdMealReservation {
     /** 配送方式：1-到店自取, 2-楼内配送, 3-周边配送 */
     private Integer deliveryType;
 
-    /** 配送费 */
-    private BigDecimal deliveryFee;
+    /** 配送费（分） */
+    private Long deliveryFee;
 
     /** 配送地址（周边配送） */
     private String deliveryAddress;
 
-    /** 总金额（套餐原价合计） */
-    private BigDecimal totalAmount;
+    /** 总金额（分，套餐原价合计） */
+    private Long totalAmount;
 
-    /** 折扣金额 */
-    private BigDecimal discountAmount;
+    /** 折扣金额（分） */
+    private Long discountAmount;
 
-    /** 应付金额 */
-    private BigDecimal payableAmount;
+    /** 应付金额（分） */
+    private Long payableAmount;
 
     /** 支付方式：1-余额支付, 2-微信支付 */
     private Integer paymentMethod;

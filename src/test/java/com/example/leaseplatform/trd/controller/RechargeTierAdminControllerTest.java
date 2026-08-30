@@ -16,7 +16,6 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -50,9 +49,9 @@ class RechargeTierAdminControllerTest {
     private RechargeTierVO vo() {
         RechargeTierVO vo = new RechargeTierVO();
         vo.setId(1L);
-        vo.setRechargeAmount(new BigDecimal("200.00"));
-        vo.setBonusAmount(new BigDecimal("20.00"));
-        vo.setActualAmount(new BigDecimal("220.00"));
+        vo.setRechargeAmount(20000L);
+        vo.setBonusAmount(2000L);
+        vo.setActualAmount(22000L);
         return vo;
     }
 
@@ -62,16 +61,16 @@ class RechargeTierAdminControllerTest {
 
         mockMvc.perform(post("/api/v1/recharge-tiers")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"rechargeAmount\":200.00,\"bonusAmount\":20.00,\"equivalentDiscount\":0.91}"))
+                        .content("{\"rechargeAmount\":20000,\"bonusAmount\":2000,\"equivalentDiscount\":0.91}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.actualAmount").value(220.0));
+                .andExpect(jsonPath("$.data.actualAmount").value(22000));
     }
 
     @Test
     void create_invalidAmount_shouldReturn422() throws Exception {
         mockMvc.perform(post("/api/v1/recharge-tiers")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"bonusAmount\":20.00}"))
+                        .content("{\"bonusAmount\":2000}"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value(40000));
     }
@@ -91,7 +90,7 @@ class RechargeTierAdminControllerTest {
 
         mockMvc.perform(put("/api/v1/recharge-tiers/1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"rechargeAmount\":200.00,\"bonusAmount\":30.00,\"equivalentDiscount\":0.9}"))
+                        .content("{\"rechargeAmount\":20000,\"bonusAmount\":3000,\"equivalentDiscount\":0.9}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
     }

@@ -20,7 +20,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -64,7 +63,7 @@ class MeMealReservationControllerTest {
         MealReservationVO vo = new MealReservationVO();
         vo.setId(300L);
         vo.setProductName("3荤1素套餐");
-        vo.setPayableAmount(new BigDecimal("35.60"));
+        vo.setPayableAmount(3560L);
         vo.setStatus(0);
         return vo;
     }
@@ -79,7 +78,7 @@ class MeMealReservationControllerTest {
                                 {"productId":4,"menuDate":"%s","timeSlot":"午餐","quantity":2,"deliveryType":1}"""
                                 .formatted(LocalDate.now().plusDays(3))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.payableAmount").value(35.6));
+                .andExpect(jsonPath("$.data.payableAmount").value(3560));
     }
 
     @Test

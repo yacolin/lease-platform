@@ -93,8 +93,8 @@ class UsrAuthIntegrationTest {
                 .andExpect(jsonPath("$.data.nickname").value("微信用户"))
                 .andExpect(jsonPath("$.data.userType").value(3))
                 .andExpect(jsonPath("$.data.memberLevel").value(0))
-                .andExpect(jsonPath("$.data.balance").value(0.0))
-                .andExpect(jsonPath("$.data.giftBalance").value(0.0));
+                .andExpect(jsonPath("$.data.balance").value(0))
+                .andExpect(jsonPath("$.data.giftBalance").value(0));
 
         // 未携带 token → 403
         mockMvc.perform(get("/api/v1/me"))

@@ -19,7 +19,6 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import static org.hamcrest.Matchers.hasItem;
@@ -138,7 +137,7 @@ class PrdAdminControllerTest {
         ProductVO vo = new ProductVO();
         vo.setId(1L);
         vo.setProductName("美式");
-        vo.setPrice(new BigDecimal("12.00"));
+        vo.setPrice(1200L);
         when(productService.create(any())).thenReturn(vo);
 
         mockMvc.perform(post("/api/v1/products")

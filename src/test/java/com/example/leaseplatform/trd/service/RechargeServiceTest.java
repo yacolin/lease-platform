@@ -22,13 +22,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.math.BigDecimal;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -73,9 +73,9 @@ class RechargeServiceTest {
     private TrdRechargeTier tier() {
         TrdRechargeTier t = new TrdRechargeTier();
         t.setId(1L);
-        t.setRechargeAmount(new BigDecimal("200.00"));
-        t.setBonusAmount(new BigDecimal("20.00"));
-        t.setActualAmount(new BigDecimal("220.00"));
+        t.setRechargeAmount(20000L);
+        t.setBonusAmount(2000L);
+        t.setActualAmount(22000L);
         t.setStatus(1);
         return t;
     }
@@ -85,9 +85,9 @@ class RechargeServiceTest {
         r.setId(id);
         r.setUserId(1L);
         r.setTierId(1L);
-        r.setRechargeAmount(new BigDecimal("200.00"));
-        r.setBonusAmount(new BigDecimal("20.00"));
-        r.setTotalAmount(new BigDecimal("220.00"));
+        r.setRechargeAmount(20000L);
+        r.setBonusAmount(2000L);
+        r.setTotalAmount(22000L);
         r.setOutTradeNo("RC123");
         r.setPaymentStatus(status);
         return r;
@@ -119,7 +119,7 @@ class RechargeServiceTest {
         ArgumentCaptor<TrdRechargeRecord> captor = ArgumentCaptor.forClass(TrdRechargeRecord.class);
         verify(recordMapper).insert(captor.capture());
         assertThat(captor.getValue().getOutTradeNo()).startsWith("RC");
-        assertThat(captor.getValue().getTotalAmount()).isEqualByComparingTo("220.00");
+        assertThat(captor.getValue().getTotalAmount()).isEqualTo(22000L);
     }
 
     @Test
@@ -165,7 +165,7 @@ class RechargeServiceTest {
         RechargeRecordVO vo = service.mockPay(1L, 100L);
 
         assertThat(vo.getPaymentStatus()).isEqualTo(1);
-        verify(balanceService).credit(1L, new BigDecimal("200.00"), new BigDecimal("20.00"),
+        verify(balanceService).credit(1L, 20000L, 2000L,
                 BalanceService.TX_RECHARGE, null, 100L, "余额充值");
     }
 
@@ -177,7 +177,7 @@ class RechargeServiceTest {
         RechargeRecordVO vo = service.mockPay(1L, 100L);
 
         assertThat(vo.getPaymentStatus()).isEqualTo(1);
-        verify(balanceService, never()).credit(any(), any(), any(), anyInt(), any(), any(), any());
+        verify(balanceService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
     }
 
     @Test
@@ -189,7 +189,7 @@ class RechargeServiceTest {
         RechargeRecordVO vo = service.mockPay(1L, 100L);
 
         assertThat(vo.getPaymentStatus()).isEqualTo(1);
-        verify(balanceService, never()).credit(any(), any(), any(), anyInt(), any(), any(), any());
+        verify(balanceService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
     }
 
     @Test
@@ -219,7 +219,7 @@ class RechargeServiceTest {
                  "resource":{"ciphertext":"x","nonce":"n","associated_data":"a"}}""";
         service.handleNotify(body);
 
-        verify(balanceService).credit(any(), any(), any(), anyInt(), any(), any(), any());
+        verify(balanceService).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
     }
 
     @Test
@@ -263,6 +263,6 @@ class RechargeServiceTest {
         RechargeRecordVO vo = service.query(1L, 100L);
 
         assertThat(vo.getPaymentStatus()).isEqualTo(1);
-        verify(balanceService).credit(any(), any(), any(), anyInt(), any(), any(), any());
+        verify(balanceService).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
     }
 }

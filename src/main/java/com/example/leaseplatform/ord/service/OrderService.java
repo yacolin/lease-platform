@@ -81,20 +81,19 @@ public class OrderService {
         BigDecimal memberRate = discountCalculator.memberDiscountRate(user);
         BigDecimal rechargeRate = discountCalculator.rechargeDiscountRate(userId);
 
-        // 明细快照 + 原价
+        // 明细快照 + 原价（金额一律整数「分」，仅折扣率用 BigDecimal 参与乘法后舍入到分）
         List<OrdOrderItem> items = new ArrayList<>();
-        BigDecimal total = BigDecimal.ZERO;
+        long total = 0;
         for (OrderItemReq itemReq : req.getItems()) {
             PrdProduct product = productMapper.selectById(itemReq.getProductId());
             if (product == null || product.getIsAvailable() == null || product.getIsAvailable() != 1) {
                 throw BizException.badRequest("商品已下架或不存在：" + itemReq.getProductId());
             }
-            BigDecimal price = product.getPrice();
+            long price = product.getPrice();
             int qty = itemReq.getQuantity() == null ? 1 : itemReq.getQuantity();
-            BigDecimal subtotal = price.multiply(BigDecimal.valueOf(qty));
-            // 折后单价（HALF_UP 到分）
-            BigDecimal discountedPrice = price.multiply(memberRate).multiply(rechargeRate)
-                    .setScale(2, RoundingMode.HALF_UP);
+            long subtotal = price * qty;
+            // 折后单价（分，HALF_UP 舍入到分）
+            long discountedPrice = roundCents(BigDecimal.valueOf(price).multiply(memberRate).multiply(rechargeRate));
             OrdOrderItem item = new OrdOrderItem();
             item.setProductId(product.getId());
             item.setProductName(product.getProductName());
@@ -103,19 +102,16 @@ public class OrderService {
             item.setQuantity(qty);
             item.setSubtotal(subtotal);
             item.setDiscountedPrice(discountedPrice);
-            item.setDiscountedSubtotal(discountedPrice.multiply(BigDecimal.valueOf(qty))
-                    .setScale(2, RoundingMode.HALF_UP));
+            item.setDiscountedSubtotal(discountedPrice * qty);
             items.add(item);
-            total = total.add(subtotal);
+            total += subtotal;
         }
 
         // 折扣金额拆分（保证 payable = total - memberDiscount - rechargeDiscount 恒等）
-        BigDecimal afterMember = total.multiply(memberRate).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal memberDiscount = total.subtract(afterMember);
-        BigDecimal payable = items.stream()
-                .map(OrdOrderItem::getDiscountedSubtotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal rechargeDiscount = total.subtract(memberDiscount).subtract(payable);
+        long afterMember = roundCents(BigDecimal.valueOf(total).multiply(memberRate));
+        long memberDiscount = total - afterMember;
+        long payable = items.stream().mapToLong(OrdOrderItem::getDiscountedSubtotal).sum();
+        long rechargeDiscount = total - memberDiscount - payable;
 
         OrdOrder order = new OrdOrder();
         order.setOrderNo(generateNo("CO"));
@@ -124,7 +120,7 @@ public class OrderService {
         order.setOrderType(TYPE_COFFEE);
         order.setOrderStatus(STATUS_PENDING);
         order.setTotalAmount(total);
-        order.setDiscountAmount(total.subtract(payable));
+        order.setDiscountAmount(total - payable);
         order.setMemberDiscount(memberDiscount);
         order.setRechargeDiscount(rechargeDiscount);
         order.setPayableAmount(payable);
@@ -173,7 +169,7 @@ public class OrderService {
         }
         if (status == STATUS_PICKUP) {
             // 已支付 → 原路退款（余额流水 TX_REFUND）
-            balanceService.credit(userId, order.getPayableAmount(), BigDecimal.ZERO,
+            balanceService.credit(userId, order.getPayableAmount(), 0L,
                     BalanceService.TX_REFUND, order.getId(), null, "订单取消退款");
         }
         order.setOrderStatus(STATUS_CANCELLED);
@@ -201,7 +197,7 @@ public class OrderService {
         }
         if (target == STATUS_REFUNDED) {
             // 退款原路退回（余额流水 TX_REFUND）
-            balanceService.credit(order.getUserId(), order.getPayableAmount(), BigDecimal.ZERO,
+            balanceService.credit(order.getUserId(), order.getPayableAmount(), 0L,
                     BalanceService.TX_REFUND, order.getId(), null, "商家退款");
         }
         order.setOrderStatus(target);
@@ -274,8 +270,8 @@ public class OrderService {
         List<OrdOrder> today = orderMapper.selectList(new LambdaQueryWrapper<OrdOrder>()
                 .ge(OrdOrder::getCreatedAt, start).lt(OrdOrder::getCreatedAt, end));
         vo.setTodayAmount(today.stream()
-                .map(o -> o.getPayableAmount() == null ? BigDecimal.ZERO : o.getPayableAmount())
-                .reduce(BigDecimal.ZERO, BigDecimal::add));
+                .mapToLong(o -> o.getPayableAmount() == null ? 0L : o.getPayableAmount())
+                .sum());
         vo.setPendingPickupCount(orderMapper.selectCount(new LambdaQueryWrapper<OrdOrder>()
                 .eq(OrdOrder::getOrderStatus, STATUS_PICKUP)));
         vo.setMakingCount(orderMapper.selectCount(new LambdaQueryWrapper<OrdOrder>()
@@ -292,6 +288,11 @@ public class OrderService {
     }
 
     // ==================== 内部工具 ====================
+
+    /** 金额（分）乘折扣率后舍入到整数分（HALF_UP） */
+    private static long roundCents(BigDecimal value) {
+        return value.setScale(0, RoundingMode.HALF_UP).longValueExact();
+    }
 
     private String generatePickupCode() {
         SecureRandom random = new SecureRandom();

@@ -6,13 +6,12 @@ import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
  * 会议室（mtg_rooms）：会议室基础信息。
  * 自增 ID（配置表，见 db/README.md 主键 ID 策略）；
- * status：0-维护中, 1-可预约；hourly_fee：超出费用（元/小时）。
+ * status：0-维护中, 1-可预约；hourly_fee：超出费用（分/小时）。
  */
 @Data
 @TableName("mtg_rooms")
@@ -37,8 +36,8 @@ public class MtgRoom {
     /** 会议室图片 */
     private String imageUrl;
 
-    /** 超出费用（元/小时） */
-    private BigDecimal hourlyFee;
+    /** 超出费用（分/小时） */
+    private Long hourlyFee;
 
     /** 状态：0-维护中, 1-可预约 */
     private Integer status;

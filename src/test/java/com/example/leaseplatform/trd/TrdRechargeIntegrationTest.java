@@ -14,7 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.math.BigDecimal;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -77,7 +76,7 @@ class TrdRechargeIntegrationTest {
         mockMvc.perform(get("/api/v1/public/recharge-tiers"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(4))
-                .andExpect(jsonPath("$.data[0].rechargeAmount").value(200.0));
+                .andExpect(jsonPath("$.data[0].rechargeAmount").value(20000));
 
         // 2. 下单（500 档：充值 500 + 赠送 60，未配置微信支付 → prepayParams 为空）
         String orderBody = mockMvc.perform(post("/api/v1/me/recharge")
@@ -100,8 +99,8 @@ class TrdRechargeIntegrationTest {
         mockMvc.perform(get("/api/v1/me")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.balance").value(500.0))
-                .andExpect(jsonPath("$.data.giftBalance").value(60.0));
+                .andExpect(jsonPath("$.data.balance").value(50000))
+                .andExpect(jsonPath("$.data.giftBalance").value(6000));
 
         // 5. 余额流水 1 条（充值 560）
         mockMvc.perform(get("/api/v1/me/balance-transactions")
@@ -109,7 +108,7 @@ class TrdRechargeIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.list[0].transactionType").value(1))
-                .andExpect(jsonPath("$.data.list[0].amount").value(560.0));
+                .andExpect(jsonPath("$.data.list[0].amount").value(56000));
 
         // 6. 充值记录 1 条
         mockMvc.perform(get("/api/v1/me/recharge/records")
@@ -124,14 +123,14 @@ class TrdRechargeIntegrationTest {
         mockMvc.perform(get("/api/v1/me")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.balance").value(500.0))
-                .andExpect(jsonPath("$.data.giftBalance").value(60.0));
+                .andExpect(jsonPath("$.data.balance").value(50000))
+                .andExpect(jsonPath("$.data.giftBalance").value(6000));
 
         // 8. DB 校验
         UsrUser user = userMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UsrUser>()
                 .eq(UsrUser::getOpenid, "mock_dev_user"));
-        assertThat(user.getBalance()).isEqualByComparingTo(new BigDecimal("500.00"));
-        assertThat(user.getGiftBalance()).isEqualByComparingTo(new BigDecimal("60.00"));
+        assertThat(user.getBalance()).isEqualTo(50000L);
+        assertThat(user.getGiftBalance()).isEqualTo(6000L);
     }
 
     @Test
@@ -142,9 +141,9 @@ class TrdRechargeIntegrationTest {
         String createBody = mockMvc.perform(post("/api/v1/recharge-tiers")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"rechargeAmount\":100.00,\"bonusAmount\":10.00,\"equivalentDiscount\":0.9}"))
+                        .content("{\"rechargeAmount\":10000,\"bonusAmount\":1000,\"equivalentDiscount\":0.9}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.actualAmount").value(110.0))
+                .andExpect(jsonPath("$.data.actualAmount").value(11000))
                 .andReturn().getResponse().getContentAsString();
         long tierId = objectMapper.readTree(createBody).path("data").path("id").asLong();
 
@@ -152,9 +151,9 @@ class TrdRechargeIntegrationTest {
         mockMvc.perform(put("/api/v1/recharge-tiers/" + tierId)
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"rechargeAmount\":100.00,\"bonusAmount\":15.00,\"equivalentDiscount\":0.88}"))
+                        .content("{\"rechargeAmount\":10000,\"bonusAmount\":1500,\"equivalentDiscount\":0.88}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.actualAmount").value(115.0));
+                .andExpect(jsonPath("$.data.actualAmount").value(11500));
 
         // 删除
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
@@ -166,7 +165,7 @@ class TrdRechargeIntegrationTest {
         mockMvc.perform(post("/api/v1/recharge-tiers")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"rechargeAmount\":200.00,\"bonusAmount\":20.00,\"equivalentDiscount\":0.91}"))
+                        .content("{\"rechargeAmount\":20000,\"bonusAmount\":2000,\"equivalentDiscount\":0.91}"))
                 .andExpect(status().isConflict());
 
         // 小程序 token 访问管理端 → 403

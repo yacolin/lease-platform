@@ -23,7 +23,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -69,7 +68,7 @@ class PrdProductServiceTest {
         p.setCategoryId(categoryId);
         p.setProductName(name);
         p.setProductType(1);
-        p.setPrice(new BigDecimal("12.00"));
+        p.setPrice(1200L);
         p.setIsAvailable(available);
         p.setSpecOptions("{\"cup_size\":[\"大杯\",\"中杯\"]}");
         return p;
@@ -80,7 +79,7 @@ class PrdProductServiceTest {
         req.setCategoryId(1L);
         req.setProductName("美式");
         req.setProductType(1);
-        req.setPrice(new BigDecimal("12.00"));
+        req.setPrice(1200L);
         req.setSpecOptions(Map.of("cup_size", List.of("大杯", "中杯")));
         return req;
     }
@@ -126,7 +125,7 @@ class PrdProductServiceTest {
         req.setCategoryId(1L);
         req.setProductName("拿铁");
         req.setProductType(1);
-        req.setPrice(new BigDecimal("15.00"));
+        req.setPrice(1500L);
 
         ProductVO vo = service.update(1L, req);
 

@@ -6,7 +6,8 @@
 -- 表结构遵照 1.0 版本共享对话的 MySQL 设计（数据库 lease_db）；
 -- 表名按 beauty_salon 约定加域前缀 `trd_`；跨域关系由服务层保证，本库暂不加外键约束。
 -- 约定：业务表主键 BIGINT UNSIGNED（雪花，无自增，见 db/README.md 主键 ID 策略；
--- 充值档位配置 trd_recharge_tiers 自增）；金额 DECIMAL(10,2)（元）；
+-- 充值档位配置 trd_recharge_tiers 自增）；金额 BIGINT（分，最小单位整数，
+-- 全链路统一以「分」为单位，与微信支付对齐；折扣率 equivalent_discount 仍为 DECIMAL）；
 -- 纯流水表（trd_balance_transactions）只保留 created_at。
 
 -- 反向依赖顺序删除（trd_balance_transactions → trd_recharge_records → trd_recharge_tiers）
@@ -17,9 +18,9 @@ DROP TABLE IF EXISTS `trd_recharge_tiers`;
 -- 充值档位表：充值赠送规则配置
 CREATE TABLE `trd_recharge_tiers` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '档位ID',
-  `recharge_amount` DECIMAL(10,2) NOT NULL COMMENT '充值金额',
-  `bonus_amount` DECIMAL(10,2) NOT NULL COMMENT '赠送金额',
-  `actual_amount` DECIMAL(10,2) NOT NULL COMMENT '实际到账金额（充值+赠送）',
+  `recharge_amount` BIGINT NOT NULL COMMENT '充值金额（分）',
+  `bonus_amount` BIGINT NOT NULL COMMENT '赠送金额（分）',
+  `actual_amount` BIGINT NOT NULL COMMENT '实际到账金额（分，充值+赠送）',
   `equivalent_discount` DECIMAL(3,2) NOT NULL COMMENT '相当于折扣（如0.91）',
   `sort_order` INT NOT NULL DEFAULT 0 COMMENT '排序权重',
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0-禁用, 1-启用',
@@ -34,9 +35,9 @@ CREATE TABLE `trd_recharge_records` (
   `id` BIGINT UNSIGNED NOT NULL COMMENT '记录ID（雪花）',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
   `tier_id` BIGINT UNSIGNED NOT NULL COMMENT '充值档位ID',
-  `recharge_amount` DECIMAL(10,2) NOT NULL COMMENT '充值金额',
-  `bonus_amount` DECIMAL(10,2) NOT NULL COMMENT '赠送金额',
-  `total_amount` DECIMAL(10,2) NOT NULL COMMENT '到账总金额',
+  `recharge_amount` BIGINT NOT NULL COMMENT '充值金额（分）',
+  `bonus_amount` BIGINT NOT NULL COMMENT '赠送金额（分）',
+  `total_amount` BIGINT NOT NULL COMMENT '到账总金额（分）',
   `payment_method` TINYINT NOT NULL DEFAULT 1 COMMENT '支付方式：1-微信支付, 2-余额支付',
   `transaction_id` VARCHAR(64) DEFAULT NULL COMMENT '微信支付交易号',
   `out_trade_no` VARCHAR(64) NOT NULL COMMENT '商户订单号',
@@ -58,11 +59,11 @@ CREATE TABLE `trd_balance_transactions` (
   `id` BIGINT UNSIGNED NOT NULL COMMENT '流水ID（雪花）',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
   `transaction_type` TINYINT NOT NULL COMMENT '类型：1-充值, 2-消费, 3-退款, 4-赠送, 5-调整',
-  `amount` DECIMAL(10,2) NOT NULL COMMENT '变动金额（正数增加，负数减少）',
-  `balance_before` DECIMAL(10,2) NOT NULL COMMENT '变动前余额',
-  `balance_after` DECIMAL(10,2) NOT NULL COMMENT '变动后余额',
-  `gift_balance_before` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '变动前赠送余额',
-  `gift_balance_after` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '变动后赠送余额',
+  `amount` BIGINT NOT NULL COMMENT '变动金额（分，正数增加，负数减少）',
+  `balance_before` BIGINT NOT NULL COMMENT '变动前余额（分）',
+  `balance_after` BIGINT NOT NULL COMMENT '变动后余额（分）',
+  `gift_balance_before` BIGINT NOT NULL DEFAULT 0 COMMENT '变动前赠送余额（分）',
+  `gift_balance_after` BIGINT NOT NULL DEFAULT 0 COMMENT '变动后赠送余额（分）',
   `related_order_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '关联订单ID（订单表）',
   `related_recharge_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '关联充值记录ID',
   `remark` VARCHAR(255) DEFAULT NULL COMMENT '备注说明',
@@ -75,7 +76,7 @@ CREATE TABLE `trd_balance_transactions` (
 
 -- ---------- 种子数据（充值档位） ----------
 INSERT INTO `trd_recharge_tiers` (`recharge_amount`, `bonus_amount`, `actual_amount`, `equivalent_discount`, `sort_order`) VALUES
-  (200.00,  20.00,  220.00,  0.91, 1),
-  (500.00,  60.00,  560.00,  0.89, 2),
-  (1000.00, 150.00, 1150.00, 0.87, 3),
-  (2000.00, 400.00, 2400.00, 0.83, 4);
+  (20000, 2000, 22000, 0.91, 1),
+  (50000, 6000, 56000, 0.89, 2),
+  (100000, 15000, 115000, 0.87, 3),
+  (200000, 40000, 240000, 0.83, 4);

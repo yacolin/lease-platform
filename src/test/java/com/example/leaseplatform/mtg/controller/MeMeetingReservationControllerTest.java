@@ -66,7 +66,7 @@ class MeMeetingReservationControllerTest {
         MeetingReservationVO vo = new MeetingReservationVO();
         vo.setId(100L);
         vo.setRoomName("会议室A");
-        vo.setFeeAmount(new BigDecimal("160.00"));
+        vo.setFeeAmount(16000L);
         vo.setStatus(0);
         return vo;
     }
@@ -82,7 +82,7 @@ class MeMeetingReservationControllerTest {
                                  "endTime":"11:00:00","meetingTopic":"周会"}"""
                                 .formatted(LocalDate.now().plusDays(2))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.feeAmount").value(160.0));
+                .andExpect(jsonPath("$.data.feeAmount").value(16000));
     }
 
     @Test

@@ -6,7 +6,8 @@
 -- 表结构遵照 1.0 版本共享对话的 MySQL 设计（数据库 lease_db）；
 -- 表名按 beauty_salon 约定加域前缀 `usr_`；跨域关系由服务层保证，本库暂不加外键约束。
 -- 约定：业务表主键 BIGINT UNSIGNED（雪花，无自增；配置/账号类表如 usr_member_levels /
--- usr_admins 自增，见 db/README.md 主键 ID 策略）；金额 DECIMAL(10,2)（元）；
+-- usr_admins 自增，见 db/README.md 主键 ID 策略）；金额 BIGINT（分，最小单位整数，
+-- 全链路统一以「分」为单位，避免浮点/小数精度问题，与微信支付对齐）；
 -- 逻辑删除 is_deleted（默认 0）；创建/更新时间 created_at / updated_at。
 
 -- 反向依赖顺序删除（usr_member_purchases → usr_enterprise_members → usr_member_levels / usr_enterprises → usr_users → usr_admins）
@@ -29,8 +30,8 @@ CREATE TABLE `usr_users` (
   `enterprise_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '所属企业ID（路人用户为空）',
   `member_level` TINYINT NOT NULL DEFAULT 0 COMMENT '会员等级：0-非会员, 1-基础版, 2-VIP版, 3-SVIP版',
   `is_enterprise_admin` TINYINT NOT NULL DEFAULT 0 COMMENT '是否企业管理员：0-否, 1-是',
-  `balance` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '余额（充值金额）',
-  `gift_balance` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '赠送余额',
+  `balance` BIGINT NOT NULL DEFAULT 0 COMMENT '余额（分）',
+  `gift_balance` BIGINT NOT NULL DEFAULT 0 COMMENT '赠送余额（分）',
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0-禁用, 1-正常',
   `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0-未删除, 1-已删除',
   `last_login_at` DATETIME DEFAULT NULL COMMENT '最后登录时间',
@@ -73,12 +74,12 @@ CREATE TABLE `usr_member_levels` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '等级ID',
   `level_code` VARCHAR(20) NOT NULL COMMENT '等级编码：BASIC/VIP/SVIP',
   `level_name` VARCHAR(50) NOT NULL COMMENT '等级名称',
-  `price` DECIMAL(10,2) NOT NULL COMMENT '价格（元/年）',
+  `price` BIGINT NOT NULL COMMENT '价格（分/年）',
   `discount_rate` DECIMAL(3,2) NOT NULL COMMENT '折扣率（如0.80表示8折）',
   `monthly_meeting_hours` INT NOT NULL DEFAULT 0 COMMENT '每月免费会议室时长（小时）',
   `meeting_booking_advance_days` INT NOT NULL DEFAULT 0 COMMENT '会议室提前预约天数',
   `meeting_priority` TINYINT NOT NULL DEFAULT 0 COMMENT '会议室预约优先级：0-无, 1-普通, 2-优先',
-  `meeting_overtime_fee` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '会议室超出费用（元/小时）',
+  `meeting_overtime_fee` BIGINT NOT NULL DEFAULT 0 COMMENT '会议室超出费用（分/小时）',
   `description` VARCHAR(255) DEFAULT NULL COMMENT '权益描述',
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0-禁用, 1-启用',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -110,8 +111,8 @@ CREATE TABLE `usr_member_purchases` (
   `purchase_no` VARCHAR(32) NOT NULL COMMENT '购买编号',
   `enterprise_id` BIGINT UNSIGNED NOT NULL COMMENT '企业ID',
   `member_level_id` BIGINT UNSIGNED NOT NULL COMMENT '会员等级ID',
-  `original_price` DECIMAL(10,2) NOT NULL COMMENT '原价',
-  `pay_price` DECIMAL(10,2) NOT NULL COMMENT '实付价格',
+  `original_price` BIGINT NOT NULL COMMENT '原价（分）',
+  `pay_price` BIGINT NOT NULL COMMENT '实付价格（分）',
   `payment_method` TINYINT NOT NULL DEFAULT 1 COMMENT '支付方式：1-微信支付, 2-余额支付',
   `transaction_id` VARCHAR(64) DEFAULT NULL COMMENT '微信支付交易号',
   `out_trade_no` VARCHAR(64) DEFAULT NULL COMMENT '商户订单号',
@@ -130,9 +131,9 @@ CREATE TABLE `usr_member_purchases` (
 -- ---------- 种子数据（会员等级） ----------
 INSERT INTO `usr_member_levels`
   (`level_code`, `level_name`, `price`, `discount_rate`, `monthly_meeting_hours`, `meeting_booking_advance_days`, `meeting_priority`, `meeting_overtime_fee`, `description`) VALUES
-  ('BASIC', '基础版', 0.00, 0.95, 0, 0, 0, 80.00, '老板本人9折/95折'),
-  ('VIP',   'VIP版',   5000.00, 0.90, 4, 2, 1, 80.00, '全公司员工8折/9折'),
-  ('SVIP',  'SVIP版',  12000.00, 0.85, 8, 1, 2, 80.00, '全公司员工7折/85折');
+  ('BASIC', '基础版', 0, 0.95, 0, 0, 0, 8000, '老板本人9折/95折'),
+  ('VIP',   'VIP版',   500000, 0.90, 4, 2, 1, 8000, '全公司员工8折/9折'),
+  ('SVIP',  'SVIP版',  1200000, 0.85, 8, 1, 2, 8000, '全公司员工7折/85折');
 
 -- 后台管理员表：管理端登录（/api/v1/auth/login，username + password），
 -- 与小程序用户（usr_users，/api/v1/auth/wx-login）天然隔离

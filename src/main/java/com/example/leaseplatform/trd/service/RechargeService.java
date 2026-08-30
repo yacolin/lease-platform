@@ -19,7 +19,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -81,8 +80,9 @@ public class RechargeService {
         RechargeCreateResultVO result = new RechargeCreateResultVO();
         result.setRecord(toVO(record));
         // 微信支付已配置 → JSAPI 下单返回调起支付参数；未配置 → 前端走 mock-pay
+        // 金额已是整数「分」，直接传给微信（与 DB/API 全链路一致，无需换算）
         if (wechatPayClient.isConfigured()) {
-            long amountFen = tier.getRechargeAmount().movePointRight(2).longValueExact();
+            long amountFen = tier.getRechargeAmount();
             String prepayId = wechatPayClient.createJsapiOrder(
                     user.getOpenid(), outTradeNo, amountFen, "余额充值");
             result.setPrepayParams(buildJsapiPayParams(user.getOpenid(), prepayId));

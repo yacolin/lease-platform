@@ -40,7 +40,7 @@ class RechargeTierServiceTest {
         service = new RechargeTierService(tierMapper);
     }
 
-    private RechargeTierReq req(BigDecimal amount, BigDecimal bonus) {
+    private RechargeTierReq req(Long amount, Long bonus) {
         RechargeTierReq req = new RechargeTierReq();
         req.setRechargeAmount(amount);
         req.setBonusAmount(bonus);
@@ -51,9 +51,9 @@ class RechargeTierServiceTest {
     private TrdRechargeTier tier(Long id) {
         TrdRechargeTier t = new TrdRechargeTier();
         t.setId(id);
-        t.setRechargeAmount(new BigDecimal("200.00"));
-        t.setBonusAmount(new BigDecimal("20.00"));
-        t.setActualAmount(new BigDecimal("220.00"));
+        t.setRechargeAmount(20000L);
+        t.setBonusAmount(2000L);
+        t.setActualAmount(22000L);
         t.setStatus(1);
         return t;
     }
@@ -65,7 +65,7 @@ class RechargeTierServiceTest {
         List<RechargeTierVO> list = service.publicList();
 
         assertThat(list).hasSize(1);
-        assertThat(list.get(0).getActualAmount()).isEqualByComparingTo("220.00");
+        assertThat(list.get(0).getActualAmount()).isEqualTo(22000L);
     }
 
     @Test
@@ -76,17 +76,17 @@ class RechargeTierServiceTest {
             return 1;
         });
 
-        RechargeTierVO vo = service.create(req(new BigDecimal("200.00"), new BigDecimal("20.00")));
+        RechargeTierVO vo = service.create(req(20000L, 2000L));
 
         // 实际到账 = 充值 + 赠送
-        assertThat(vo.getActualAmount()).isEqualByComparingTo("220.00");
+        assertThat(vo.getActualAmount()).isEqualTo(22000L);
     }
 
     @Test
     void create_duplicateAmount_shouldConflict() {
         when(tierMapper.selectCount(any(Wrapper.class))).thenReturn(1L);
 
-        assertThatThrownBy(() -> service.create(req(new BigDecimal("200.00"), new BigDecimal("20.00"))))
+        assertThatThrownBy(() -> service.create(req(20000L, 2000L)))
                 .isInstanceOf(BizException.class)
                 .hasMessage("该充值金额档位已存在");
         verify(tierMapper, never()).insert(any(TrdRechargeTier.class));

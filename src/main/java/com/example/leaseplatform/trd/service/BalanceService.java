@@ -14,10 +14,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-
 /**
  * 余额账本：余额 + 赠送余额的增减（一律走流水，事务内更新用户余额并插入 trd_balance_transactions）。
+ * 金额一律为整数「分」，全链路整数运算，无浮点/小数精度问题。
  * 供充值（P2）、订单消费/退款（P3）等复用。
  * transaction_type：1-充值, 2-消费, 3-退款, 4-赠送, 5-调整。
  */
@@ -39,10 +38,10 @@ public class BalanceService {
      * 流水 amount = 两项之和（正数）。
      */
     @Transactional
-    public void credit(Long userId, BigDecimal balanceDelta, BigDecimal giftDelta, int type,
+    public void credit(Long userId, long balanceDelta, long giftDelta, int type,
                        Long relatedOrderId, Long relatedRechargeId, String remark) {
         apply(userId, balanceDelta, giftDelta,
-                balanceDelta.add(giftDelta), type, relatedOrderId, relatedRechargeId, remark);
+                balanceDelta + giftDelta, type, relatedOrderId, relatedRechargeId, remark);
     }
 
     /**
@@ -50,18 +49,16 @@ public class BalanceService {
      * 流水 amount = -totalAmount。
      */
     @Transactional
-    public void debit(Long userId, BigDecimal totalAmount, Long relatedOrderId, String remark) {
+    public void debit(Long userId, long totalAmount, Long relatedOrderId, String remark) {
         UsrUser user = requireUser(userId);
-        BigDecimal balance = nz(user.getBalance());
-        BigDecimal gift = nz(user.getGiftBalance());
-        BigDecimal remaining = totalAmount;
-        BigDecimal giftDelta = gift.min(remaining).negate();
-        remaining = remaining.subtract(giftDelta.negate());
-        BigDecimal balanceDelta = remaining.negate();
-        if (balance.add(balanceDelta).signum() < 0) {
+        long balance = nz(user.getBalance());
+        long gift = nz(user.getGiftBalance());
+        long giftUsed = Math.min(gift, totalAmount);
+        long balanceUsed = totalAmount - giftUsed;
+        if (balance < balanceUsed) {
             throw BizException.conflict("余额不足");
         }
-        apply(userId, balanceDelta, giftDelta, totalAmount.negate(),
+        apply(userId, -balanceUsed, -giftUsed, -totalAmount,
                 TX_CONSUME, relatedOrderId, null, remark);
     }
 
@@ -76,14 +73,14 @@ public class BalanceService {
 
     /** 统一记账：更新用户余额 + 插流水（同事务） */
     @Transactional
-    protected void apply(Long userId, BigDecimal balanceDelta, BigDecimal giftDelta, BigDecimal amount,
+    protected void apply(Long userId, long balanceDelta, long giftDelta, long amount,
                          int type, Long relatedOrderId, Long relatedRechargeId, String remark) {
         UsrUser user = requireUser(userId);
-        BigDecimal balanceBefore = nz(user.getBalance());
-        BigDecimal giftBefore = nz(user.getGiftBalance());
-        BigDecimal balanceAfter = balanceBefore.add(balanceDelta);
-        BigDecimal giftAfter = giftBefore.add(giftDelta);
-        if (balanceAfter.signum() < 0 || giftAfter.signum() < 0) {
+        long balanceBefore = nz(user.getBalance());
+        long giftBefore = nz(user.getGiftBalance());
+        long balanceAfter = balanceBefore + balanceDelta;
+        long giftAfter = giftBefore + giftDelta;
+        if (balanceAfter < 0 || giftAfter < 0) {
             throw BizException.conflict("余额不足");
         }
         user.setBalance(balanceAfter);
@@ -112,8 +109,8 @@ public class BalanceService {
         return user;
     }
 
-    private static BigDecimal nz(BigDecimal v) {
-        return v == null ? BigDecimal.ZERO : v;
+    private static long nz(Long v) {
+        return v == null ? 0L : v;
     }
 
     private BalanceTransactionVO toVO(TrdBalanceTransaction t) {

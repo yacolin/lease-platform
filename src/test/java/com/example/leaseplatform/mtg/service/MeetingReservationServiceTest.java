@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -83,7 +84,7 @@ class MeetingReservationServiceTest {
         MtgRoom r = new MtgRoom();
         r.setId(1L);
         r.setRoomName("会议室A");
-        r.setHourlyFee(new BigDecimal("80.00"));
+        r.setHourlyFee(8000L);
         r.setStatus(1);
         return r;
     }
@@ -146,10 +147,10 @@ class MeetingReservationServiceTest {
         MeetingReservationVO vo = service.create(1L, req(LocalTime.of(9, 0), LocalTime.of(11, 0)));
 
         // 2 小时 × 80 = 160，无免费时长 → 待确认
-        assertThat(vo.getFeeAmount()).isEqualByComparingTo("160.00");
+        assertThat(vo.getFeeAmount()).isEqualTo(16000L);
         assertThat(vo.getIsFree()).isZero();
         assertThat(vo.getStatus()).isZero();
-        verify(balanceService).debit(1L, new BigDecimal("160.00"), null, "会议室预约");
+        verify(balanceService).debit(1L, 16000L, null, "会议室预约");
     }
 
     @Test
@@ -166,10 +167,10 @@ class MeetingReservationServiceTest {
 
         MeetingReservationVO vo = service.create(1L, req(LocalTime.of(9, 0), LocalTime.of(11, 0)));
 
-        assertThat(vo.getFeeAmount()).isEqualByComparingTo("0.00");
+        assertThat(vo.getFeeAmount()).isEqualTo(0L);
         assertThat(vo.getIsFree()).isEqualTo(1);
         assertThat(vo.getStatus()).isEqualTo(1); // 免费直接已确认
-        verify(balanceService, never()).debit(any(), any(), any(), any());
+        verify(balanceService, never()).debit(any(), anyLong(), any(), any());
     }
 
     @Test
@@ -191,7 +192,7 @@ class MeetingReservationServiceTest {
 
         MeetingReservationVO vo = service.create(1L, req(LocalTime.of(11, 0), LocalTime.of(13, 0)));
 
-        assertThat(vo.getFeeAmount()).isEqualByComparingTo("80.00"); // 超时 1h
+        assertThat(vo.getFeeAmount()).isEqualTo(8000L); // 超时 1h
         assertThat(vo.getIsFree()).isZero();
         assertThat(vo.getStatus()).isZero();
     }
@@ -241,7 +242,7 @@ class MeetingReservationServiceTest {
 
     @Test
     void pay_shouldConfirm() {
-        MtgReservation r = reservation(100L, 0, "160.00");
+        MtgReservation r = reservation(100L, 0, 16000L);
         when(reservationMapper.selectById(100L)).thenReturn(r);
         when(roomMapper.selectById(1L)).thenReturn(room());
 
@@ -252,7 +253,7 @@ class MeetingReservationServiceTest {
 
     @Test
     void cancel_paid_shouldRefund() {
-        MtgReservation r = reservation(100L, 1, "160.00");
+        MtgReservation r = reservation(100L, 1, 16000L);
         when(reservationMapper.selectById(100L)).thenReturn(r);
         when(roomMapper.selectById(1L)).thenReturn(room());
 
@@ -260,24 +261,24 @@ class MeetingReservationServiceTest {
 
         assertThat(vo.getStatus()).isEqualTo(3);
         assertThat(vo.getCancelReason()).isEqualTo("改期");
-        verify(balanceService).credit(1L, new BigDecimal("160.00"), BigDecimal.ZERO,
+        verify(balanceService).credit(1L, 16000L, 0L,
                 BalanceService.TX_REFUND, null, null, "会议室预约取消退款");
     }
 
     @Test
     void cancel_free_shouldNotRefund() {
-        MtgReservation r = reservation(100L, 1, "0.00");
+        MtgReservation r = reservation(100L, 1, 0L);
         when(reservationMapper.selectById(100L)).thenReturn(r);
         when(roomMapper.selectById(1L)).thenReturn(room());
 
         service.cancel(1L, 100L, null);
 
-        verify(balanceService, never()).credit(any(), any(), any(), anyInt(), any(), any(), any());
+        verify(balanceService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
     }
 
     @Test
     void adminComplete_shouldComplete() {
-        MtgReservation r = reservation(100L, 1, "0.00");
+        MtgReservation r = reservation(100L, 1, 0L);
         when(reservationMapper.selectById(100L)).thenReturn(r);
         when(roomMapper.selectById(1L)).thenReturn(room());
 
@@ -297,14 +298,14 @@ class MeetingReservationServiceTest {
         verify(reservationMapper).update(any(), any(Wrapper.class));
     }
 
-    private MtgReservation reservation(Long id, int status, String fee) {
+    private MtgReservation reservation(Long id, int status, long fee) {
         MtgReservation r = new MtgReservation();
         r.setId(id);
         r.setRoomId(1L);
         r.setUserId(1L);
         r.setEnterpriseId(0L);
         r.setStatus(status);
-        r.setFeeAmount(new BigDecimal(fee));
+        r.setFeeAmount(fee);
         r.setDurationHours(new BigDecimal("2.0"));
         return r;
     }

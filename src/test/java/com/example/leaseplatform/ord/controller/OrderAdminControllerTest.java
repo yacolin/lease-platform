@@ -17,7 +17,6 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -51,7 +50,7 @@ class OrderAdminControllerTest {
         vo.setId(100L);
         vo.setOrderNo("CO123");
         vo.setOrderStatus(1);
-        vo.setPayableAmount(new BigDecimal("24.00"));
+        vo.setPayableAmount(2400L);
         return vo;
     }
 
@@ -113,7 +112,7 @@ class OrderAdminControllerTest {
     void stats_shouldReturnStats() throws Exception {
         OrderStatsVO stats = new OrderStatsVO();
         stats.setTodayOrders(5L);
-        stats.setTodayAmount(new BigDecimal("120.00"));
+        stats.setTodayAmount(12000L);
         when(orderService.stats()).thenReturn(stats);
 
         mockMvc.perform(get("/api/v1/orders/stats"))

@@ -15,7 +15,7 @@
 | 安全 | Spring Security（无状态 API + 白名单 + 管理端隔离 + CORS + JWT Bearer 认证过滤器） |
 | JSON | Jackson 3（Spring Boot 4 默认，`tools.jackson.*`；注解仍在 `com.fasterxml.jackson.annotation`） |
 | API 文档 | springdoc-openapi 3.1.0（Swagger UI，适配 Spring Boot 4） |
-| 金额 | `BigDecimal`（DECIMAL(10,2)） |
+| 金额 | `Long`（BIGINT，整数分，最小单位；全链路 DB/接口/微信支付统一以分为单位） |
 | 构建 | Maven（wrapper `mvnw`）+ Makefile |
 
 ## 目录结构
@@ -192,7 +192,7 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 | GET | `/api/v1/me/meal-reservations` | 我的预订分页 |
 | GET | `/api/v1/me/meal-reservations/{id}` | 预订详情（含当天菜品快照） |
 
-**正餐预订管理（`/api/v1/meal-reservations/**`，仅管理员）**：分页（日期/状态筛选）、详情、`PUT /{id}/status` 备餐流转（1→2→3；1/2→5 退款，同步关联订单）。配送费：周边配送 5 元，自取/楼内 0。
+**正餐预订管理（`/api/v1/meal-reservations/**`，仅管理员）**：分页（日期/状态筛选）、详情、`PUT /{id}/status` 备餐流转（1→2→3；1/2→5 退款，同步关联订单）。配送费：周边配送 500 分（5 元），自取/楼内 0。
 
 **会议室（P5）**
 
@@ -207,7 +207,7 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 | GET | `/api/v1/me/meeting-reservations/free-hours?month=` | 指定月份剩余免费时长（缺省当月） |
 | GET | `/api/v1/meeting-reservations/**` | 预约管理（管理端：分页/详情/确认完成） |
 
-**会议室计费规则（P5）**：可预约最早明天、最远 7 天、时段 08:00~22:00；同会议室/同日期时段重叠 → 409。企业会员免费时长（`usr_member_levels.monthly_meeting_hours`，VIP 4h/月、SVIP 8h/月）按**预约月**统计已用并优先抵扣；超出部分 × 会议室 `hourly_fee`（元/小时）计费（余额支付，赠送余额优先扣）。状态：待确认（付费）→ 已确认 → 已完成/已取消（退款）/已过期（惰性，查询时置过期且不退）。
+**会议室计费规则（P5）**：可预约最早明天、最远 7 天、时段 08:00~22:00；同会议室/同日期时段重叠 → 409。企业会员免费时长（`usr_member_levels.monthly_meeting_hours`，VIP 4h/月、SVIP 8h/月）按**预约月**统计已用并优先抵扣；超出部分 × 会议室 `hourly_fee`（分/小时）计费（余额支付，赠送余额优先扣）。状态：待确认（付费）→ 已确认 → 已完成/已取消（退款）/已过期（惰性，查询时置过期且不退）。
 
 ### 接口分组与前端请求文件生成
 

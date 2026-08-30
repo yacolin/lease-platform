@@ -2,8 +2,6 @@ package com.example.leaseplatform.ord.dto;
 
 import lombok.Data;
 
-import java.math.BigDecimal;
-
 /**
  * 订单统计视图对象（商家后台）。
  */
@@ -13,8 +11,8 @@ public class OrderStatsVO {
     /** 今日订单数 */
     private Long todayOrders;
 
-    /** 今日订单金额（应付合计） */
-    private BigDecimal todayAmount;
+    /** 今日订单金额（分，应付合计） */
+    private Long todayAmount;
 
     /** 待取餐数（status=1） */
     private Long pendingPickupCount;

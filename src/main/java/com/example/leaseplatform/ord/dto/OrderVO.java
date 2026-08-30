@@ -2,7 +2,6 @@ package com.example.leaseplatform.ord.dto;
 
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -24,20 +23,20 @@ public class OrderVO {
     /** 订单状态：0-待支付, 1-待取餐, 2-制作中, 3-已完成, 4-已取消, 5-已退款 */
     private Integer orderStatus;
 
-    /** 商品原价总金额 */
-    private BigDecimal totalAmount;
+    /** 商品原价总金额（分） */
+    private Long totalAmount;
 
-    /** 折扣优惠金额（合计） */
-    private BigDecimal discountAmount;
+    /** 折扣优惠金额（合计，分） */
+    private Long discountAmount;
 
-    /** 会员等级折扣金额 */
-    private BigDecimal memberDiscount;
+    /** 会员等级折扣金额（分） */
+    private Long memberDiscount;
 
-    /** 充值赠送折扣金额 */
-    private BigDecimal rechargeDiscount;
+    /** 充值赠送折扣金额（分） */
+    private Long rechargeDiscount;
 
-    /** 应付金额（折后） */
-    private BigDecimal payableAmount;
+    /** 应付金额（分，折后） */
+    private Long payableAmount;
 
     /** 支付方式：1-余额支付, 2-微信支付 */
     private Integer paymentMethod;

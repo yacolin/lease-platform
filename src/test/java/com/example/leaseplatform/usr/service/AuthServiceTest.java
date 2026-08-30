@@ -22,7 +22,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.math.BigDecimal;
 import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -175,7 +174,7 @@ class AuthServiceTest {
         assertThat(created.getNickname()).isEqualTo("微信用户");
         assertThat(created.getUserType()).isEqualTo(3);
         assertThat(created.getStatus()).isEqualTo(1);
-        assertThat(created.getBalance()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(created.getBalance()).isEqualTo(0L);
 
         verify(valueOps).set(RT_WX, "rt", Duration.ofSeconds(604800));
         verify(userMapper).updateById(any(UsrUser.class));

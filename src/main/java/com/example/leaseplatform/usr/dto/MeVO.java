@@ -2,8 +2,6 @@ package com.example.leaseplatform.usr.dto;
 
 import lombok.Data;
 
-import java.math.BigDecimal;
-
 /**
  * 我的资料（GET/PUT /api/v1/me）：个人资料 + 余额 + 会员等级。
  */
@@ -30,11 +28,11 @@ public class MeVO {
     /** 是否企业管理员：0-否, 1-是 */
     private Integer isEnterpriseAdmin;
 
-    /** 余额（充值金额） */
-    private BigDecimal balance;
+    /** 余额（分） */
+    private Long balance;
 
-    /** 赠送余额 */
-    private BigDecimal giftBalance;
+    /** 赠送余额（分） */
+    private Long giftBalance;
 
     /** 状态：0-禁用, 1-正常 */
     private Integer status;

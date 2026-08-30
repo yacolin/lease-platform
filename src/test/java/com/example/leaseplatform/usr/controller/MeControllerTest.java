@@ -19,8 +19,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -65,8 +63,8 @@ class MeControllerTest {
         vo.setNickname("微信用户");
         vo.setUserType(3);
         vo.setMemberLevel(0);
-        vo.setBalance(new BigDecimal("12.50"));
-        vo.setGiftBalance(new BigDecimal("5.00"));
+        vo.setBalance(1250L);
+        vo.setGiftBalance(500L);
         vo.setStatus(1);
         return vo;
     }
@@ -79,7 +77,7 @@ class MeControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.nickname").value("微信用户"))
-                .andExpect(jsonPath("$.data.balance").value(12.5))
+                .andExpect(jsonPath("$.data.balance").value(1250))
                 .andExpect(jsonPath("$.data.memberLevel").value(0));
     }
 

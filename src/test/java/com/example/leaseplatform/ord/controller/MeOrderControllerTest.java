@@ -20,7 +20,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -64,7 +63,7 @@ class MeOrderControllerTest {
         vo.setId(100L);
         vo.setOrderNo("CO123");
         vo.setOrderStatus(0);
-        vo.setPayableAmount(new BigDecimal("24.00"));
+        vo.setPayableAmount(2400L);
         return vo;
     }
 
@@ -78,7 +77,7 @@ class MeOrderControllerTest {
                                 {"items":[{"productId":1,"quantity":2,"spec":{"cup_size":"大杯"}}]}"""))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.orderNo").value("CO123"))
-                .andExpect(jsonPath("$.data.payableAmount").value(24.0));
+                .andExpect(jsonPath("$.data.payableAmount").value(2400));
     }
 
     @Test

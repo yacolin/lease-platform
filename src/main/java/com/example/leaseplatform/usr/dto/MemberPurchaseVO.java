@@ -2,7 +2,6 @@ package com.example.leaseplatform.usr.dto;
 
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
@@ -25,11 +24,11 @@ public class MemberPurchaseVO {
     /** 等级编码：BASIC / VIP / SVIP */
     private String memberLevelCode;
 
-    /** 原价 */
-    private BigDecimal originalPrice;
+    /** 原价（分） */
+    private Long originalPrice;
 
-    /** 实付价格 */
-    private BigDecimal payPrice;
+    /** 实付价格（分） */
+    private Long payPrice;
 
     /** 支付方式：1-微信支付, 2-余额支付 */
     private Integer paymentMethod;

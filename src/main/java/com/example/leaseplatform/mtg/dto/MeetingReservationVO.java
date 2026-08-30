@@ -44,8 +44,8 @@ public class MeetingReservationVO {
     /** 是否免费：0-否（超出免费时长）, 1-是 */
     private Integer isFree;
 
-    /** 费用（元） */
-    private BigDecimal feeAmount;
+    /** 费用（分） */
+    private Long feeAmount;
 
     /** 取消时间（epoch 毫秒时间戳） */
     private Long cancelledAt;

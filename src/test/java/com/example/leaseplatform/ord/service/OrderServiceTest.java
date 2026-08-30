@@ -35,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -86,11 +87,11 @@ class OrderServiceTest {
         return u;
     }
 
-    private PrdProduct product(Long id, String name, String price) {
+    private PrdProduct product(Long id, String name, long priceCents) {
         PrdProduct p = new PrdProduct();
         p.setId(id);
         p.setProductName(name);
-        p.setPrice(new BigDecimal(price));
+        p.setPrice(priceCents);
         p.setIsAvailable(1);
         return p;
     }
@@ -110,7 +111,7 @@ class OrderServiceTest {
     @Test
     void create_noMemberNoRecharge_shouldPayFullPrice() {
         when(userMapper.selectById(1L)).thenReturn(user(0, null));
-        when(productMapper.selectById(1L)).thenReturn(product(1L, "美式", "12.00"));
+        when(productMapper.selectById(1L)).thenReturn(product(1L, "美式", 1200L));
         // 非会员 + 无充值 → 原价
         when(discountCalculator.memberDiscountRate(any())).thenReturn(BigDecimal.ONE);
         when(discountCalculator.rechargeDiscountRate(1L)).thenReturn(BigDecimal.ONE);
@@ -122,10 +123,10 @@ class OrderServiceTest {
 
         OrderVO vo = service.create(1L, req(1L, 2, Map.of("cup_size", "大杯")));
 
-        assertThat(vo.getTotalAmount()).isEqualByComparingTo("24.00");
-        assertThat(vo.getMemberDiscount()).isEqualByComparingTo("0.00");
-        assertThat(vo.getRechargeDiscount()).isEqualByComparingTo("0.00");
-        assertThat(vo.getPayableAmount()).isEqualByComparingTo("24.00");
+        assertThat(vo.getTotalAmount()).isEqualTo(2400L);
+        assertThat(vo.getMemberDiscount()).isEqualTo(0L);
+        assertThat(vo.getRechargeDiscount()).isEqualTo(0L);
+        assertThat(vo.getPayableAmount()).isEqualTo(2400L);
         assertThat(vo.getOrderStatus()).isZero();
         // 明细规格快照
         ArgumentCaptor<OrdOrderItem> captor = ArgumentCaptor.forClass(OrdOrderItem.class);
@@ -137,7 +138,7 @@ class OrderServiceTest {
     void create_memberAndRecharge_shouldStackDiscounts() {
         // VIP 会员 0.90 × 充值 0.89 → 应付 = 24 × 0.801 = 19.22
         when(userMapper.selectById(1L)).thenReturn(user(2, 5L));
-        when(productMapper.selectById(1L)).thenReturn(product(1L, "美式", "12.00"));
+        when(productMapper.selectById(1L)).thenReturn(product(1L, "美式", 1200L));
         when(discountCalculator.memberDiscountRate(any())).thenReturn(new BigDecimal("0.90"));
         when(discountCalculator.rechargeDiscountRate(1L)).thenReturn(new BigDecimal("0.89"));
         when(orderMapper.insert(any(OrdOrder.class))).thenAnswer(inv -> {
@@ -148,16 +149,16 @@ class OrderServiceTest {
 
         OrderVO vo = service.create(1L, req(1L, 2, null));
 
-        assertThat(vo.getMemberDiscount()).isEqualByComparingTo("2.40");   // 24 × 0.10
-        assertThat(vo.getRechargeDiscount()).isEqualByComparingTo("2.38"); // 21.6 × 0.11
-        assertThat(vo.getPayableAmount()).isEqualByComparingTo("19.22");   // 24 − 2.40 − 2.38
+        assertThat(vo.getMemberDiscount()).isEqualTo(240L);   // 24 × 0.10
+        assertThat(vo.getRechargeDiscount()).isEqualTo(238L); // 21.6 × 0.11
+        assertThat(vo.getPayableAmount()).isEqualTo(1922L);   // 24 − 2.40 − 2.38
         assertThat(vo.getEnterpriseId()).isEqualTo(5L);
     }
 
     @Test
     void create_productUnavailable_should400() {
         when(userMapper.selectById(1L)).thenReturn(user(0, null));
-        PrdProduct off = product(1L, "美式", "12.00");
+        PrdProduct off = product(1L, "美式", 1200L);
         off.setIsAvailable(0);
         when(productMapper.selectById(1L)).thenReturn(off);
 
@@ -178,7 +179,7 @@ class OrderServiceTest {
 
         OrderVO vo = service.pay(1L, 100L);
 
-        verify(balanceService).debit(1L, new BigDecimal("24.00"), 100L, "咖啡订单");
+        verify(balanceService).debit(1L, 2400L, 100L, "咖啡订单");
         assertThat(vo.getOrderStatus()).isEqualTo(OrderService.STATUS_PICKUP);
         assertThat(vo.getPickupCode()).matches("\\d{6}");
     }
@@ -190,7 +191,7 @@ class OrderServiceTest {
         assertThatThrownBy(() -> service.pay(1L, 100L))
                 .isInstanceOf(BizException.class)
                 .hasMessage("订单已处理");
-        verify(balanceService, never()).debit(any(), any(), any(), any());
+        verify(balanceService, never()).debit(any(), anyLong(), any(), any());
     }
 
     @Test
@@ -201,7 +202,7 @@ class OrderServiceTest {
 
         OrderVO vo = service.cancel(1L, 100L, "不要了");
 
-        verify(balanceService).credit(1L, new BigDecimal("24.00"), BigDecimal.ZERO,
+        verify(balanceService).credit(1L, 2400L, 0L,
                 BalanceService.TX_REFUND, 100L, null, "订单取消退款");
         assertThat(vo.getOrderStatus()).isEqualTo(OrderService.STATUS_CANCELLED);
         assertThat(vo.getCancelReason()).isEqualTo("不要了");
@@ -214,7 +215,7 @@ class OrderServiceTest {
         assertThatThrownBy(() -> service.cancel(1L, 100L, null))
                 .isInstanceOf(BizException.class)
                 .hasMessage("订单制作中，暂不可取消");
-        verify(balanceService, never()).credit(any(), any(), any(), anyInt(), any(), any(), any());
+        verify(balanceService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
     }
 
     @Test
@@ -250,7 +251,7 @@ class OrderServiceTest {
         OrderVO vo = service.adminUpdateStatus(100L, OrderService.STATUS_REFUNDED);
 
         assertThat(vo.getOrderStatus()).isEqualTo(OrderService.STATUS_REFUNDED);
-        verify(balanceService).credit(1L, new BigDecimal("24.00"), BigDecimal.ZERO,
+        verify(balanceService).credit(1L, 2400L, 0L,
                 BalanceService.TX_REFUND, 100L, null, "商家退款");
     }
 
@@ -314,7 +315,7 @@ class OrderServiceTest {
         var stats = service.stats();
 
         assertThat(stats.getTodayOrders()).isEqualTo(1L);
-        assertThat(stats.getTodayAmount()).isEqualByComparingTo("24.00");
+        assertThat(stats.getTodayAmount()).isEqualTo(2400L);
     }
 
     private OrdOrder order(Long id, int status) {
@@ -324,8 +325,8 @@ class OrderServiceTest {
         o.setOrderType(1);
         o.setOrderStatus(status);
         o.setPaymentMethod(1); // 余额支付
-        o.setTotalAmount(new BigDecimal("24.00"));
-        o.setPayableAmount(new BigDecimal("24.00"));
+        o.setTotalAmount(2400L);
+        o.setPayableAmount(2400L);
         return o;
     }
 }

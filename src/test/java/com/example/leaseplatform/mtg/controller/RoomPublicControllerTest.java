@@ -13,7 +13,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import static org.mockito.Mockito.when;
@@ -42,7 +41,7 @@ class RoomPublicControllerTest {
         RoomVO vo = new RoomVO();
         vo.setId(1L);
         vo.setRoomName("会议室A");
-        vo.setHourlyFee(new BigDecimal("80.00"));
+        vo.setHourlyFee(8000L);
         when(roomService.publicList()).thenReturn(List.of(vo));
 
         mockMvc.perform(get("/api/v1/public/rooms"))

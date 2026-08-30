@@ -93,10 +93,10 @@ class OrdOrderIntegrationTest {
                                   {"productId":2,"quantity":1,"spec":{"cup_size":"中杯"}}]}"""))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.orderStatus").value(0))
-                .andExpect(jsonPath("$.data.totalAmount").value(39.0))
-                .andExpect(jsonPath("$.data.memberDiscount").value(0.0))
-                .andExpect(jsonPath("$.data.rechargeDiscount").value(4.29))
-                .andExpect(jsonPath("$.data.payableAmount").value(34.71))
+                .andExpect(jsonPath("$.data.totalAmount").value(3900))
+                .andExpect(jsonPath("$.data.memberDiscount").value(0))
+                .andExpect(jsonPath("$.data.rechargeDiscount").value(429))
+                .andExpect(jsonPath("$.data.payableAmount").value(3471))
                 .andExpect(jsonPath("$.data.items.length()").value(2))
                 .andExpect(jsonPath("$.data.items[0].specification.cup_size").value("大杯"))
                 .andReturn().getResponse().getContentAsString();
@@ -115,8 +115,8 @@ class OrdOrderIntegrationTest {
         mockMvc.perform(get("/api/v1/me")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.balance").value(500.0))
-                .andExpect(jsonPath("$.data.giftBalance").value(25.29));
+                .andExpect(jsonPath("$.data.balance").value(50000))
+                .andExpect(jsonPath("$.data.giftBalance").value(2529));
 
         // 4. 我的订单列表
         mockMvc.perform(get("/api/v1/me/orders")
@@ -148,7 +148,7 @@ class OrdOrderIntegrationTest {
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.todayOrders").value(1))
-                .andExpect(jsonPath("$.data.todayAmount").value(34.71));
+                .andExpect(jsonPath("$.data.todayAmount").value(3471));
     }
 
     @Test
@@ -180,8 +180,8 @@ class OrdOrderIntegrationTest {
         mockMvc.perform(get("/api/v1/me")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.balance").value(510.68))
-                .andExpect(jsonPath("$.data.giftBalance").value(49.32));
+                .andExpect(jsonPath("$.data.balance").value(51068))
+                .andExpect(jsonPath("$.data.giftBalance").value(4932));
 
         // 退款流水（充值 1 + 消费 1 + 退款 1 = 3 条）
         mockMvc.perform(get("/api/v1/me/balance-transactions")

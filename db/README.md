@@ -16,7 +16,8 @@
 > 说明：表结构遵照 1.0 版本共享对话的 MySQL 设计（20 张表，覆盖用户体系 /
 > 充值系统 / 折扣系统 / 咖啡点单 / 正餐预订 / 会议室预约 / 商家后台），仅表名按域
 > 加了前缀。主键 `BIGINT UNSIGNED AUTO_INCREMENT`（DDL 保留自增属性，实际 ID 生成
-> 策略由 MyBatis-Plus 按表控制，见下「主键 ID 策略」），金额 `DECIMAL(10,2)`（元），
+> 策略由 MyBatis-Plus 按表控制，见下「主键 ID 策略」），金额 `BIGINT`（整数分，
+> 最小单位，全链路 DB/接口/微信支付统一以分为单位），
 > 编号字段建唯一索引，外键字段建普通索引，业务表含 `created_at, updated_at`
 > （纯流水表如 `trd_balance_transactions` / `ord_order_items` 只保留 `created_at`）。
 > 种子数据共六处：`01_usr.sql` 底部（会员等级、后台管理员）、`02_prd.sql` 底部（商品分类 /
@@ -78,5 +79,5 @@ mysql -u root -p lease_db < db/06_sys.sql
 - **新增表**：写入所属业务域文件，按 `DROP + CREATE + 索引 + COMMENT` 的顺序组织；新域则新建 `db/NN_xxx.sql`（两位编号即依赖顺序，`reset_db.sh` 自动纳入）；同时在 `reset_db.sh` 的删除列表中按反向依赖补上对应 DROP
 - **删除表**：从所属域文件删掉对应 DDL，删除后如无其他表引用，重跑脚本即生效
 - **编号顺序** = 依赖顺序（被引用的表先建），改文件时必须保持 引用方向 与 编号方向 一致：`usr → prd → ord → mtg → trd → sys`
-- **命名约定**：表名带域前缀 `{域缩写}_`（与所属域文件一致：`usr_` / `prd_` / `ord_` / `mtg_` / `trd_` / `sys_`），新表先定所属域再定前缀；金额一律 `DECIMAL(10,2)`（元）；业务编号（`order_no` / `reservation_no` / `purchase_no` / `out_trade_no`）建唯一索引；外键字段建普通索引
+- **命名约定**：表名带域前缀 `{域缩写}_`（与所属域文件一致：`usr_` / `prd_` / `ord_` / `mtg_` / `trd_` / `sys_`），新表先定所属域再定前缀；金额一律 `BIGINT`（整数分，最小单位，与微信支付对齐）；业务编号（`order_no` / `reservation_no` / `purchase_no` / `out_trade_no`）建唯一索引；外键字段建普通索引
 - **改表结构**：同步更新 `db/migrations/` 对应迁移（双轨并行，见 `db/migrations/README.md`）

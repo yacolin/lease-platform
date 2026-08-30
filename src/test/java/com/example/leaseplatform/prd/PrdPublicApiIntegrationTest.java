@@ -65,7 +65,7 @@ class PrdPublicApiIntegrationTest {
         mockMvc.perform(get("/api/v1/public/products/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.productName").value("美式"))
-                .andExpect(jsonPath("$.data.price").value(12.0))
+                .andExpect(jsonPath("$.data.price").value(1200))
                 .andExpect(jsonPath("$.data.specOptions.temperature[1]").value("冰"));
     }
 

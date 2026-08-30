@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -29,8 +28,8 @@ public class OrdOrderItem {
     /** 商品名称（快照） */
     private String productName;
 
-    /** 商品原价（快照） */
-    private BigDecimal productPrice;
+    /** 商品原价（分，快照） */
+    private Long productPrice;
 
     /** 规格选项 JSON（如大杯/热/无糖） */
     private String specification;
@@ -38,14 +37,14 @@ public class OrdOrderItem {
     /** 数量 */
     private Integer quantity;
 
-    /** 小计（原价*数量） */
-    private BigDecimal subtotal;
+    /** 小计（分，原价*数量） */
+    private Long subtotal;
 
-    /** 折后单价 */
-    private BigDecimal discountedPrice;
+    /** 折后单价（分） */
+    private Long discountedPrice;
 
-    /** 折后小计 */
-    private BigDecimal discountedSubtotal;
+    /** 折后小计（分） */
+    private Long discountedSubtotal;
 
     private LocalDateTime createdAt;
 }

@@ -20,14 +20,14 @@ public class TrdRechargeTier {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /** 充值金额（唯一） */
-    private BigDecimal rechargeAmount;
+    /** 充值金额（分，唯一） */
+    private Long rechargeAmount;
 
-    /** 赠送金额 */
-    private BigDecimal bonusAmount;
+    /** 赠送金额（分） */
+    private Long bonusAmount;
 
-    /** 实际到账金额（充值 + 赠送） */
-    private BigDecimal actualAmount;
+    /** 实际到账金额（分，充值 + 赠送） */
+    private Long actualAmount;
 
     /** 相当于折扣（如 0.91） */
     private BigDecimal equivalentDiscount;

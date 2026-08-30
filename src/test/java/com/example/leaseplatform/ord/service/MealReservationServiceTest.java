@@ -38,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -96,7 +97,7 @@ class MealReservationServiceTest {
         PrdProduct p = new PrdProduct();
         p.setId(4L);
         p.setProductName("3荤1素套餐");
-        p.setPrice(new BigDecimal("20.00"));
+        p.setPrice(2000L);
         p.setIsAvailable(1);
         return p;
     }
@@ -117,7 +118,7 @@ class MealReservationServiceTest {
         r.setId(id);
         r.setUserId(1L);
         r.setOrderId(200L);
-        r.setPayableAmount(new BigDecimal("35.60"));
+        r.setPayableAmount(3560L);
         r.setStatus(status);
         return r;
     }
@@ -144,14 +145,14 @@ class MealReservationServiceTest {
         MealReservationVO vo = service.create(1L, req(LocalDate.now().plusDays(3)));
 
         // 20 × 2 = 40，0.89 折 → 35.60；自取配送费 0
-        assertThat(vo.getTotalAmount()).isEqualByComparingTo("40.00");
-        assertThat(vo.getPayableAmount()).isEqualByComparingTo("35.60");
-        assertThat(vo.getDeliveryFee()).isEqualByComparingTo("0.00");
+        assertThat(vo.getTotalAmount()).isEqualTo(4000L);
+        assertThat(vo.getPayableAmount()).isEqualTo(3560L);
+        assertThat(vo.getDeliveryFee()).isEqualTo(0L);
         assertThat(vo.getStatus()).isZero();
         ArgumentCaptor<OrdOrder> orderCaptor = ArgumentCaptor.forClass(OrdOrder.class);
         verify(orderMapper).insert(orderCaptor.capture());
         assertThat(orderCaptor.getValue().getOrderType()).isEqualTo(2);
-        assertThat(orderCaptor.getValue().getPayableAmount()).isEqualByComparingTo("35.60");
+        assertThat(orderCaptor.getValue().getPayableAmount()).isEqualTo(3560L);
         assertThat(orderCaptor.getValue().getReservationDate()).isEqualTo(LocalDate.now().plusDays(3));
     }
 
@@ -199,7 +200,7 @@ class MealReservationServiceTest {
 
         MealReservationVO vo = service.pay(1L, 300L);
 
-        verify(balanceService).debit(1L, new BigDecimal("35.60"), 200L, "正餐预订");
+        verify(balanceService).debit(1L, 3560L, 200L, "正餐预订");
         assertThat(vo.getStatus()).isEqualTo(1);
         verify(orderMapper).updateById(any(OrdOrder.class)); // 同步关联订单
     }
@@ -213,7 +214,7 @@ class MealReservationServiceTest {
 
         MealReservationVO vo = service.cancel(1L, 300L, "行程变化");
 
-        verify(balanceService).credit(1L, new BigDecimal("35.60"), BigDecimal.ZERO,
+        verify(balanceService).credit(1L, 3560L, 0L,
                 BalanceService.TX_REFUND, 200L, null, "预订取消退款");
         assertThat(vo.getStatus()).isEqualTo(4);
         assertThat(vo.getCancelReason()).isEqualTo("行程变化");
@@ -252,7 +253,7 @@ class MealReservationServiceTest {
         MealReservationVO vo = service.adminUpdateStatus(300L, 5);
 
         assertThat(vo.getStatus()).isEqualTo(5);
-        verify(balanceService).credit(any(), any(), any(), anyInt(), any(), any(), any());
+        verify(balanceService).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
     }
 
     @Test

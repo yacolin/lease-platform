@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
  * - 时段冲突校验：同会议室/同日期下状态为待确认/已确认且时间重叠 → 409；
  * - 会员免费时长抵扣：企业会员等级（usr_member_levels.monthly_meeting_hours）按自然月
  *   统计已用免费时长（status=1/2 且 is_free=1），本次预约优先抵扣剩余免费时长；
- * - 超时计费：超出免费时长的部分 × 会议室 hourly_fee（元/小时）；
+ * - 超时计费：超出免费时长的部分 × 会议室 hourly_fee（分/小时）；
  * - 状态流转：待确认（需付费）→ 余额支付 → 已确认 → 已完成/已取消（退款）/惰性过期；
  * - 过期惰性处理：查询时把已过预约日且未完成的预约置为已过期（4）。
  */
@@ -82,10 +82,10 @@ public class MeetingReservationService {
         checkConflict(room.getId(), req.getReservationDate(), req.getStartTime(), req.getEndTime());
 
         BigDecimal duration = durationHours(req.getStartTime(), req.getEndTime());
-        // 免费时长抵扣 + 超时计费
+        // 免费时长抵扣 + 超时计费（费用为整数「分」）
         FreeUsage free = calcFreeUsage(user, req.getReservationDate(), duration);
         BigDecimal paidHours = duration.subtract(free.freeHours());
-        BigDecimal fee = paidHours.multiply(room.getHourlyFee()).setScale(2, RoundingMode.HALF_UP);
+        long fee = roundCents(paidHours.multiply(BigDecimal.valueOf(room.getHourlyFee())));
 
         MtgReservation reservation = new MtgReservation();
         reservation.setReservationNo(generateNo("MR"));
@@ -100,7 +100,7 @@ public class MeetingReservationService {
         reservation.setIsFree(paidHours.compareTo(ZERO) == 0 ? 1 : 0);
         reservation.setFeeAmount(fee);
         // 免费预约直接已确认；付费预约待支付（余额不足则创建失败）
-        if (fee.compareTo(ZERO) == 0) {
+        if (fee == 0) {
             reservation.setStatus(STATUS_CONFIRMED);
         } else {
             reservation.setStatus(STATUS_PENDING);
@@ -131,8 +131,8 @@ public class MeetingReservationService {
         if (status == STATUS_COMPLETED || status == STATUS_CANCELLED || status == STATUS_EXPIRED) {
             throw BizException.conflict("预约已结束");
         }
-        if (reservation.getFeeAmount() != null && reservation.getFeeAmount().compareTo(ZERO) > 0) {
-            balanceService.credit(userId, reservation.getFeeAmount(), ZERO,
+        if (reservation.getFeeAmount() != null && reservation.getFeeAmount() > 0) {
+            balanceService.credit(userId, reservation.getFeeAmount(), 0L,
                     BalanceService.TX_REFUND, null, null, "会议室预约取消退款");
         }
         reservation.setStatus(STATUS_CANCELLED);
@@ -245,6 +245,11 @@ public class MeetingReservationService {
     private BigDecimal durationHours(LocalTime start, LocalTime end) {
         long minutes = java.time.Duration.between(start, end).toMinutes();
         return BigDecimal.valueOf(minutes).divide(BigDecimal.valueOf(60), 1, RoundingMode.HALF_UP);
+    }
+
+    /** 金额（分）乘时长后舍入到整数分（HALF_UP） */
+    private static long roundCents(BigDecimal value) {
+        return value.setScale(0, RoundingMode.HALF_UP).longValueExact();
     }
 
     /** 免费时长使用计算：免费部分 + 付费部分 */

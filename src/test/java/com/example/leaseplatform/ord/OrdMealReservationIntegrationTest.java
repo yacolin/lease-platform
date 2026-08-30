@@ -122,9 +122,9 @@ class OrdMealReservationIntegrationTest {
                                  "remark":"少辣"}"""
                                 .formatted(bookingDate)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalAmount").value(40.0))
-                .andExpect(jsonPath("$.data.payableAmount").value(35.60))
-                .andExpect(jsonPath("$.data.deliveryFee").value(0.0))
+                .andExpect(jsonPath("$.data.totalAmount").value(4000))
+                .andExpect(jsonPath("$.data.payableAmount").value(3560))
+                .andExpect(jsonPath("$.data.deliveryFee").value(0))
                 .andExpect(jsonPath("$.data.status").value(0))
                 .andExpect(jsonPath("$.data.items[0].dishDetails.length()").value(3))
                 .andReturn().getResponse().getContentAsString();
@@ -197,7 +197,7 @@ class OrdMealReservationIntegrationTest {
                                  "deliveryAddress":"3号楼501"}"""
                                 .formatted(otherDate)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.deliveryFee").value(5.0)) // 周边配送费 5 元
+                .andExpect(jsonPath("$.data.deliveryFee").value(500)) // 周边配送费 500 分（5 元）
                 .andReturn().getResponse().getContentAsString();
         long reservationId = objectMapper.readTree(body).path("data").path("id").asLong();
         mockMvc.perform(post("/api/v1/me/meal-reservations/" + reservationId + "/pay")
