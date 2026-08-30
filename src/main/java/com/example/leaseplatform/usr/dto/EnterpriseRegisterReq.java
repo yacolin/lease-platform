@@ -1,5 +1,6 @@
 package com.example.leaseplatform.usr.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -47,5 +48,6 @@ public class EnterpriseRegisterReq {
 
     @Min(value = 0, message = "企业类型：0-普通, 1-成长型, 2-高价值")
     @Max(value = 2, message = "企业类型：0-普通, 1-成长型, 2-高价值")
+    @Schema(description = "企业类型：0-普通, 1-成长型, 2-高价值")
     private Integer enterpriseType = 0;
 }

@@ -1,5 +1,6 @@
 package com.example.leaseplatform.prd.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 
@@ -13,10 +14,12 @@ public class CategoryVO {
 
     private String categoryName;
 
+    @Schema(description = "分类类型：1-咖啡, 2-正餐")
     private Integer categoryType;
 
     private Integer sortOrder;
 
+    @Schema(description = "状态：0-禁用, 1-启用")
     private Integer status;
 
     /** 创建时间（epoch 毫秒时间戳） */

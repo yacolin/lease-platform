@@ -1,5 +1,6 @@
 package com.example.leaseplatform.ord.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -14,5 +15,6 @@ public class OrderStatusReq {
     @NotNull(message = "目标状态不能为空")
     @Min(value = 1, message = "状态范围 1-5")
     @Max(value = 5, message = "状态范围 1-5")
+    @Schema(description = "目标状态：2-制作中, 3-已完成, 5-已退款（1→2→3；1/2→5）")
     private Integer orderStatus;
 }

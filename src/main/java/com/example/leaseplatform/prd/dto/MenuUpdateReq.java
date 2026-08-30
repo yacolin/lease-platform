@@ -36,5 +36,6 @@ public class MenuUpdateReq {
 
     private Integer sortOrder = 0;
 
+    @Schema(description = "是否供应：0-停售, 1-供应")
     private Integer isAvailable = 1;
 }

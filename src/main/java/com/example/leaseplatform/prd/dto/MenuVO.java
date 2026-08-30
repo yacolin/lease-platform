@@ -31,6 +31,7 @@ public class MenuVO {
 
     private Integer sortOrder;
 
+    @Schema(description = "是否供应：0-停售, 1-供应")
     private Integer isAvailable;
 
     /** 创建时间（epoch 毫秒时间戳） */

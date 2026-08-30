@@ -1,5 +1,6 @@
 package com.example.leaseplatform.mtg.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -39,9 +40,11 @@ public class MeetingReservationVO {
     private String meetingTopic;
 
     /** 状态：0-待确认, 1-已确认, 2-已完成, 3-已取消, 4-已过期 */
+    @Schema(description = "状态：0-待确认, 1-已确认, 2-已完成, 3-已取消, 4-已过期")
     private Integer status;
 
     /** 是否免费：0-否（超出免费时长）, 1-是 */
+    @Schema(description = "是否免费：0-否（超出免费时长）, 1-是")
     private Integer isFree;
 
     /** 费用（分） */

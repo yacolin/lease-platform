@@ -1,5 +1,6 @@
 package com.example.leaseplatform.usr.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 /**
@@ -27,15 +28,18 @@ public class EnterpriseVO {
     private String contactPhone;
 
     /** 企业类型：0-普通, 1-成长型, 2-高价值 */
+    @Schema(description = "企业类型：0-普通, 1-成长型, 2-高价值")
     private Integer enterpriseType;
 
     /** 会员等级：0-非会员, 1-基础版, 2-VIP版, 3-SVIP版（过期视为 0） */
+    @Schema(description = "会员等级：0-非会员, 1-基础版, 2-VIP版, 3-SVIP版")
     private Integer memberLevel;
 
     /** 会员到期时间（epoch 毫秒时间戳） */
     private Long memberExpireAt;
 
     /** 审核状态：0-待审核, 1-审核通过, 2-审核拒绝 */
+    @Schema(description = "审核状态：0-待审核, 1-审核通过, 2-审核拒绝")
     private Integer auditStatus;
 
     /** 审核拒绝原因 */
@@ -45,6 +49,7 @@ public class EnterpriseVO {
     private Long auditedAt;
 
     /** 状态：0-禁用, 1-正常 */
+    @Schema(description = "状态：0-禁用, 1-正常")
     private Integer status;
 
     /** 注册时间（epoch 毫秒时间戳） */

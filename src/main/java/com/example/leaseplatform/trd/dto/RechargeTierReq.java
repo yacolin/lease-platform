@@ -1,5 +1,6 @@
 package com.example.leaseplatform.trd.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
@@ -31,5 +32,6 @@ public class RechargeTierReq {
 
     private Integer sortOrder = 0;
 
+    @Schema(description = "状态：0-禁用, 1-启用")
     private Integer status = 1;
 }

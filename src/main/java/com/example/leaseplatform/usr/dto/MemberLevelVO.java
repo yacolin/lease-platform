@@ -1,5 +1,6 @@
 package com.example.leaseplatform.usr.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -31,6 +32,7 @@ public class MemberLevelVO {
     private Integer meetingBookingAdvanceDays;
 
     /** 会议室预约优先级：0-无, 1-普通, 2-优先 */
+    @Schema(description = "会议室预约优先级：0-无, 1-普通, 2-优先")
     private Integer meetingPriority;
 
     /** 会议室超出费用（分/小时） */

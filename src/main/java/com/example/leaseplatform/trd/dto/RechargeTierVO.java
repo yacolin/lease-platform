@@ -1,5 +1,6 @@
 package com.example.leaseplatform.trd.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -27,6 +28,7 @@ public class RechargeTierVO {
     private Integer sortOrder;
 
     /** 状态：0-禁用, 1-启用 */
+    @Schema(description = "状态：0-禁用, 1-启用")
     private Integer status;
 
     /** 创建时间（epoch 毫秒时间戳） */

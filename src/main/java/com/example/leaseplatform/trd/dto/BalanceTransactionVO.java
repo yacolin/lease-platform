@@ -1,5 +1,6 @@
 package com.example.leaseplatform.trd.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 /**
@@ -11,6 +12,7 @@ public class BalanceTransactionVO {
     private Long id;
 
     /** 类型：1-充值, 2-消费, 3-退款, 4-赠送, 5-调整 */
+    @Schema(description = "类型：1-充值, 2-消费, 3-退款, 4-赠送, 5-调整")
     private Integer transactionType;
 
     /** 变动金额（分，正数增加，负数减少） */

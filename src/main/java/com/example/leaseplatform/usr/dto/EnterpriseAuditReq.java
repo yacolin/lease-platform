@@ -1,5 +1,6 @@
 package com.example.leaseplatform.usr.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -16,6 +17,7 @@ public class EnterpriseAuditReq {
     @NotNull(message = "审核结果不能为空")
     @Min(value = 1, message = "审核结果：1-通过, 2-拒绝")
     @Max(value = 2, message = "审核结果：1-通过, 2-拒绝")
+    @Schema(description = "审核结果：1-通过, 2-拒绝")
     private Integer auditStatus;
 
     /** 拒绝原因（auditStatus=2 时必填，服务层校验） */

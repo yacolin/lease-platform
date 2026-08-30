@@ -1,5 +1,6 @@
 package com.example.leaseplatform.sys.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 /**
@@ -14,6 +15,7 @@ public class OperationLogVO {
     private Long operatorId;
 
     /** 操作人类型：1-系统管理员, 2-企业管理员 */
+    @Schema(description = "操作人类型：1-系统管理员, 2-企业管理员")
     private Integer operatorType;
 
     /** 操作类型（如审核企业、上架商品） */

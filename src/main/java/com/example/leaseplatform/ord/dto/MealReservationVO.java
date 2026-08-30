@@ -1,5 +1,6 @@
 package com.example.leaseplatform.ord.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import tools.jackson.databind.JsonNode;
 
@@ -33,6 +34,7 @@ public class MealReservationVO {
     private Integer quantity;
 
     /** 配送方式：1-自取, 2-楼内, 3-周边 */
+    @Schema(description = "配送方式：1-到店自取, 2-楼内配送, 3-周边配送")
     private Integer deliveryType;
 
     /** 配送费（分） */
@@ -50,6 +52,7 @@ public class MealReservationVO {
     private Long payableAmount;
 
     /** 状态：0-待支付, 1-待备餐, 2-备餐中, 3-已完成, 4-已取消, 5-已退款 */
+    @Schema(description = "状态：0-待支付, 1-待备餐, 2-备餐中, 3-已完成, 4-已取消, 5-已退款")
     private Integer status;
 
     private String remark;

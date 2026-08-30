@@ -1,5 +1,6 @@
 package com.example.leaseplatform.ord.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -23,6 +24,7 @@ public class OrderCreateReq {
     /** 支付方式：1-余额支付（P3 支持），2-微信支付（预留） */
     @Min(value = 1, message = "支付方式：1-余额, 2-微信")
     @Max(value = 2, message = "支付方式：1-余额, 2-微信")
+    @Schema(description = "支付方式：1-余额支付, 2-微信支付")
     private Integer paymentMethod = 1;
 
     @Size(max = 255, message = "备注最多 255 个字符")

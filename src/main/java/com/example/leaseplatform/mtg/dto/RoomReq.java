@@ -1,5 +1,6 @@
 package com.example.leaseplatform.mtg.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -35,5 +36,6 @@ public class RoomReq {
     @Min(value = 0, message = "超出费用不能为负")
     private Long hourlyFee;
 
+    @Schema(description = "状态：0-维护中, 1-可预约")
     private Integer status = 1;
 }

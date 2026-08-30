@@ -1,5 +1,6 @@
 package com.example.leaseplatform.usr.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 /**
@@ -15,9 +16,11 @@ public class EnterpriseMemberVO {
     private String phone;
 
     /** 角色：0-普通员工, 1-企业管理员 */
+    @Schema(description = "角色：0-普通员工, 1-企业管理员")
     private Integer role;
 
     /** 邀请状态：0-待接受, 1-已接受, 2-已拒绝 */
+    @Schema(description = "邀请状态：0-待接受, 1-已接受, 2-已拒绝")
     private Integer inviteStatus;
 
     /** 邀请时间（epoch 毫秒时间戳） */

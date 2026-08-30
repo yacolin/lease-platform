@@ -40,6 +40,7 @@ public class ProductCreateReq {
     /** 规格选项 JSON 对象，如 {"cup_size":["大杯","中杯"],"temperature":["热","冰"]} */
     private Object specOptions;
 
+    @Schema(description = "上下架状态：0-下架, 1-上架")
     private Integer isAvailable = 1;
 
     private Integer stock;

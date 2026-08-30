@@ -1,5 +1,6 @@
 package com.example.leaseplatform.prd.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -20,9 +21,11 @@ public class CategoryUpdateReq {
     @NotNull(message = "分类类型不能为空")
     @Min(value = 1, message = "分类类型只能是 1-咖啡 或 2-正餐")
     @Max(value = 2, message = "分类类型只能是 1-咖啡 或 2-正餐")
+    @Schema(description = "分类类型：1-咖啡, 2-正餐")
     private Integer categoryType;
 
     private Integer sortOrder = 0;
 
+    @Schema(description = "状态：0-禁用, 1-启用")
     private Integer status = 1;
 }

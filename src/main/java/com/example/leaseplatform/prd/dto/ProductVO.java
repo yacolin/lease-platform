@@ -32,6 +32,7 @@ public class ProductVO {
     /** 规格选项 JSON 对象 */
     private Object specOptions;
 
+    @Schema(description = "上下架状态：0-下架, 1-上架")
     private Integer isAvailable;
 
     private Integer stock;
