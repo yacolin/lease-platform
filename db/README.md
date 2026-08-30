@@ -9,7 +9,7 @@
 | `01_usr.sql` | 用户域 `usr_` | usr_users, usr_admins, usr_enterprises, usr_member_levels, usr_enterprise_members, usr_member_purchases |
 | `02_prd.sql` | 商品域 `prd_` | prd_categories, prd_products, prd_daily_menus |
 | `03_ord.sql` | 订单域 `ord_` | ord_orders, ord_order_items, ord_meal_reservations, ord_meal_reservation_items |
-| `04_mtg.sql` | 会议室域 `mtg_` | mtg_rooms, mtg_reservations |
+| `04_mtg.sql` | 会议室域 `mtg_` | mtg_rooms, mtg_room_level_prices, mtg_reservations |
 | `05_trd.sql` | 交易域 `trd_` | trd_recharge_tiers, trd_recharge_records, trd_balance_transactions |
 | `06_sys.sql` | 系统域 `sys_` | sys_notifications, sys_operation_logs |
 
@@ -51,6 +51,7 @@
 | ❌ 自增 `IdType.AUTO` | usr_member_levels | 会员等级配置，就几条 |
 | ❌ 自增 | prd_categories | 分类配置，数据量小且稳定 |
 | ❌ 自增 | mtg_rooms | 会议室配置 |
+| ❌ 自增 | mtg_room_level_prices | 会议室等级定价覆盖配置 |
 | ❌ 自增 | trd_recharge_tiers | 充值档位配置 |
 | ❌ 自增 | sys_notifications | 通知模板/站内信，量小 |
 | ❌ 自增 | **usr_admins** | **新增（管理端登录配套）：管理员账号量级极小、不被业务表外键关联（ID 仅出现在 JWT/会话），归账号配置类 → 自增** |

@@ -73,16 +73,26 @@ MENU_RECIPES = {
     123: [("红烧排骨", 1), ("辣子鸡", 1), ("水煮牛肉", 1), ("梅菜扣肉", 1), ("清蒸鲈鱼", 1), ("白灼菜心", 2)],
 }
 
-# 会议室：核心 A/B/C（hourly_fee 8000）+ 扩充
+# 会议室：核心 A/B/C + 扩充（超出费用统一按「会员等级默认价 + 会议室覆盖价」解析，
+# mtg_rooms 不再持有 hourly_fee；等级默认价见 MEMBER_LEVELS.meeting_overtime_fee=8000）
 ROOMS = [
-    ("会议室A", 10, "投影仪、白板、音响", "沙龙、培训、路演、商务洽谈", 8000),
-    ("会议室B", 10, "投影仪、白板、音响", "沙龙、培训、路演、商务洽谈", 8000),
-    ("会议室C", 10, "投影仪、白板、音响", "沙龙、培训、路演、商务洽谈", 8000),
-    ("小会议室", 4, "白板", "一对一洽谈、小规模讨论", 5000),
-    ("标准会议室", 8, "投影仪、白板", "部门例会、客户洽谈", 8000),
-    ("大会议室", 20, "投影仪、白板、音响、视频会议", "全员会议、培训", 10000),
-    ("路演厅", 50, "LED屏、音响、演讲台", "路演、发布会、大型培训", 12000),
-    ("贵宾洽谈室", 6, "白板、茶歇服务", "商务谈判、贵宾接待", 15000),
+    ("会议室A", 10, "投影仪、白板、音响", "沙龙、培训、路演、商务洽谈"),
+    ("会议室B", 10, "投影仪、白板、音响", "沙龙、培训、路演、商务洽谈"),
+    ("会议室C", 10, "投影仪、白板、音响", "沙龙、培训、路演、商务洽谈"),
+    ("小会议室", 4, "白板", "一对一洽谈、小规模讨论"),
+    ("标准会议室", 8, "投影仪、白板", "部门例会、客户洽谈"),
+    ("大会议室", 20, "投影仪、白板、音响、视频会议", "全员会议、培训"),
+    ("路演厅", 50, "LED屏、音响、演讲台", "路演、发布会、大型培训"),
+    ("贵宾洽谈室", 6, "白板、茶歇服务", "商务谈判、贵宾接待"),
+]
+
+# 会议室等级定价覆盖（Override，room_id 对应上面插入顺序 1..8）：
+# 未配置的（会议室 × 等级）回落 usr_member_levels.meeting_overtime_fee（8000）。
+# 演示：路演厅(7)/贵宾洽谈室(8) 对所有等级额外加收；小会议室(4) VIP 优惠价。
+ROOM_LEVEL_PRICES = [
+    (4, "VIP", 4000),
+    (7, "BASIC", 12000), (7, "VIP", 12000), (7, "SVIP", 12000),
+    (8, "BASIC", 15000), (8, "VIP", 15000), (8, "SVIP", 15000),
 ]
 
 # 充值档位：核心 4 档（tierId=2 必须是 50000/6000，测试依赖）+ 扩充
@@ -138,7 +148,7 @@ def build_sql():
         # 商品域
         "prd_daily_menus", "prd_products", "prd_categories",
         # 会议室域
-        "mtg_reservations", "mtg_rooms",
+        "mtg_reservations", "mtg_room_level_prices", "mtg_rooms",
         # 交易域
         "trd_balance_transactions", "trd_recharge_records", "trd_recharge_tiers",
         # 用户域
@@ -149,6 +159,7 @@ def build_sql():
         sql.append(f"DELETE FROM `{t}`;")
     sql.append("ALTER TABLE `prd_categories` AUTO_INCREMENT = 1;")
     sql.append("ALTER TABLE `mtg_rooms` AUTO_INCREMENT = 1;")
+    sql.append("ALTER TABLE `mtg_room_level_prices` AUTO_INCREMENT = 1;")
     sql.append("ALTER TABLE `trd_recharge_tiers` AUTO_INCREMENT = 1;")
     sql.append("ALTER TABLE `usr_member_levels` AUTO_INCREMENT = 1;")
     sql.append("ALTER TABLE `usr_admins` AUTO_INCREMENT = 1;")
@@ -194,10 +205,15 @@ def build_sql():
                f"`dish_type`, `sort_order`) VALUES {rows};")
 
     # ---------- 会议室（3 核心 + 5 扩充） ----------
-    rows = ", ".join(f"('{esc(name)}', {cap}, '{esc(equip)}', '{esc(scene)}', {fee})"
-                     for name, cap, equip, scene, fee in ROOMS)
-    sql.append("INSERT INTO `mtg_rooms` (`room_name`, `capacity`, `equipment`, `suitable_scenes`, "
-               f"`hourly_fee`) VALUES {rows};")
+    rows = ", ".join(f"('{esc(name)}', {cap}, '{esc(equip)}', '{esc(scene)}')"
+                     for name, cap, equip, scene in ROOMS)
+    sql.append("INSERT INTO `mtg_rooms` (`room_name`, `capacity`, `equipment`, `suitable_scenes`) "
+               f"VALUES {rows};")
+
+    # ---------- 会议室等级定价覆盖（无覆盖时回落等级默认价） ----------
+    rows = ", ".join(f"({rid}, '{code}', {fee})" for rid, code, fee in ROOM_LEVEL_PRICES)
+    sql.append("INSERT INTO `mtg_room_level_prices` (`room_id`, `level_code`, `overtime_fee`) "
+               f"VALUES {rows};")
 
     # ---------- 充值档位（6 档） ----------
     rows = ", ".join(f"({r}, {b}, {a}, {d}, {s})" for r, b, a, d, s in RECHARGE_TIERS)
@@ -257,6 +273,7 @@ def main():
                       "SELECT 'prd_products', COUNT(*) FROM prd_products UNION ALL "
                       "SELECT 'prd_daily_menus', COUNT(*) FROM prd_daily_menus UNION ALL "
                       "SELECT 'mtg_rooms', COUNT(*) FROM mtg_rooms UNION ALL "
+                      "SELECT 'mtg_room_level_prices', COUNT(*) FROM mtg_room_level_prices UNION ALL "
                       "SELECT 'trd_recharge_tiers', COUNT(*) FROM trd_recharge_tiers UNION ALL "
                       "SELECT 'usr_member_levels', COUNT(*) FROM usr_member_levels UNION ALL "
                       "SELECT 'usr_admins', COUNT(*) FROM usr_admins UNION ALL "

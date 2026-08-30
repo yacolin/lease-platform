@@ -50,6 +50,14 @@ public class MeetingReservationVO {
     /** 费用（分） */
     private Long feeAmount;
 
+    /** 价格快照：下单时超时单价（分/小时） */
+    @Schema(description = "价格快照：下单时超时单价（分/小时）")
+    private Long overtimeUnitPrice;
+
+    /** 价格快照：本次抵扣的免费时长（小时） */
+    @Schema(description = "价格快照：本次抵扣的免费时长（小时）")
+    private BigDecimal freeHoursDeducted;
+
     /** 取消时间（epoch 毫秒时间戳） */
     private Long cancelledAt;
 

@@ -70,7 +70,6 @@ public class RoomService {
         room.setEquipment(req.getEquipment());
         room.setSuitableScenes(req.getSuitableScenes());
         room.setImageUrl(req.getImageUrl());
-        room.setHourlyFee(req.getHourlyFee());
         room.setStatus(req.getStatus() == null ? 1 : req.getStatus());
     }
 
@@ -90,7 +89,6 @@ public class RoomService {
         vo.setEquipment(room.getEquipment());
         vo.setSuitableScenes(room.getSuitableScenes());
         vo.setImageUrl(room.getImageUrl());
-        vo.setHourlyFee(room.getHourlyFee());
         vo.setStatus(room.getStatus());
         vo.setCreatedAt(TimeUtil.toEpochMillis(room.getCreatedAt()));
         return vo;

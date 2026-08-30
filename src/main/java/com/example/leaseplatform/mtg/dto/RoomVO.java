@@ -24,9 +24,6 @@ public class RoomVO {
 
     private String imageUrl;
 
-    /** 超出费用（分/小时） */
-    private Long hourlyFee;
-
     /** 状态：0-维护中, 1-可预约 */
     @Schema(description = "状态：0-维护中, 1-可预约")
     private Integer status;

@@ -30,7 +30,7 @@ public class MeMeetingReservationController {
 
     private final MeetingReservationService reservationService;
 
-    @Operation(summary = "预约会议室（时段冲突 409；会员免费时长抵扣，超出按 hourly_fee 计费）")
+    @Operation(summary = "预约会议室（时段冲突 409；会员免费时长抵扣，超出按等级/会议室定价计费并写入价格快照）")
     @PostMapping
     public ApiResponse<MeetingReservationVO> create(@Valid @RequestBody MeetingReservationCreateReq req) {
         return ApiResponse.ok(reservationService.create(UserContext.getUserId(), req));

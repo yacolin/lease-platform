@@ -41,7 +41,6 @@ class RoomPublicControllerTest {
         RoomVO vo = new RoomVO();
         vo.setId(1L);
         vo.setRoomName("会议室A");
-        vo.setHourlyFee(8000L);
         when(roomService.publicList()).thenReturn(List.of(vo));
 
         mockMvc.perform(get("/api/v1/public/rooms"))

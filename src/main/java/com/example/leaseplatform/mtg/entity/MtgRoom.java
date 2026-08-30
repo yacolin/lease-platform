@@ -11,7 +11,8 @@ import java.time.LocalDateTime;
 /**
  * 会议室（mtg_rooms）：会议室基础信息。
  * 自增 ID（配置表，见 db/README.md 主键 ID 策略）；
- * status：0-维护中, 1-可预约；hourly_fee：超出费用（分/小时）。
+ * status：0-维护中, 1-可预约。超出费用不再由会议室持有（1.1 定价模型：
+ * 见 mtg_room_level_prices 覆盖价 / usr_member_levels.meeting_overtime_fee 默认价）。
  */
 @Data
 @TableName("mtg_rooms")
@@ -35,9 +36,6 @@ public class MtgRoom {
 
     /** 会议室图片 */
     private String imageUrl;
-
-    /** 超出费用（分/小时） */
-    private Long hourlyFee;
 
     /** 状态：0-维护中, 1-可预约 */
     private Integer status;

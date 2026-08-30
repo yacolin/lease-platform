@@ -13,7 +13,9 @@ import java.time.LocalTime;
 /**
  * 会议室预约（mtg_reservations）。
  * status：0-待确认, 1-已确认, 2-已完成, 3-已取消, 4-已过期；
- * is_free：0-否（超出免费时长）, 1-是；fee_amount：超时计费金额。
+ * is_free：0-否（超出免费时长）, 1-是；fee_amount：超时计费金额；
+ * overtime_unit_price / free_hours_deducted：价格快照（下单时单价与抵扣时长，
+ * 规则可改、快照不变，保证历史单对账）。
  */
 @Data
 @TableName("mtg_reservations")
@@ -58,6 +60,12 @@ public class MtgReservation {
 
     /** 费用（分） */
     private Long feeAmount;
+
+    /** 价格快照：下单时超时单价（分/小时） */
+    private Long overtimeUnitPrice;
+
+    /** 价格快照：本次抵扣的免费时长（小时） */
+    private BigDecimal freeHoursDeducted;
 
     private LocalDateTime cancelledAt;
 

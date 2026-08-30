@@ -4,7 +4,7 @@
 
 - `db/*.sql`：开发期 `reset_db.sh` 全量重建用（可重复执行）；
 - `db/migrations/`：增量演进基线（开发期由 `reset_db.sh` 末尾的 `schema_migrations` 标记已应用）；
-- `src/main/resources/db/migration/`：**Flyway 迁移脚本（V1~V4）**，生产 profile
+- `src/main/resources/db/migration/`：**Flyway 迁移脚本（V1~V5）**，生产 profile
   （`SPRING_PROFILES_ACTIVE=prod`）启动时由 `FlywayMigrationRunner` 自动执行。
   注意：Spring Boot 4 已移除 Flyway 自动配置，本仓库用 Flyway Java API 驱动；
   复制到 Flyway 目录时需去掉 `-- +migrate Down` 回滚段（Flyway 整文件执行）。
@@ -36,6 +36,7 @@ DROP TABLE ...
 | 002 | 用户域：新增 usr_admins 后台管理员表 + 初始管理员种子（admin / 123456） |
 | 003 | 主键 ID 策略：14 张业务表去掉 AUTO_INCREMENT（改雪花，见 db/README.md「主键 ID 策略」） |
 | 004 | 交易域：trd_recharge_records 补充 paid_at 支付时间列（1.0 设计遗漏） |
+| 005 | 会议室定价模型（1.1）：mtg_rooms 删除 hourly_fee、新增 mtg_room_level_prices、mtg_reservations 增加价格快照（overtime_unit_price / free_hours_deducted） |
 
 ## 开发流程
 
@@ -43,4 +44,4 @@ DROP TABLE ...
 - 已有数据的环境（含测试环境）接入迁移工具后一律增量升级，**禁止**改 `db/*.sql` 后重跑重建；
 - **Flyway（已接入）**：改表时同步 `src/main/resources/db/migration/`（Flyway 命名
   `Vx__desc.sql`，去掉 `+migrate Down` 段），生产启动自动迁移；已验证全新库
-  V1~V4 建 21 表 + 种子数据。
+  V1~V5 建 22 表 + 种子数据。

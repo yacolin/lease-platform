@@ -8,7 +8,9 @@ import com.example.leaseplatform.mtg.dto.MeetingReservationCreateReq;
 import com.example.leaseplatform.mtg.dto.MeetingReservationVO;
 import com.example.leaseplatform.mtg.entity.MtgReservation;
 import com.example.leaseplatform.mtg.entity.MtgRoom;
+import com.example.leaseplatform.mtg.entity.MtgRoomLevelPrice;
 import com.example.leaseplatform.mtg.mapper.MtgReservationMapper;
+import com.example.leaseplatform.mtg.mapper.MtgRoomLevelPriceMapper;
 import com.example.leaseplatform.mtg.mapper.MtgRoomMapper;
 import com.example.leaseplatform.trd.service.BalanceService;
 import com.example.leaseplatform.usr.entity.UsrEnterprise;
@@ -42,7 +44,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 会议室预约服务单元测试：冲突校验/免费时长抵扣/超时计费/支付/取消/完成。
+ * 会议室预约服务单元测试：冲突校验/免费时长抵扣/超时计费（等级默认价 + 会议室覆盖价 +
+ * 价格快照）/支付/取消/完成。
  */
 @ExtendWith(MockitoExtension.class)
 class MeetingReservationServiceTest {
@@ -51,6 +54,8 @@ class MeetingReservationServiceTest {
     private MtgReservationMapper reservationMapper;
     @Mock
     private MtgRoomMapper roomMapper;
+    @Mock
+    private MtgRoomLevelPriceMapper roomLevelPriceMapper;
     @Mock
     private UsrUserMapper userMapper;
     @Mock
@@ -66,6 +71,7 @@ class MeetingReservationServiceTest {
     static void initMpEntityCache() {
         initTableInfo(MtgReservation.class);
         initTableInfo(MtgRoom.class);
+        initTableInfo(MtgRoomLevelPrice.class);
         initTableInfo(UsrEnterprise.class);
         initTableInfo(UsrMemberLevel.class);
     }
@@ -76,15 +82,14 @@ class MeetingReservationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new MeetingReservationService(reservationMapper, roomMapper, userMapper,
-                enterpriseMapper, memberLevelMapper, balanceService);
+        service = new MeetingReservationService(reservationMapper, roomMapper, roomLevelPriceMapper,
+                userMapper, enterpriseMapper, memberLevelMapper, balanceService);
     }
 
     private MtgRoom room() {
         MtgRoom r = new MtgRoom();
         r.setId(1L);
         r.setRoomName("会议室A");
-        r.setHourlyFee(8000L);
         r.setStatus(1);
         return r;
     }
@@ -108,6 +113,16 @@ class MeetingReservationServiceTest {
         UsrMemberLevel l = new UsrMemberLevel();
         l.setLevelCode("VIP");
         l.setMonthlyMeetingHours(4);
+        l.setMeetingOvertimeFee(8000L); // 等级默认超时价（分/小时）
+        l.setStatus(1);
+        return l;
+    }
+
+    private UsrMemberLevel basicLevel() {
+        UsrMemberLevel l = new UsrMemberLevel();
+        l.setLevelCode("BASIC");
+        l.setMonthlyMeetingHours(0);
+        l.setMeetingOvertimeFee(8000L);
         l.setStatus(1);
         return l;
     }
@@ -138,6 +153,7 @@ class MeetingReservationServiceTest {
     void create_paid_noFreeHours_shouldChargeAndPending() {
         when(userMapper.selectById(1L)).thenReturn(user(null)); // 个人用户无免费时长
         when(roomMapper.selectById(1L)).thenReturn(room());
+        when(memberLevelMapper.selectOne(any(Wrapper.class))).thenReturn(basicLevel()); // 非会员按 BASIC 兜底价
         when(reservationMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
         when(reservationMapper.insert(any(MtgReservation.class))).thenAnswer(inv -> {
             ((MtgReservation) inv.getArgument(0)).setId(100L);
@@ -148,6 +164,8 @@ class MeetingReservationServiceTest {
 
         // 2 小时 × 80 = 160，无免费时长 → 待确认
         assertThat(vo.getFeeAmount()).isEqualTo(16000L);
+        assertThat(vo.getOvertimeUnitPrice()).isEqualTo(8000L);
+        assertThat(vo.getFreeHoursDeducted()).isEqualByComparingTo("0.0");
         assertThat(vo.getIsFree()).isZero();
         assertThat(vo.getStatus()).isZero();
         verify(balanceService).debit(1L, 16000L, null, "会议室预约");
@@ -170,6 +188,7 @@ class MeetingReservationServiceTest {
         assertThat(vo.getFeeAmount()).isEqualTo(0L);
         assertThat(vo.getIsFree()).isEqualTo(1);
         assertThat(vo.getStatus()).isEqualTo(1); // 免费直接已确认
+        assertThat(vo.getFreeHoursDeducted()).isEqualByComparingTo("2.0"); // 免费 2h 全部抵扣
         verify(balanceService, never()).debit(any(), anyLong(), any(), any());
     }
 
@@ -192,9 +211,39 @@ class MeetingReservationServiceTest {
 
         MeetingReservationVO vo = service.create(1L, req(LocalTime.of(11, 0), LocalTime.of(13, 0)));
 
-        assertThat(vo.getFeeAmount()).isEqualTo(8000L); // 超时 1h
+        assertThat(vo.getFeeAmount()).isEqualTo(8000L); // 超时 1h × 80
         assertThat(vo.getIsFree()).isZero();
         assertThat(vo.getStatus()).isZero();
+        assertThat(vo.getFreeHoursDeducted()).isEqualByComparingTo("1.0"); // 抵扣 1h 免费额度
+    }
+
+    @Test
+    void create_roomOverride_shouldUseOverridePrice() {
+        // VIP 4h/月已用 3h → 剩余 1h；会议室 1 对 VIP 配置覆盖价 10000（默认价 8000）
+        // 本次 11:00-13:00（2h）→ 免费 1h、超时 1h × 100 = 100
+        when(userMapper.selectById(1L)).thenReturn(user(5L));
+        when(roomMapper.selectById(1L)).thenReturn(room());
+        when(enterpriseMapper.selectById(5L)).thenReturn(vipEnterprise());
+        when(memberLevelMapper.selectOne(any(Wrapper.class))).thenReturn(vipLevel());
+        MtgRoomLevelPrice override = new MtgRoomLevelPrice();
+        override.setRoomId(1L);
+        override.setLevelCode("VIP");
+        override.setOvertimeFee(10000L);
+        override.setIsActive(1);
+        when(roomLevelPriceMapper.selectOne(any(Wrapper.class))).thenReturn(override);
+        MtgReservation used = existing(LocalTime.of(8, 0), LocalTime.of(11, 0), 2);
+        used.setIsFree(1);
+        used.setDurationHours(new BigDecimal("3.0"));
+        when(reservationMapper.selectList(any(Wrapper.class))).thenReturn(List.of(used));
+        when(reservationMapper.insert(any(MtgReservation.class))).thenAnswer(inv -> {
+            ((MtgReservation) inv.getArgument(0)).setId(100L);
+            return 1;
+        });
+
+        MeetingReservationVO vo = service.create(1L, req(LocalTime.of(11, 0), LocalTime.of(13, 0)));
+
+        assertThat(vo.getFeeAmount()).isEqualTo(10000L); // 超时 1h × 覆盖价 100
+        assertThat(vo.getOvertimeUnitPrice()).isEqualTo(10000L);
     }
 
     @Test
@@ -214,6 +263,7 @@ class MeetingReservationServiceTest {
     void create_adjacentTime_shouldNotConflict() {
         when(userMapper.selectById(1L)).thenReturn(user(null));
         when(roomMapper.selectById(1L)).thenReturn(room());
+        when(memberLevelMapper.selectOne(any(Wrapper.class))).thenReturn(basicLevel());
         when(reservationMapper.selectList(any(Wrapper.class)))
                 .thenReturn(List.of(existing(LocalTime.of(9, 0), LocalTime.of(10, 0), 1))); // 10:00 结束不重叠
         when(reservationMapper.insert(any(MtgReservation.class))).thenAnswer(inv -> {

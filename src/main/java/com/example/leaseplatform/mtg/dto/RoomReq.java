@@ -32,10 +32,6 @@ public class RoomReq {
     @Size(max = 255, message = "图片 URL 过长")
     private String imageUrl;
 
-    @NotNull(message = "超出费用不能为空")
-    @Min(value = 0, message = "超出费用不能为负")
-    private Long hourlyFee;
-
     @Schema(description = "状态：0-维护中, 1-可预约")
     private Integer status = 1;
 }

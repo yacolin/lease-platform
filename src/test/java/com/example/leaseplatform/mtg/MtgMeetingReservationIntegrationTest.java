@@ -98,19 +98,20 @@ class MtgMeetingReservationIntegrationTest {
         String token = wxAccessToken();
         recharge(token); // 余额 500 + 赠送 60
 
-        // 1. 公开会议室列表（seed.py 8 间）
+        // 1. 公开会议室列表（seed.py 8 间；超出费用已不在会议室上，按等级/覆盖价解析）
         mockMvc.perform(get("/api/v1/public/rooms"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(8))
-                .andExpect(jsonPath("$.data[0].hourlyFee").value(8000));
+                .andExpect(jsonPath("$.data.length()").value(8));
 
-        // 2. 个人用户预约 2h（9:00-11:00）→ 无免费时长 → 160 元待确认
+        // 2. 个人用户预约 2h（9:00-11:00）→ 无免费时长 → BASIC 兜底价 80 × 2 = 160 元待确认
         String body = mockMvc.perform(post("/api/v1/me/meeting-reservations")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reserveBody(LocalTime.of(9, 0), LocalTime.of(11, 0))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.feeAmount").value(16000))
+                .andExpect(jsonPath("$.data.overtimeUnitPrice").value(8000))   // 价格快照：单价
+                .andExpect(jsonPath("$.data.freeHoursDeducted").value(0.0))     // 价格快照：无抵扣
                 .andExpect(jsonPath("$.data.isFree").value(0))
                 .andExpect(jsonPath("$.data.status").value(0))
                 .andReturn().getResponse().getContentAsString();
@@ -173,7 +174,7 @@ class MtgMeetingReservationIntegrationTest {
         userMapper.updateById(user);
         recharge(token); // 超时计费单需余额支付
 
-        // 1. 免费预约 2h（8:00-10:00）→ is_free=1、fee=0、直接已确认
+        // 1. 免费预约 2h（8:00-10:00）→ is_free=1、fee=0、直接已确认，快照记录抵扣 2h
         String r1 = mockMvc.perform(post("/api/v1/me/meeting-reservations")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -181,6 +182,7 @@ class MtgMeetingReservationIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.isFree").value(1))
                 .andExpect(jsonPath("$.data.feeAmount").value(0))
+                .andExpect(jsonPath("$.data.freeHoursDeducted").value(2.0))
                 .andExpect(jsonPath("$.data.status").value(1))
                 .andReturn().getResponse().getContentAsString();
         long r1Id = objectMapper.readTree(r1).path("data").path("id").asLong();
@@ -202,13 +204,15 @@ class MtgMeetingReservationIntegrationTest {
                 .andExpect(jsonPath("$.data.totalHours").value(4.0))
                 .andExpect(jsonPath("$.data.remainingHours").value(0.0));
 
-        // 4. 超时计费：再约 2h（12:00-14:00）→ 超出 2h × 80 = 160，待支付
+        // 4. 超时计费：再约 2h（12:00-14:00）→ 超出 2h × VIP 默认价 80 = 160，待支付
+        //    （会议室 1 未配置覆盖价 → 回落 usr_member_levels.meeting_overtime_fee）
         mockMvc.perform(post("/api/v1/me/meeting-reservations")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reserveBody(LocalTime.of(12, 0), LocalTime.of(14, 0))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.feeAmount").value(16000))
+                .andExpect(jsonPath("$.data.overtimeUnitPrice").value(8000))
                 .andExpect(jsonPath("$.data.isFree").value(0))
                 .andExpect(jsonPath("$.data.status").value(0));
 
@@ -242,6 +246,8 @@ class MtgMeetingReservationIntegrationTest {
         past.setStatus(1);
         past.setFeeAmount(0L);
         past.setIsFree(1);
+        past.setOvertimeUnitPrice(8000L);
+        past.setFreeHoursDeducted(new BigDecimal("1.0"));
         reservationMapper.insert(past);
 
         // 查询时惰性置为已过期

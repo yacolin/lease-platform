@@ -43,7 +43,6 @@ class RoomServiceTest {
         r.setId(id);
         r.setRoomName("会议室A");
         r.setCapacity(10);
-        r.setHourlyFee(8000L);
         r.setStatus(1);
         return r;
     }
@@ -55,7 +54,7 @@ class RoomServiceTest {
         List<RoomVO> list = service.publicList();
 
         assertThat(list).hasSize(1);
-        assertThat(list.get(0).getHourlyFee()).isEqualTo(8000L);
+        assertThat(list.get(0).getRoomName()).isEqualTo("会议室A");
     }
 
     @Test
@@ -67,7 +66,6 @@ class RoomServiceTest {
         RoomReq req = new RoomReq();
         req.setRoomName("会议室D");
         req.setCapacity(20);
-        req.setHourlyFee(10000L);
 
         RoomVO vo = service.create(req);
 

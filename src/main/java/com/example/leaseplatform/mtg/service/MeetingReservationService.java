@@ -11,7 +11,9 @@ import com.example.leaseplatform.mtg.dto.MeetingReservationCreateReq;
 import com.example.leaseplatform.mtg.dto.MeetingReservationVO;
 import com.example.leaseplatform.mtg.entity.MtgReservation;
 import com.example.leaseplatform.mtg.entity.MtgRoom;
+import com.example.leaseplatform.mtg.entity.MtgRoomLevelPrice;
 import com.example.leaseplatform.mtg.mapper.MtgReservationMapper;
+import com.example.leaseplatform.mtg.mapper.MtgRoomLevelPriceMapper;
 import com.example.leaseplatform.mtg.mapper.MtgRoomMapper;
 import com.example.leaseplatform.trd.service.BalanceService;
 import com.example.leaseplatform.usr.entity.UsrEnterprise;
@@ -41,7 +43,10 @@ import java.util.stream.Collectors;
  * - 时段冲突校验：同会议室/同日期下状态为待确认/已确认且时间重叠 → 409；
  * - 会员免费时长抵扣：企业会员等级（usr_member_levels.monthly_meeting_hours）按自然月
  *   统计已用免费时长（status=1/2 且 is_free=1），本次预约优先抵扣剩余免费时长；
- * - 超时计费：超出免费时长的部分 × 会议室 hourly_fee（分/小时）；
+ * - 超时计费：超出免费时长的部分 × 超时单价（分/小时）。单价解析（1.1 定价模型）：
+ *   会议室等级定价 mtg_room_level_prices 覆盖价 → 无则回落
+ *   usr_member_levels.meeting_overtime_fee 等级默认价（非会员按 BASIC 兜底）；
+ *   下单时把「单价 + 抵扣免费时长」写入预约表快照，规则可改、快照不变；
  * - 状态流转：待确认（需付费）→ 余额支付 → 已确认 → 已完成/已取消（退款）/惰性过期；
  * - 过期惰性处理：查询时把已过预约日且未完成的预约置为已过期（4）。
  */
@@ -59,10 +64,14 @@ public class MeetingReservationService {
     /** 无企业用户的 enterprise_id 占位 */
     private static final long NO_ENTERPRISE = 0L;
 
+    /** 非会员（个人/无等级）超时单价的兜底等级编码 */
+    private static final String BASIC_LEVEL_CODE = "BASIC";
+
     private static final BigDecimal ZERO = BigDecimal.ZERO;
 
     private final MtgReservationMapper reservationMapper;
     private final MtgRoomMapper roomMapper;
+    private final MtgRoomLevelPriceMapper roomLevelPriceMapper;
     private final UsrUserMapper userMapper;
     private final UsrEnterpriseMapper enterpriseMapper;
     private final UsrMemberLevelMapper memberLevelMapper;
@@ -82,10 +91,11 @@ public class MeetingReservationService {
         checkConflict(room.getId(), req.getReservationDate(), req.getStartTime(), req.getEndTime());
 
         BigDecimal duration = durationHours(req.getStartTime(), req.getEndTime());
-        // 免费时长抵扣 + 超时计费（费用为整数「分」）
+        // 免费时长抵扣 + 超时计费（费用为整数「分」；单价=会议室覆盖价→等级默认价）
         FreeUsage free = calcFreeUsage(user, req.getReservationDate(), duration);
         BigDecimal paidHours = duration.subtract(free.freeHours());
-        long fee = roundCents(paidHours.multiply(BigDecimal.valueOf(room.getHourlyFee())));
+        long unitPrice = resolveOvertimeFee(room.getId(), user);
+        long fee = roundCents(paidHours.multiply(BigDecimal.valueOf(unitPrice)));
 
         MtgReservation reservation = new MtgReservation();
         reservation.setReservationNo(generateNo("MR"));
@@ -99,6 +109,9 @@ public class MeetingReservationService {
         reservation.setMeetingTopic(req.getMeetingTopic());
         reservation.setIsFree(paidHours.compareTo(ZERO) == 0 ? 1 : 0);
         reservation.setFeeAmount(fee);
+        // 价格快照：下单时单价 + 本次抵扣免费时长（规则可改、快照不变，保证历史单对账）
+        reservation.setOvertimeUnitPrice(unitPrice);
+        reservation.setFreeHoursDeducted(free.freeHours());
         // 免费预约直接已确认；付费预约待支付（余额不足则创建失败）
         if (fee == 0) {
             reservation.setStatus(STATUS_CONFIRMED);
@@ -278,28 +291,54 @@ public class MeetingReservationService {
 
     /** 企业会员每月免费时长（小时）：企业有效会员等级的 monthly_meeting_hours；个人/无会员 0 */
     private BigDecimal monthlyFreeHours(UsrUser user) {
+        UsrMemberLevel level = levelByCode(effectiveLevelCode(user));
+        return level == null || level.getMonthlyMeetingHours() == null
+                ? ZERO : BigDecimal.valueOf(level.getMonthlyMeetingHours());
+    }
+
+    /** 用户当前有效会员等级编码；个人/无企业/等级已过期 → null */
+    private String effectiveLevelCode(UsrUser user) {
         Long enterpriseId = user.getEnterpriseId();
         if (enterpriseId == null) {
-            return ZERO;
+            return null;
         }
         UsrEnterprise enterprise = enterpriseMapper.selectById(enterpriseId);
         if (enterprise == null || EnterpriseService.effectiveMemberLevel(enterprise) <= 0) {
-            return ZERO;
+            return null;
         }
-        String levelCode = switch (enterprise.getMemberLevel()) {
+        return switch (enterprise.getMemberLevel()) {
             case 1 -> "BASIC";
             case 2 -> "VIP";
             case 3 -> "SVIP";
             default -> null;
         };
+    }
+
+    /** 按编码查启用中的会员等级配置 */
+    private UsrMemberLevel levelByCode(String levelCode) {
         if (levelCode == null) {
-            return ZERO;
+            return null;
         }
-        UsrMemberLevel level = memberLevelMapper.selectOne(new LambdaQueryWrapper<UsrMemberLevel>()
+        return memberLevelMapper.selectOne(new LambdaQueryWrapper<UsrMemberLevel>()
                 .eq(UsrMemberLevel::getLevelCode, levelCode)
                 .eq(UsrMemberLevel::getStatus, 1));
-        return level == null || level.getMonthlyMeetingHours() == null
-                ? ZERO : BigDecimal.valueOf(level.getMonthlyMeetingHours());
+    }
+
+    /** 超时单价（分/小时）：会议室等级定价覆盖价 → 等级默认价（非会员按 BASIC 兜底）→ 0 */
+    private long resolveOvertimeFee(Long roomId, UsrUser user) {
+        String levelCode = effectiveLevelCode(user);
+        if (levelCode != null) {
+            MtgRoomLevelPrice override = roomLevelPriceMapper.selectOne(new LambdaQueryWrapper<MtgRoomLevelPrice>()
+                    .eq(MtgRoomLevelPrice::getRoomId, roomId)
+                    .eq(MtgRoomLevelPrice::getLevelCode, levelCode)
+                    .eq(MtgRoomLevelPrice::getIsActive, 1));
+            if (override != null && override.getOvertimeFee() != null) {
+                return override.getOvertimeFee();
+            }
+        }
+        UsrMemberLevel level = levelByCode(levelCode == null ? BASIC_LEVEL_CODE : levelCode);
+        return level == null || level.getMeetingOvertimeFee() == null
+                ? 0L : level.getMeetingOvertimeFee();
     }
 
     private long enterpriseKey(UsrUser user) {
@@ -370,6 +409,8 @@ public class MeetingReservationService {
         vo.setStatus(r.getStatus());
         vo.setIsFree(r.getIsFree());
         vo.setFeeAmount(r.getFeeAmount());
+        vo.setOvertimeUnitPrice(r.getOvertimeUnitPrice());
+        vo.setFreeHoursDeducted(r.getFreeHoursDeducted());
         vo.setCancelledAt(TimeUtil.toEpochMillis(r.getCancelledAt()));
         vo.setCancelReason(r.getCancelReason());
         vo.setCreatedAt(TimeUtil.toEpochMillis(r.getCreatedAt()));
