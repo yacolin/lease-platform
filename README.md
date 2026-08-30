@@ -2,7 +2,7 @@
 
 基于 **Java 21 + Spring Boot 4 + MyBatis-Plus + MySQL + Redis** 的园区/企业服务平台。1.0 版本围绕企业员工的日常消费场景：**咖啡点单、正餐预订（每日菜单）、会议室预约、充值余额与会员折扣**，覆盖微信小程序（用户端）与管理后台（商家端）。
 
-> 当前状态：**数据库设计（20 张表）+ 基础架构 + prd 商品域 + P0/P0+ 认证域 + P1 企业域 + P2 交易域已落地**（公开浏览/会员等级/充值档位；管理员 admin/123456；微信登录（开发 mock）；企业注册→审核→员工→会员购买；充值下单→mock 直充→余额/赠送余额入账→流水全流程可用），后续按依赖顺序推进（订单 → 会议室 → 系统）。
+> 当前状态：**数据库设计（20 张表）+ 基础架构 + prd 商品域 + P0/P0+ 认证域 + P1 企业域 + P2 交易域 + P3 咖啡订单已落地**（公开浏览/会员等级/充值档位；管理员 admin/123456；微信登录（开发 mock）；企业注册→审核→员工→会员购买；充值→余额/赠送余额；咖啡点单：折扣叠加→余额支付→取餐码→核销全流程可用），后续按依赖顺序推进（正餐预订 → 会议室 → 系统）。
 
 ## 技术栈
 
@@ -151,13 +151,35 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 
 **微信支付回调（`POST /api/v1/wx/payments/notify`，白名单，微信服务器调用）**：V3 回调解密入账（幂等）；开发环境未配置微信支付时返回失败，走 mock-pay 直充。
 
+**我的订单（咖啡点单，`/api/v1/me/orders/**`，需登录）**
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/v1/me/orders` | 咖啡下单 `{items:[{productId, quantity, spec}]}`（折扣叠加后待支付） |
+| POST | `/api/v1/me/orders/{id}/pay` | 余额支付（赠送余额优先扣；生成取餐码 → 待取餐） |
+| POST | `/api/v1/me/orders/{id}/cancel` | 取消订单（待取餐取消原路退款） |
+| GET | `/api/v1/me/orders` | 我的订单分页（状态筛选） |
+| GET | `/api/v1/me/orders/{id}` | 订单详情（含明细/规格快照） |
+
+**订单管理（`/api/v1/orders/**`，仅管理员）**
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/orders` | 订单分页（订单号/状态/日期筛选） |
+| GET | `/api/v1/orders/{id}` | 订单详情 |
+| PUT | `/api/v1/orders/{id}/status` | 状态推进（1→2→3；1/2→5 退款） |
+| POST | `/api/v1/orders/verify-pickup` | 取餐码核销（待取餐/制作中 → 完成） |
+| GET | `/api/v1/orders/stats` | 订单统计（今日订单/金额/待取餐/制作中） |
+
+**折扣规则（P3）**：应付 = 商品原价 × **会员折扣率**（usr_member_levels.discount_rate，非会员不打折）× **充值折扣率**（最近一次成功充值档位的 equivalent_discount，未充值不打折）；`member_discount` / `recharge_discount` 分别记录两项优惠金额。
+
 ### 接口分组与前端请求文件生成
 
 springdoc 按端输出独立 OpenAPI JSON（`/v3/api-docs/{group}`，Security 白名单已放行）：
 
 | 组 | 覆盖接口 | OpenAPI JSON | 前端产物 |
 |---|---|---|---|
-| `admin` | 管理员登录/登出 + 分类/商品/菜单管理 + 企业审核 + 充值档位 | `/v3/api-docs/admin` | 管理后台请求文件（如 `api/admin/*.js`） |
+| `admin` | 管理员登录/登出 + 分类/商品/菜单管理 + 企业审核 + 充值档位 + 订单管理 | `/v3/api-docs/admin` | 管理后台请求文件（如 `api/admin/*.js`） |
 | `public` | 公开浏览 + 微信登录/刷新/登出 + 我的 + 我的企业/充值 | `/v3/api-docs/public` | 小程序请求文件（如 `api/miniprogram/*.js`） |
 | 全部 | 所有接口 | `/v3/api-docs` | Swagger UI 顶部按端切换 |
 
@@ -198,7 +220,7 @@ springdoc 按端输出独立 OpenAPI JSON（`/v3/api-docs/{group}`，Security �
 ## 测试
 
 ```bash
-make test     # 181 例：service 单元（Mockito）+ controller Web（@WebMvcTest + 真实 Security 链）+ 集成（真实 MySQL + Redis）
+make test     # 211 例：service 单元（Mockito）+ controller Web（@WebMvcTest + 真实 Security 链）+ 集成（真实 MySQL + Redis）
 ```
 
 集成测试基于 `db/02_prd.sql` 的固定种子数据断言（4 分类 / 8 商品 / 2026-08-30 菜单 11 条）与 `usr_admins` 种子（admin/123456），运行前需 `make db-reset`。
@@ -209,8 +231,9 @@ make test     # 181 例：service 单元（Mockito）+ controller Web（@WebMvcT
 - [x] 数据库设计内附（20 表 + 种子 + 迁移 + reset 脚本）
 - [x] prd 商品域：公开浏览 + 管理端 CRUD + 49 例测试 + Swagger 文档
 - [x] P0 认证域：JWT 过滤器 / 微信登录（mock 固定 openid）/ 刷新登出（Redis 复合身份）/ 我的资料
-- [x] P0+ 管理端登录：usr_admins 账号表 + /api/v1/auth/login（bcrypt）+ 管理端接口按 user_type=1 隔离，累计 181 例测试
+- [x] P0+ 管理端登录：usr_admins 账号表 + /api/v1/auth/login（bcrypt）+ 管理端接口按 user_type=1 隔离，累计 211 例测试
 - [x] P1 企业域：实名注册（注册人即管理员）/ admin 审核 / 员工邀请接受移除/管理员设置 / 会员等级购买（mock 支付生效）
 - [x] P2 交易域：充值档位（public+admin）/ 充值下单 + mock 直充（事务幂等）/ 余额账本（credit/debit 流水）/ 微信支付回调+查单（结构就绪，未配置降级）
-- [ ] 订单域（咖啡点单 / 正餐预订）与会议室域（预约）
+- [x] P3 咖啡订单：商品+规格快照下单 / 折扣叠加（会员×充值）/ 余额支付（赠送优先扣）+ 取餐码核销 / 状态流转 / 商家订单管理+统计
+- [ ] 正餐预订（每日菜单运营 / 预订规则 / 备餐流转）与会议室域（预约）
 - [ ] 系统域（通知 / 操作日志）与工程化收尾（dev/prod 分离、Flyway、Docker）
