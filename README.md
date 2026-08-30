@@ -2,7 +2,7 @@
 
 基于 **Java 21 + Spring Boot 4 + MyBatis-Plus + MySQL + Redis** 的园区/企业服务平台。1.0 版本围绕企业员工的日常消费场景：**咖啡点单、正餐预订（每日菜单）、会议室预约、充值余额与会员折扣**，覆盖微信小程序（用户端）与管理后台（商家端）。
 
-> 当前状态：**数据库设计（20 张表）+ 基础架构 + prd 商品域 + P0/P0+ 认证域 + P1 企业域 + P2 交易域 + P3 咖啡订单 + P4 正餐预订已落地**（公开浏览/会员等级/充值档位；管理员 admin/123456；微信登录（开发 mock）；企业注册→审核→员工→会员购买；充值→余额/赠送余额；咖啡点单与正餐预订：折扣叠加→余额支付→取餐码/备餐流转全流程可用），后续按依赖顺序推进（会议室 → 系统）。
+> 当前状态：**数据库设计（20 张表）+ 基础架构 + prd 商品域 + P0/P0+ 认证域 + P1 企业域 + P2 交易域 + P3 咖啡订单 + P4 正餐预订 + P5 会议室已落地**（公开浏览/会员等级/充值档位/会议室；管理员 admin/123456；微信登录（开发 mock）；企业注册→审核→员工→会员购买；充值→余额/赠送余额；咖啡点单、正餐预订、会议室预约（冲突校验/免费时长/超时计费）全流程可用），后续按依赖顺序推进（系统域与工程化收尾）。
 
 ## 技术栈
 
@@ -193,13 +193,28 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 
 **正餐预订管理（`/api/v1/meal-reservations/**`，仅管理员）**：分页（日期/状态筛选）、详情、`PUT /{id}/status` 备餐流转（1→2→3；1/2→5 退款，同步关联订单）。配送费：周边配送 5 元，自取/楼内 0。
 
+**会议室（P5）**
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/public/rooms` | 可预约会议室列表（公开） |
+| POST/GET/PUT/DELETE | `/api/v1/rooms/**` | 会议室管理（管理端 CRUD） |
+| POST | `/api/v1/me/meeting-reservations` | 预约 `{roomId, reservationDate, startTime, endTime, meetingTopic}`（冲突 409；免费时长抵扣+超时计费） |
+| POST | `/api/v1/me/meeting-reservations/{id}/pay` | 余额支付（待确认 → 已确认） |
+| POST | `/api/v1/me/meeting-reservations/{id}/cancel` | 取消（已付费原路退款） |
+| GET | `/api/v1/me/meeting-reservations` | 我的预约分页 |
+| GET | `/api/v1/me/meeting-reservations/free-hours?month=` | 指定月份剩余免费时长（缺省当月） |
+| GET | `/api/v1/meeting-reservations/**` | 预约管理（管理端：分页/详情/确认完成） |
+
+**会议室计费规则（P5）**：可预约最早明天、最远 7 天、时段 08:00~22:00；同会议室/同日期时段重叠 → 409。企业会员免费时长（`usr_member_levels.monthly_meeting_hours`，VIP 4h/月、SVIP 8h/月）按**预约月**统计已用并优先抵扣；超出部分 × 会议室 `hourly_fee`（元/小时）计费（余额支付，赠送余额优先扣）。状态：待确认（付费）→ 已确认 → 已完成/已取消（退款）/已过期（惰性，查询时置过期且不退）。
+
 ### 接口分组与前端请求文件生成
 
 springdoc 按端输出独立 OpenAPI JSON（`/v3/api-docs/{group}`，Security 白名单已放行）：
 
 | 组 | 覆盖接口 | OpenAPI JSON | 前端产物 |
 |---|---|---|---|
-| `admin` | 管理员登录/登出 + 分类/商品/菜单管理 + 企业审核 + 充值档位 + 订单管理 | `/v3/api-docs/admin` | 管理后台请求文件（如 `api/admin/*.js`） |
+| `admin` | 管理员登录/登出 + 分类/商品/菜单管理 + 企业审核 + 充值档位 + 订单/正餐预订 + 会议室 | `/v3/api-docs/admin` | 管理后台请求文件（如 `api/admin/*.js`） |
 | `public` | 公开浏览 + 微信登录/刷新/登出 + 我的 + 我的企业/充值 | `/v3/api-docs/public` | 小程序请求文件（如 `api/miniprogram/*.js`） |
 | 全部 | 所有接口 | `/v3/api-docs` | Swagger UI 顶部按端切换 |
 
@@ -240,7 +255,7 @@ springdoc 按端输出独立 OpenAPI JSON（`/v3/api-docs/{group}`，Security �
 ## 测试
 
 ```bash
-make test     # 233 例：service 单元（Mockito）+ controller Web（@WebMvcTest + 真实 Security 链）+ 集成（真实 MySQL + Redis）
+make test     # 268 例：service 单元（Mockito）+ controller Web（@WebMvcTest + 真实 Security 链）+ 集成（真实 MySQL + Redis）
 ```
 
 集成测试基于 `db/02_prd.sql` 的固定种子数据断言（4 分类 / 8 商品 / 2026-08-30 菜单 11 条）与 `usr_admins` 种子（admin/123456），运行前需 `make db-reset`。
@@ -251,10 +266,11 @@ make test     # 233 例：service 单元（Mockito）+ controller Web（@WebMvcT
 - [x] 数据库设计内附（20 表 + 种子 + 迁移 + reset 脚本）
 - [x] prd 商品域：公开浏览 + 管理端 CRUD + 49 例测试 + Swagger 文档
 - [x] P0 认证域：JWT 过滤器 / 微信登录（mock 固定 openid）/ 刷新登出（Redis 复合身份）/ 我的资料
-- [x] P0+ 管理端登录：usr_admins 账号表 + /api/v1/auth/login（bcrypt）+ 管理端接口按 user_type=1 隔离，累计 233 例测试
+- [x] P0+ 管理端登录：usr_admins 账号表 + /api/v1/auth/login（bcrypt）+ 管理端接口按 user_type=1 隔离，累计 268 例测试
 - [x] P1 企业域：实名注册（注册人即管理员）/ admin 审核 / 员工邀请接受移除/管理员设置 / 会员等级购买（mock 支付生效）
 - [x] P2 交易域：充值档位（public+admin）/ 充值下单 + mock 直充（事务幂等）/ 余额账本（credit/debit 流水）/ 微信支付回调+查单（结构就绪，未配置降级）
 - [x] P3 咖啡订单：商品+规格快照下单 / 折扣叠加（会员×充值）/ 余额支付（赠送优先扣）+ 取餐码核销 / 状态流转 / 商家订单管理+统计
 - [x] P4 正餐预订：菜单整单配置/复制 / 按日期+时段预订（规则校验+菜品快照）/ 备餐流转 / 折扣复用 DiscountCalculator
-- [ ] 会议室域（预约/时段冲突/会员免费时长）
+- [x] P5 会议室：public+admin 管理 / 预约冲突校验 / 会员免费时长抵扣+超时计费 / 状态流转（待确认→已确认→完成/取消/过期）
+- [ ] 系统域（通知 / 操作日志）与工程化收尾（dev/prod 分离、Flyway、Docker）
 - [ ] 系统域（通知 / 操作日志）与工程化收尾（dev/prod 分离、Flyway、Docker）
