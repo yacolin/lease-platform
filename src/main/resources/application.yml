@@ -82,6 +82,14 @@ wechat:
   # （wx.login() 的 code 是一次性随机值，不能拿它拼 openid，否则每次登录都会注册新用户）
   mock-enabled: true
   mock-openid: "mock_dev_user"
+  # 微信支付（P2 充值/下单）：开发期留空 = 未配置，充值走 mock-pay 直充；
+  # 生产配置完整后自动启用 JSAPI 下单与回调 notify（见 trd/wechat/WechatPayClient）
+  pay:
+    mch-id: ""            # 商户号
+    api-v3-key: ""        # API v3 密钥（回调 AES-GCM 解密）
+    private-key-path: ""  # 商户 API 证书私钥（PKCS8 PEM）
+    mch-serial-no: ""     # 商户 API 证书序列号
+    notify-url: ""        # 支付回调公网地址（指向 /api/v1/wx/payments/notify）
 
 # ---------- 5. JWT ----------
 jwt:
@@ -104,8 +112,8 @@ springdoc:
     tags-sorter: alpha
     operations-sorter: alpha
   # 按端分组输出 OpenAPI JSON（前端请求文件生成按组拉取，见 README「接口分组与前端请求文件生成」）：
-  # - admin  管理端：管理员登录/登出 + 分类/商品/菜单/企业审核等后台接口
-  # - public 公开/小程序端：公开浏览 + 微信登录/刷新/登出 + 我的（含我的企业）
+  # - admin  管理端：管理员登录/登出 + 分类/商品/菜单/企业审核/充值档位等后台接口
+  # - public 公开/小程序端：公开浏览 + 微信登录/刷新/登出 + 我的（含我的企业/充值）
   # group 为文档 URL 后缀（/v3/api-docs/{group}），display-name 为 Swagger UI 下拉显示名
   group-configs:
     - group: admin
@@ -117,6 +125,7 @@ springdoc:
         - /api/v1/categories/**
         - /api/v1/menus/**
         - /api/v1/enterprises/**
+        - /api/v1/recharge-tiers/**
     - group: public
       display-name: 公开/小程序端
       paths-to-match:
@@ -136,6 +145,8 @@ lease:
       - /api/v1/public/products/**
       - /api/v1/public/menus/**
       - /api/v1/public/member-levels/**
+      - /api/v1/public/recharge-tiers/**
+      - /api/v1/wx/payments/notify
       - /v3/api-docs/**
       - /swagger-ui/**
       - /swagger-ui.html
@@ -148,6 +159,7 @@ lease:
       - /api/v1/categories/**
       - /api/v1/menus/**
       - /api/v1/enterprises/**
+      - /api/v1/recharge-tiers/**
     cors:
       # 开发期放开；生产改为小程序/后台实际域名列表
       allowed-origins:

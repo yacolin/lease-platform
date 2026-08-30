@@ -41,6 +41,7 @@ CREATE TABLE `trd_recharge_records` (
   `transaction_id` VARCHAR(64) DEFAULT NULL COMMENT '微信支付交易号',
   `out_trade_no` VARCHAR(64) NOT NULL COMMENT '商户订单号',
   `payment_status` TINYINT NOT NULL DEFAULT 0 COMMENT '支付状态：0-待支付, 1-支付成功, 2-支付失败, 3-已退款',
+  `paid_at` DATETIME DEFAULT NULL COMMENT '支付时间',
   `refund_reason` VARCHAR(255) DEFAULT NULL COMMENT '退款原因',
   `refunded_at` DATETIME DEFAULT NULL COMMENT '退款时间',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

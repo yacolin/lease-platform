@@ -2,7 +2,7 @@
 
 基于 **Java 21 + Spring Boot 4 + MyBatis-Plus + MySQL + Redis** 的园区/企业服务平台。1.0 版本围绕企业员工的日常消费场景：**咖啡点单、正餐预订（每日菜单）、会议室预约、充值余额与会员折扣**，覆盖微信小程序（用户端）与管理后台（商家端）。
 
-> 当前状态：**数据库设计（20 张表）+ 基础架构 + prd 商品域 + P0/P0+ 认证域 + P1 企业域已落地**（公开浏览/会员等级；管理员 admin/123456；微信登录（开发 mock）；企业注册→审核→员工管理→会员购买（mock 支付）全流程可用），后续按依赖顺序推进（交易 → 订单 → 会议室 → 系统）。
+> 当前状态：**数据库设计（20 张表）+ 基础架构 + prd 商品域 + P0/P0+ 认证域 + P1 企业域 + P2 交易域已落地**（公开浏览/会员等级/充值档位；管理员 admin/123456；微信登录（开发 mock）；企业注册→审核→员工→会员购买；充值下单→mock 直充→余额/赠送余额入账→流水全流程可用），后续按依赖顺序推进（订单 → 会议室 → 系统）。
 
 ## 技术栈
 
@@ -88,6 +88,9 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 | GET | `/api/v1/enterprises` | 企业分页（审核状态/名称/信用代码/联系人筛选） |
 | GET | `/api/v1/enterprises/{id}` | 企业详情 |
 | PUT | `/api/v1/enterprises/{id}/audit` | 审核企业（1-通过, 2-拒绝；拒绝必填原因） |
+| POST | `/api/v1/recharge-tiers` | 创建充值档位（重复充值金额 409） |
+| GET | `/api/v1/recharge-tiers` | 充值档位分页列表 |
+| GET/PUT/DELETE | `/api/v1/recharge-tiers/{id}` | 档位详情 / 更新 / 删除 |
 
 > 小程序用户（user_type=2/3）访问管理端接口返回 403（类型隔离）。
 
@@ -102,6 +105,7 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 | GET | `/api/v1/public/products/{id}` | 商品详情（下架视为 404） |
 | GET | `/api/v1/public/menus?date=` | 每日菜单（缺省今天，含套餐名） |
 | GET | `/api/v1/public/member-levels` | 会员等级列表（仅启用） |
+| GET | `/api/v1/public/recharge-tiers` | 充值档位列表（仅启用） |
 
 **认证（`/api/v1/auth/**`，白名单放行）**
 
@@ -135,14 +139,26 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 | POST | `/api/v1/me/enterprise/member-purchases/{id}/mock-pay` | 开发 mock 支付（立即生效；P2 由支付回调替代） |
 | GET | `/api/v1/me/enterprise/member-purchases` | 我的企业购买记录 |
 
+**我的充值/余额（`/api/v1/me/**`，需登录）**
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/v1/me/recharge` | 充值下单 `{tierId}`（微信支付未配置时返回记录，走 mock-pay） |
+| POST | `/api/v1/me/recharge/{id}/mock-pay` | 开发 mock 直充（立即入账；幂等） |
+| POST | `/api/v1/me/recharge/{id}/query` | 主动查单兜底（已配置微信支付时同步微信侧状态） |
+| GET | `/api/v1/me/recharge/records` | 我的充值记录 |
+| GET | `/api/v1/me/balance-transactions` | 我的余额流水（充值/消费/退款，含赠送余额） |
+
+**微信支付回调（`POST /api/v1/wx/payments/notify`，白名单，微信服务器调用）**：V3 回调解密入账（幂等）；开发环境未配置微信支付时返回失败，走 mock-pay 直充。
+
 ### 接口分组与前端请求文件生成
 
 springdoc 按端输出独立 OpenAPI JSON（`/v3/api-docs/{group}`，Security 白名单已放行）：
 
 | 组 | 覆盖接口 | OpenAPI JSON | 前端产物 |
 |---|---|---|---|
-| `admin` | 管理员登录/登出 + 分类/商品/菜单管理 + 企业审核 | `/v3/api-docs/admin` | 管理后台请求文件（如 `api/admin/*.js`） |
-| `public` | 公开浏览 + 微信登录/刷新/登出 + 我的 + 我的企业 | `/v3/api-docs/public` | 小程序请求文件（如 `api/miniprogram/*.js`） |
+| `admin` | 管理员登录/登出 + 分类/商品/菜单管理 + 企业审核 + 充值档位 | `/v3/api-docs/admin` | 管理后台请求文件（如 `api/admin/*.js`） |
+| `public` | 公开浏览 + 微信登录/刷新/登出 + 我的 + 我的企业/充值 | `/v3/api-docs/public` | 小程序请求文件（如 `api/miniprogram/*.js`） |
 | 全部 | 所有接口 | `/v3/api-docs` | Swagger UI 顶部按端切换 |
 
 生成方式：按组拉取 JSON 后按模块拆分为 `api/*.js`，每个文件顶部注明后端契约路径
@@ -182,7 +198,7 @@ springdoc 按端输出独立 OpenAPI JSON（`/v3/api-docs/{group}`，Security �
 ## 测试
 
 ```bash
-make test     # 140 例：service 单元（Mockito）+ controller Web（@WebMvcTest + 真实 Security 链）+ 集成（真实 MySQL + Redis）
+make test     # 181 例：service 单元（Mockito）+ controller Web（@WebMvcTest + 真实 Security 链）+ 集成（真实 MySQL + Redis）
 ```
 
 集成测试基于 `db/02_prd.sql` 的固定种子数据断言（4 分类 / 8 商品 / 2026-08-30 菜单 11 条）与 `usr_admins` 种子（admin/123456），运行前需 `make db-reset`。
@@ -193,8 +209,8 @@ make test     # 140 例：service 单元（Mockito）+ controller Web（@WebMvcT
 - [x] 数据库设计内附（20 表 + 种子 + 迁移 + reset 脚本）
 - [x] prd 商品域：公开浏览 + 管理端 CRUD + 49 例测试 + Swagger 文档
 - [x] P0 认证域：JWT 过滤器 / 微信登录（mock 固定 openid）/ 刷新登出（Redis 复合身份）/ 我的资料
-- [x] P0+ 管理端登录：usr_admins 账号表 + /api/v1/auth/login（bcrypt）+ 管理端接口按 user_type=1 隔离，累计 140 例测试
+- [x] P0+ 管理端登录：usr_admins 账号表 + /api/v1/auth/login（bcrypt）+ 管理端接口按 user_type=1 隔离，累计 181 例测试
 - [x] P1 企业域：实名注册（注册人即管理员）/ admin 审核 / 员工邀请接受移除/管理员设置 / 会员等级购买（mock 支付生效）
-- [ ] 交易域（充值档位 / 余额账本 / 支付回调）
+- [x] P2 交易域：充值档位（public+admin）/ 充值下单 + mock 直充（事务幂等）/ 余额账本（credit/debit 流水）/ 微信支付回调+查单（结构就绪，未配置降级）
 - [ ] 订单域（咖啡点单 / 正餐预订）与会议室域（预约）
 - [ ] 系统域（通知 / 操作日志）与工程化收尾（dev/prod 分离、Flyway、Docker）

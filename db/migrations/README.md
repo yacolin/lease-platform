@@ -31,6 +31,7 @@ DROP TABLE ...
 | 001 | 1.0 基线：19 张表（带域前缀 `usr_`/`prd_`/`ord_`/`mtg_`/`trd_`/`sys_`）+ 会员等级/充值档位/商品/每日菜单/会议室种子数据 |
 | 002 | 用户域：新增 usr_admins 后台管理员表 + 初始管理员种子（admin / 123456） |
 | 003 | 主键 ID 策略：14 张业务表去掉 AUTO_INCREMENT（改雪花，见 db/README.md「主键 ID 策略」） |
+| 004 | 交易域：trd_recharge_records 补充 paid_at 支付时间列（1.0 设计遗漏） |
 
 ## 开发流程
 
