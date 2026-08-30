@@ -73,10 +73,3 @@ CREATE TABLE `trd_balance_transactions` (
   KEY `idx_related_order_id` (`related_order_id`),
   KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='余额流水表';
-
--- ---------- 种子数据（充值档位） ----------
-INSERT INTO `trd_recharge_tiers` (`recharge_amount`, `bonus_amount`, `actual_amount`, `equivalent_discount`, `sort_order`) VALUES
-  (20000, 2000, 22000, 0.91, 1),
-  (50000, 6000, 56000, 0.89, 2),
-  (100000, 15000, 115000, 0.87, 3),
-  (200000, 40000, 240000, 0.83, 4);

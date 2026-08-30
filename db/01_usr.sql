@@ -128,13 +128,6 @@ CREATE TABLE `usr_member_purchases` (
   KEY `idx_payment_status` (`payment_status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会员购买记录表';
 
--- ---------- 种子数据（会员等级） ----------
-INSERT INTO `usr_member_levels`
-  (`level_code`, `level_name`, `price`, `discount_rate`, `monthly_meeting_hours`, `meeting_booking_advance_days`, `meeting_priority`, `meeting_overtime_fee`, `description`) VALUES
-  ('BASIC', '基础版', 0, 0.95, 0, 0, 0, 8000, '老板本人9折/95折'),
-  ('VIP',   'VIP版',   500000, 0.90, 4, 2, 1, 8000, '全公司员工8折/9折'),
-  ('SVIP',  'SVIP版',  1200000, 0.85, 8, 1, 2, 8000, '全公司员工7折/85折');
-
 -- 后台管理员表：管理端登录（/api/v1/auth/login，username + password），
 -- 与小程序用户（usr_users，/api/v1/auth/wx-login）天然隔离
 CREATE TABLE `usr_admins` (
@@ -150,7 +143,3 @@ CREATE TABLE `usr_admins` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='后台管理员表';
-
--- 种子数据：初始超级管理员（密码 123456，bcrypt）
-INSERT INTO `usr_admins` (`username`, `password_hash`, `name`, `role`, `status`) VALUES
-  ('admin', '$2a$10$ZUXdPnydoz4kKJQYT7aRw.rT9dhuPOgr6GySeCmwolTGl1r1LvdMO', '超级管理员', 1, 1);

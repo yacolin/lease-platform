@@ -20,8 +20,10 @@
 > 最小单位，全链路 DB/接口/微信支付统一以分为单位），
 > 编号字段建唯一索引，外键字段建普通索引，业务表含 `created_at, updated_at`
 > （纯流水表如 `trd_balance_transactions` / `ord_order_items` 只保留 `created_at`）。
-> 种子数据共六处：`01_usr.sql` 底部（会员等级、后台管理员）、`02_prd.sql` 底部（商品分类 /
-> 商品 / 每日菜单）、`04_mtg.sql` 底部（会议室）、`05_trd.sql` 底部（充值档位）。
+> **建表与种子分离**：域文件只含 DDL（无 INSERT）；开发种子数据由 `db/seed.py` 生成
+> （幂等可重跑，含与集成测试断言一致的核心数据 + 扩充演示数据），`make db-seed` 执行；
+> 迁移（`migrations/`）仅保留 admin 初始化账号（生产必需），演示种子不进生产，
+> 上生产只跑建表（`make db-init` / `reset_db.sh`），**切勿在生产执行 `db/seed.py`**。
 
 ## 主键 ID 策略（2.0 共享对话决策 + usr_admins）
 
@@ -58,13 +60,23 @@
 
 ## 执行方式
 
-**一键重置**（每次运行：检查并创建数据库（不存在时）→ 清空所有表 → 按依赖顺序重建）：
+**开发环境一键重置**（建表 + 灌开发种子，`Makefile` 合并为一步）：
+
+```bash
+make db-reset        # = ./reset_db.sh（建库/清空/建表） + python3 db/seed.py（灌种子）
+make db-seed         # 仅重灌种子（幂等）；改了 db/seed.py 后重跑即可
+```
+
+**仅初始化数据库结构**（生产环境用这个，**不灌种子**，谨慎执行）：
 
 ```bash
 ./reset_db.sh                        # 默认库 lease_db
 DB_NAME=xxx ./reset_db.sh            # 指定其他库
 MYSQL_PASSWORD=xxx ./reset_db.sh     # 连接参数可用 MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD 覆盖
 ```
+
+> 种子脚本连接参数与 `reset_db.sh` 一致（`DB_NAME` / `MYSQL_HOST` / `MYSQL_PORT` / `MYSQL_USER` / `MYSQL_PASSWORD`），
+> 也可用 `--db/--host/--port/--user/--password` 命令行参数覆盖。
 
 单独重建某个域（不清空其他域，该域文件内的 DROP 只清自己的表）：
 

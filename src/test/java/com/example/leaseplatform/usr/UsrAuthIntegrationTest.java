@@ -217,7 +217,7 @@ class UsrAuthIntegrationTest {
                         .header("Authorization", "Bearer " + adminTokens.get("accessToken").asText()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.total").value(8));
+                .andExpect(jsonPath("$.data.total").value(27));
 
         // 小程序用户 token 访问管理端接口 → 403（类型隔离）
         JsonNode wxTokens = wxLoginTokens();
@@ -246,6 +246,6 @@ class UsrAuthIntegrationTest {
         mockMvc.perform(get("/api/v1/products")
                         .header("Authorization", "Bearer " + newTokens.get("accessToken").asText()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(8));
+                .andExpect(jsonPath("$.data.total").value(27));
     }
 }

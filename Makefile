@@ -1,8 +1,8 @@
 # 租赁小程序平台（lease-platform）—— Spring Boot 4 / Java 21 / Maven
-# 常用：make run（启动项目） make build（打包） make db-reset（重置数据库）
+# 常用：make run（启动项目） make build（打包） make db-reset（重置数据库：建表+种子）
 # 全部命令：make help
 
-.PHONY: help run stop compile test build run-jar db-reset
+.PHONY: help run stop compile test build run-jar db-reset db-init db-seed
 
 # Maven 调用：把 Maven 本地仓库重定向到工作区 .m2home（已 gitignore），
 # 受限环境（沙箱等无法写 ~/.m2）与正常开发环境同样适用；
@@ -31,5 +31,12 @@ build: ## 打包可执行 jar（跳过测试）
 run-jar: ## 运行已打包的 jar（需先 make build）
 	java -jar $(JAR)
 
-db-reset: ## 重置数据库：建库（不存在时）→ 清空表 → 按依赖顺序建表
+db-init: ## 仅初始化数据库结构（建库/清空/建表/迁移状态），不灌种子；生产环境用这个，谨慎执行
 	./reset_db.sh
+
+db-seed: ## 仅灌入开发种子数据（db/seed.py，幂等可重复执行）；生产环境切勿执行
+	python3 db/seed.py
+
+db-reset: ## 重置数据库（开发环境一步到位）：建表 + 灌入开发种子数据
+	./reset_db.sh
+	python3 db/seed.py

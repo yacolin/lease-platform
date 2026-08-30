@@ -98,10 +98,10 @@ class MtgMeetingReservationIntegrationTest {
         String token = wxAccessToken();
         recharge(token); // 余额 500 + 赠送 60
 
-        // 1. 公开会议室列表（种子 3 间）
+        // 1. 公开会议室列表（seed.py 8 间）
         mockMvc.perform(get("/api/v1/public/rooms"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(3))
+                .andExpect(jsonPath("$.data.length()").value(8))
                 .andExpect(jsonPath("$.data[0].hourlyFee").value(8000));
 
         // 2. 个人用户预约 2h（9:00-11:00）→ 无免费时长 → 160 元待确认

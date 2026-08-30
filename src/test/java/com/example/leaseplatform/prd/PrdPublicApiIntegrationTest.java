@@ -16,8 +16,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * prd 域端到端集成测试（真实 MySQL + 完整 Security 链）。
- * 依赖：先执行 ./reset_db.sh 建库并写入种子数据（db/02_prd.sql），
- * 断言基于仓库内固定的种子数据（4 分类 / 8 商品 / 2026-08-30 菜单 11 条）。
+ * 依赖：先执行 make db-reset（建表 + db/seed.py 灌种子），
+ * 断言基于 seed.py 的核心种子（4 分类 / 27 商品（含 8 个核心）/ 2026-08-30 菜单 11 条）。
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -43,7 +43,7 @@ class PrdPublicApiIntegrationTest {
     void publicProducts_shouldReturnSeededProductsWithSpec() throws Exception {
         mockMvc.perform(get("/api/v1/public/products").param("size", "20"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(8))
+                .andExpect(jsonPath("$.data.total").value(27))
                 .andExpect(jsonPath("$.data.list[0].productName").value("美式"))
                 .andExpect(jsonPath("$.data.list[0].categoryName").value("咖啡"))
                 .andExpect(jsonPath("$.data.list[0].specOptions.cup_size[0]").value("大杯"))
@@ -57,7 +57,7 @@ class PrdPublicApiIntegrationTest {
                         .param("categoryId", "2")
                         .param("productType", "2"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(2));
+                .andExpect(jsonPath("$.data.total").value(6));
     }
 
     @Test

@@ -36,9 +36,10 @@ lease-platform/
 │   ├── application.yml    # 关键配置：数据源/Redis/MyBatis-Plus/微信登录/JWT/Security
 │   └── (db/migration 预留：Flyway 接入路径，见 db/migrations/README.md)
 ├── db/                    # 建表 SQL（按业务域拆分，见 db/README.md）
-│   └── migrations/        # 增量迁移基线（001_init + 002_usr_admins，20 张表 + 种子数据）
+│   └── migrations/        # 增量迁移基线（001_init + 002_usr_admins，20 张表 + admin 初始化账号，无演示种子）
+│   └── seed.py            # 开发种子数据生成脚本（仅开发使用，生产勿执行）
 ├── src/test/              # 91 例测试：service 单元 + controller Web + 真实 MySQL/Redis 集成
-├── reset_db.sh            # 一键重置数据库（建库 → 清空 → 按依赖顺序建表）
+├── reset_db.sh            # 初始化数据库结构（建库 → 清空 → 按依赖顺序建表，不含种子；种子见 db/seed.py）
 └── Makefile               # 常用命令入口
 ```
 
@@ -47,10 +48,12 @@ lease-platform/
 依赖：JDK 21、本地 MySQL 8（Homebrew，root 密码默认 `123456`）、Redis（本机 6379，无密码）。
 
 ```bash
-make db-reset        # 建库 lease_db（不存在时）→ 清空 → 按依赖顺序建 20 张表 + 种子数据
+make db-reset        # 开发环境一步到位：建库 lease_db（不存在时）→ 清空 → 建 20 张表 → 灌入开发种子数据
+make db-init         # 仅初始化数据库结构（建表），不灌种子；生产环境用这个，谨慎执行
+make db-seed         # 仅重灌开发种子数据（db/seed.py，幂等；生产切勿执行）
 make run             # 启动项目（前台，端口 8080）
 make test            # 运行 281 例测试（集成测试需先 make db-reset）
-make help            # 全部命令：run/stop/compile/test/build/run-jar/db-reset
+make help            # 全部命令：run/stop/compile/test/build/run-jar/db-reset/db-init/db-seed
 ```
 
 启动后访问：
@@ -74,7 +77,7 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/v1/auth/login` | 后台管理员登录 `{username, password}`（bcrypt 校验 usr_admins；种子 admin/123456；签发 user_type=1 的 token） |
+| POST | `/api/v1/auth/login` | 后台管理员登录 `{username, password}`（bcrypt 校验 usr_admins；初始化账号 admin/123456，见迁移 V2 与 db/seed.py；签发 user_type=1 的 token） |
 | POST | `/api/v1/auth/logout` | 登出 `{refreshToken}`（作废 Redis 会话，管理端/小程序共用） |
 | POST | `/api/v1/categories` | 创建分类 |
 | GET | `/api/v1/categories` | 分类分页列表 |
@@ -259,7 +262,7 @@ springdoc 按端输出独立 OpenAPI JSON（`/v3/api-docs/{group}`，Security �
 make test     # 281 例：service 单元（Mockito）+ controller Web（@WebMvcTest + 真实 Security 链）+ 集成（真实 MySQL + Redis）
 ```
 
-集成测试基于 `db/02_prd.sql` 的固定种子数据断言（4 分类 / 8 商品 / 2026-08-30 菜单 11 条）与 `usr_admins` 种子（admin/123456），运行前需 `make db-reset`。
+集成测试基于 `db/seed.py` 的核心种子数据断言（4 分类 / 8 商品 / 2026-08-30 菜单 11 条）与 admin 初始化账号（admin/123456），运行前需 `make db-reset`（= 建表 + 种子，种子数据由 `db/seed.py` 生成，与建表 SQL 分离）。
 
 ## 开发进度
 
@@ -281,7 +284,7 @@ make test     # 281 例：service 单元（Mockito）+ controller Web（@WebMvcT
 # 1. 配置环境变量（DB 密码、JWT 密钥等）
 cp .env.example .env   # 按需填写
 
-# 2. 一键启动 MySQL + Redis + 应用（prod profile，Flyway 自动建表 + 种子）
+# 2. 一键启动 MySQL + Redis + 应用（prod profile，Flyway 自动建表 + admin 初始化账号，无演示种子）
 docker compose up -d --build
 
 # 3. 访问
@@ -292,7 +295,7 @@ docker compose up -d --build
 - `Dockerfile`：多阶段构建（Maven 打包 → JRE 运行，prod profile）
 - `docker-compose.yml`：mysql:8 + redis:7 + app（健康检查、环境变量注入）
 - `db/init/01_create_db.sql`：MySQL 首次启动自动建库
-- 应用启动时 `FlywayMigrationRunner` 自动执行 V1~V4 迁移（20 张表 + 种子数据）
+- 应用启动时 `FlywayMigrationRunner` 自动执行 V1~V4 迁移（20 张表 + admin 初始化账号；演示种子数据不在迁移内，生产不会带入）
 
 ## 环境分离
 

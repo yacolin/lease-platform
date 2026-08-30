@@ -55,9 +55,3 @@ CREATE TABLE `mtg_reservations` (
   KEY `idx_reservation_date` (`reservation_date`),
   KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会议室预约表';
-
--- ---------- 种子数据（会议室） ----------
-INSERT INTO `mtg_rooms` (`room_name`, `capacity`, `equipment`, `suitable_scenes`, `hourly_fee`) VALUES
-  ('会议室A', 10, '投影仪、白板、音响', '沙龙、培训、路演、商务洽谈', 8000),
-  ('会议室B', 10, '投影仪、白板、音响', '沙龙、培训、路演、商务洽谈', 8000),
-  ('会议室C', 10, '投影仪、白板、音响', '沙龙、培训、路演、商务洽谈', 8000);

@@ -72,10 +72,10 @@ class TrdRechargeIntegrationTest {
     void rechargeFullFlow_shouldCreditBalanceWithGift() throws Exception {
         String token = wxAccessToken();
 
-        // 1. 公开充值档位（种子 4 档）
+        // 1. 公开充值档位（seed.py 6 档）
         mockMvc.perform(get("/api/v1/public/recharge-tiers"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(4))
+                .andExpect(jsonPath("$.data.length()").value(6))
                 .andExpect(jsonPath("$.data[0].rechargeAmount").value(20000));
 
         // 2. 下单（500 档：充值 500 + 赠送 60，未配置微信支付 → prepayParams 为空）
