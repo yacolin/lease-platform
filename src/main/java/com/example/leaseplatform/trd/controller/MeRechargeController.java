@@ -33,25 +33,25 @@ public class MeRechargeController {
     private final RechargeService rechargeService;
     private final BalanceService balanceService;
 
-    @Operation(summary = "充值下单（微信支付未配置时走 mock-pay）")
+    @Operation(operationId = "createRecharge", summary = "充值下单（微信支付未配置时走 mock-pay）")
     @PostMapping("/recharge")
     public ApiResponse<RechargeCreateResultVO> recharge(@Valid @RequestBody RechargeReq req) {
         return ApiResponse.ok(rechargeService.createRecharge(UserContext.getUserId(), req.getTierId()));
     }
 
-    @Operation(summary = "开发 mock 直充（立即入账；P2 开发模式替代微信支付）")
+    @Operation(operationId = "mockPayRecharge", summary = "开发 mock 直充（立即入账；P2 开发模式替代微信支付）")
     @PostMapping("/recharge/{id}/mock-pay")
     public ApiResponse<RechargeRecordVO> mockPay(@PathVariable Long id) {
         return ApiResponse.ok(rechargeService.mockPay(UserContext.getUserId(), id));
     }
 
-    @Operation(summary = "主动查单兜底（已配置微信支付时同步微信侧状态）")
+    @Operation(operationId = "queryRecharge", summary = "主动查单兜底（已配置微信支付时同步微信侧状态）")
     @PostMapping("/recharge/{id}/query")
     public ApiResponse<RechargeRecordVO> query(@PathVariable Long id) {
         return ApiResponse.ok(rechargeService.query(UserContext.getUserId(), id));
     }
 
-    @Operation(summary = "我的充值记录")
+    @Operation(operationId = "listMyRecharges", summary = "我的充值记录")
     @GetMapping("/recharge/records")
     public ApiResponse<PageResult<RechargeRecordVO>> records(
             @RequestParam(defaultValue = "1") int page,
@@ -59,7 +59,7 @@ public class MeRechargeController {
         return ApiResponse.ok(rechargeService.myRecords(UserContext.getUserId(), page, size));
     }
 
-    @Operation(summary = "我的余额流水（充值/消费/退款）")
+    @Operation(operationId = "listMyBalanceTransactions", summary = "我的余额流水（充值/消费/退款）")
     @GetMapping("/balance-transactions")
     public ApiResponse<PageResult<BalanceTransactionVO>> transactions(
             @RequestParam(defaultValue = "1") int page,

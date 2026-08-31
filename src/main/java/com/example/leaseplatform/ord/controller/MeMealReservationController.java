@@ -29,19 +29,19 @@ public class MeMealReservationController {
 
     private final MealReservationService reservationService;
 
-    @Operation(summary = "正餐预订（提前1天/晚8点截止/可订未来3天）")
+    @Operation(operationId = "createMealReservation", summary = "正餐预订（提前1天/晚8点截止/可订未来3天）")
     @PostMapping
     public ApiResponse<MealReservationVO> create(@Valid @RequestBody MealReservationCreateReq req) {
         return ApiResponse.ok(reservationService.create(UserContext.getUserId(), req));
     }
 
-    @Operation(summary = "余额支付（赠送余额优先扣）")
+    @Operation(operationId = "payMealReservation", summary = "余额支付（赠送余额优先扣）")
     @PostMapping("/{id}/pay")
     public ApiResponse<MealReservationVO> pay(@PathVariable Long id) {
         return ApiResponse.ok(reservationService.pay(UserContext.getUserId(), id));
     }
 
-    @Operation(summary = "取消预订（已支付取消原路退款）")
+    @Operation(operationId = "cancelMealReservation", summary = "取消预订（已支付取消原路退款）")
     @PostMapping("/{id}/cancel")
     public ApiResponse<MealReservationVO> cancel(@PathVariable Long id,
                                                  @RequestBody(required = false)
@@ -50,7 +50,7 @@ public class MeMealReservationController {
                 req == null ? null : req.getReason()));
     }
 
-    @Operation(summary = "我的预订分页")
+    @Operation(operationId = "listMyMealReservations", summary = "我的预订分页")
     @GetMapping
     public ApiResponse<PageResult<MealReservationVO>> myReservations(
             @RequestParam(defaultValue = "1") int page,
@@ -59,7 +59,7 @@ public class MeMealReservationController {
         return ApiResponse.ok(reservationService.myReservations(UserContext.getUserId(), page, size, status));
     }
 
-    @Operation(summary = "预订详情（含菜品快照）")
+    @Operation(operationId = "getMyMealReservation", summary = "预订详情（含菜品快照）")
     @GetMapping("/{id}")
     public ApiResponse<MealReservationVO> get(@PathVariable Long id) {
         return ApiResponse.ok(reservationService.getMine(UserContext.getUserId(), id));

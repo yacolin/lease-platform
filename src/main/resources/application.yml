@@ -137,6 +137,7 @@ springdoc:
         - /api/v1/orders/**
         - /api/v1/meal-reservations/**
         - /api/v1/rooms/**
+        - /api/v1/room-level-prices/**
         - /api/v1/meeting-reservations/**
         - /api/v1/operation-logs/**
         - /api/v1/payments

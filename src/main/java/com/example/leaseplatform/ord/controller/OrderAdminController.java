@@ -37,7 +37,7 @@ public class OrderAdminController {
 
     private final OrderService orderService;
 
-    @Operation(summary = "订单分页（订单号/状态/日期筛选）")
+    @Operation(operationId = "listOrders", summary = "订单分页（订单号/状态/日期筛选）")
     @GetMapping
     public ApiResponse<PageResult<OrderVO>> page(
             @RequestParam(defaultValue = "1") int page,
@@ -48,13 +48,13 @@ public class OrderAdminController {
         return ApiResponse.ok(orderService.adminPage(page, size, orderNo, status, date));
     }
 
-    @Operation(summary = "订单详情")
+    @Operation(operationId = "getOrder", summary = "订单详情")
     @GetMapping("/{id}")
     public ApiResponse<OrderVO> get(@PathVariable Long id) {
         return ApiResponse.ok(orderService.adminGet(id));
     }
 
-    @Operation(summary = "状态推进（1→2→3；1/2→5 退款）")
+    @Operation(operationId = "updateOrderStatus", summary = "状态推进（1→2→3；1/2→5 退款）")
 
     @OperationLog("订单状态推进")
     @PutMapping("/{id}/status")
@@ -64,13 +64,13 @@ public class OrderAdminController {
                 UserContext.getUserId()));
     }
 
-    @Operation(summary = "取餐码核销（待取餐/制作中 → 完成）")
+    @Operation(operationId = "verifyPickup", summary = "取餐码核销（待取餐/制作中 → 完成）")
     @PostMapping("/verify-pickup")
     public ApiResponse<OrderVO> verifyPickup(@Valid @RequestBody VerifyPickupReq req) {
         return ApiResponse.ok(orderService.verifyPickup(req.getPickupCode(), UserContext.getUserId()));
     }
 
-    @Operation(summary = "订单统计（今日订单/金额/待取餐/制作中）")
+    @Operation(operationId = "getOrderStats", summary = "订单统计（今日订单/金额/待取餐/制作中）")
     @GetMapping("/stats")
     public ApiResponse<OrderStatsVO> stats() {
         return ApiResponse.ok(orderService.stats());

@@ -31,13 +31,13 @@ public class RechargeTierAdminController {
 
     private final RechargeTierService tierService;
 
-    @Operation(summary = "创建充值档位")
+    @Operation(operationId = "createRechargeTier", summary = "创建充值档位")
     @PostMapping
     public ApiResponse<RechargeTierVO> create(@Valid @RequestBody RechargeTierReq req) {
         return ApiResponse.ok(tierService.create(req));
     }
 
-    @Operation(summary = "充值档位分页列表")
+    @Operation(operationId = "listRechargeTiers", summary = "充值档位分页列表")
     @GetMapping
     public ApiResponse<PageResult<RechargeTierVO>> page(
             @RequestParam(defaultValue = "1") int page,
@@ -46,20 +46,20 @@ public class RechargeTierAdminController {
         return ApiResponse.ok(tierService.page(page, size, status));
     }
 
-    @Operation(summary = "充值档位详情")
+    @Operation(operationId = "getRechargeTier", summary = "充值档位详情")
     @GetMapping("/{id}")
     public ApiResponse<RechargeTierVO> get(@PathVariable Long id) {
         return ApiResponse.ok(tierService.getById(id));
     }
 
-    @Operation(summary = "更新充值档位")
+    @Operation(operationId = "updateRechargeTier", summary = "更新充值档位")
     @PutMapping("/{id}")
     public ApiResponse<RechargeTierVO> update(@PathVariable Long id,
                                               @Valid @RequestBody RechargeTierReq req) {
         return ApiResponse.ok(tierService.update(id, req));
     }
 
-    @Operation(summary = "删除充值档位")
+    @Operation(operationId = "deleteRechargeTier", summary = "删除充值档位")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         tierService.delete(id);

@@ -31,25 +31,25 @@ public class AuthController {
 
     private final AuthService authService;
 
-    @Operation(summary = "后台管理员登录（username + password）")
+    @Operation(operationId = "adminLogin", summary = "后台管理员登录（username + password）")
     @PostMapping("/login")
     public ApiResponse<TokenVO> login(@Valid @RequestBody AdminLoginReq req) {
         return ApiResponse.ok(authService.adminLogin(req.getUsername(), req.getPassword()));
     }
 
-    @Operation(summary = "微信小程序登录（code2session）")
+    @Operation(operationId = "wxLogin", summary = "微信小程序登录（code2session）")
     @PostMapping("/wx-login")
     public ApiResponse<TokenVO> wxLogin(@Valid @RequestBody WxLoginReq req) {
         return ApiResponse.ok(authService.wxLogin(req.getCode()));
     }
 
-    @Operation(summary = "刷新令牌（access + refresh 轮换）")
+    @Operation(operationId = "refreshToken", summary = "刷新令牌（access + refresh 轮换）")
     @PostMapping("/refresh")
     public ApiResponse<TokenVO> refresh(@Valid @RequestBody RefreshReq req) {
         return ApiResponse.ok(authService.refresh(req.getRefreshToken()));
     }
 
-    @Operation(summary = "登出（作废刷新令牌）")
+    @Operation(operationId = "logout", summary = "登出（作废刷新令牌）")
     @PostMapping("/logout")
     public ApiResponse<Void> logout(@RequestBody(required = false) LogoutReq req) {
         authService.logout(req == null ? null : req.getRefreshToken());

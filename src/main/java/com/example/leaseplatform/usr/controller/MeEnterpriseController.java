@@ -41,13 +41,13 @@ public class MeEnterpriseController {
     private final EnterpriseService enterpriseService;
     private final MemberPurchaseService purchaseService;
 
-    @Operation(summary = "企业实名注册（注册人即企业管理员）")
+    @Operation(operationId = "registerEnterprise", summary = "企业实名注册（注册人即企业管理员）")
     @PostMapping
     public ApiResponse<EnterpriseVO> register(@Valid @RequestBody EnterpriseRegisterReq req) {
         return ApiResponse.ok(enterpriseService.register(req));
     }
 
-    @Operation(summary = "我的企业资料（含审核状态/会员等级）")
+    @Operation(operationId = "getMyEnterprise", summary = "我的企业资料（含审核状态/会员等级）")
     @GetMapping
     public ApiResponse<EnterpriseVO> myEnterprise() {
         return ApiResponse.ok(enterpriseService.myEnterprise());
@@ -55,27 +55,27 @@ public class MeEnterpriseController {
 
     // ==================== 员工管理（需企业管理员） ====================
 
-    @Operation(summary = "企业员工列表")
+    @Operation(operationId = "listEnterpriseMembers", summary = "企业员工列表")
     @GetMapping("/members")
     public ApiResponse<List<EnterpriseMemberVO>> members() {
         return ApiResponse.ok(enterpriseService.members());
     }
 
-    @Operation(summary = "邀请员工（按手机号）")
+    @Operation(operationId = "inviteEnterpriseMember", summary = "邀请员工（按手机号）")
     @PostMapping("/members")
     public ApiResponse<Void> invite(@Valid @RequestBody InviteMemberReq req) {
         enterpriseService.invite(req);
         return ApiResponse.ok(null);
     }
 
-    @Operation(summary = "移除员工（需先取消其管理员身份）")
+    @Operation(operationId = "removeEnterpriseMember", summary = "移除员工（需先取消其管理员身份）")
     @DeleteMapping("/members/{userId}")
     public ApiResponse<Void> removeMember(@PathVariable Long userId) {
         enterpriseService.removeMember(userId);
         return ApiResponse.ok(null);
     }
 
-    @Operation(summary = "设置/取消企业管理员")
+    @Operation(operationId = "setEnterpriseAdmin", summary = "设置/取消企业管理员")
     @PutMapping("/members/{userId}/admin")
     public ApiResponse<Void> setAdmin(@PathVariable Long userId,
                                       @Valid @RequestBody SetAdminReq req) {
@@ -85,20 +85,20 @@ public class MeEnterpriseController {
 
     // ==================== 邀请（被邀请人视角） ====================
 
-    @Operation(summary = "我的待处理邀请")
+    @Operation(operationId = "listMyEnterpriseInvites", summary = "我的待处理邀请")
     @GetMapping("/invites")
     public ApiResponse<List<EnterpriseInviteVO>> myInvites() {
         return ApiResponse.ok(enterpriseService.myInvites());
     }
 
-    @Operation(summary = "接受邀请")
+    @Operation(operationId = "acceptEnterpriseInvite", summary = "接受邀请")
     @PostMapping("/invites/{id}/accept")
     public ApiResponse<Void> acceptInvite(@PathVariable Long id) {
         enterpriseService.acceptInvite(id);
         return ApiResponse.ok(null);
     }
 
-    @Operation(summary = "拒绝邀请")
+    @Operation(operationId = "rejectEnterpriseInvite", summary = "拒绝邀请")
     @PostMapping("/invites/{id}/reject")
     public ApiResponse<Void> rejectInvite(@PathVariable Long id) {
         enterpriseService.rejectInvite(id);
@@ -107,19 +107,19 @@ public class MeEnterpriseController {
 
     // ==================== 会员购买（需企业管理员） ====================
 
-    @Operation(summary = "会员购买下单（P1 待支付；P2 接微信支付）")
+    @Operation(operationId = "createMemberPurchase", summary = "会员购买下单（P1 待支付；P2 接微信支付）")
     @PostMapping("/member-purchases")
     public ApiResponse<MemberPurchaseVO> createPurchase(@Valid @RequestBody MemberPurchaseReq req) {
         return ApiResponse.ok(purchaseService.createPurchase(req));
     }
 
-    @Operation(summary = "开发 mock 支付（立即生效；P2 由支付回调替代）")
+    @Operation(operationId = "mockPayMemberPurchase", summary = "开发 mock 支付（立即生效；P2 由支付回调替代）")
     @PostMapping("/member-purchases/{id}/mock-pay")
     public ApiResponse<MemberPurchaseVO> mockPay(@PathVariable Long id) {
         return ApiResponse.ok(purchaseService.mockPay(id));
     }
 
-    @Operation(summary = "我的企业购买记录")
+    @Operation(operationId = "listMyMemberPurchases", summary = "我的企业购买记录")
     @GetMapping("/member-purchases")
     public ApiResponse<PageResult<MemberPurchaseVO>> myPurchases(
             @RequestParam(defaultValue = "1") int page,

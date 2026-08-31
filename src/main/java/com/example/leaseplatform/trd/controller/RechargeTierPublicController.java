@@ -23,7 +23,7 @@ public class RechargeTierPublicController {
 
     private final RechargeTierService tierService;
 
-    @Operation(summary = "充值档位列表（仅启用）")
+    @Operation(operationId = "listPublicRechargeTiers", summary = "充值档位列表（仅启用）")
     @GetMapping
     public ApiResponse<List<RechargeTierVO>> list() {
         return ApiResponse.ok(tierService.publicList());

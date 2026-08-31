@@ -30,7 +30,7 @@ public class MeetingReservationAdminController {
 
     private final MeetingReservationService reservationService;
 
-    @Operation(summary = "预约分页（日期/会议室/状态筛选）")
+    @Operation(operationId = "listMeetingReservations", summary = "预约分页（日期/会议室/状态筛选）")
     @GetMapping
     public ApiResponse<PageResult<MeetingReservationVO>> page(
             @RequestParam(defaultValue = "1") int page,
@@ -41,13 +41,13 @@ public class MeetingReservationAdminController {
         return ApiResponse.ok(reservationService.adminPage(page, size, date, roomId, status));
     }
 
-    @Operation(summary = "预约详情")
+    @Operation(operationId = "getMeetingReservation", summary = "预约详情")
     @GetMapping("/{id}")
     public ApiResponse<MeetingReservationVO> get(@PathVariable Long id) {
         return ApiResponse.ok(reservationService.adminGet(id));
     }
 
-    @Operation(summary = "确认完成（已确认 → 已完成）")
+    @Operation(operationId = "completeMeetingReservation", summary = "确认完成（已确认 → 已完成）")
 
     @OperationLog("会议室预约完成")
     @PutMapping("/{id}/complete")

@@ -59,13 +59,13 @@ public class PrdAdminController {
 
     // ==================== 商品分类 ====================
 
-    @Operation(summary = "创建分类")
+    @Operation(operationId = "createCategory", summary = "创建分类")
     @PostMapping("/categories")
     public ApiResponse<CategoryVO> createCategory(@Valid @RequestBody CategoryCreateReq req) {
         return ApiResponse.ok(categoryService.create(req));
     }
 
-    @Operation(summary = "分类分页列表")
+    @Operation(operationId = "listCategories", summary = "分类分页列表")
     @GetMapping("/categories")
     public ApiResponse<PageResult<CategoryVO>> listCategories(
             @RequestParam(defaultValue = "1") int page,
@@ -75,20 +75,20 @@ public class PrdAdminController {
         return ApiResponse.ok(categoryService.page(page, size, categoryType, status));
     }
 
-    @Operation(summary = "分类详情")
+    @Operation(operationId = "getCategory", summary = "分类详情")
     @GetMapping("/categories/{id}")
     public ApiResponse<CategoryVO> getCategory(@PathVariable Long id) {
         return ApiResponse.ok(categoryService.getById(id));
     }
 
-    @Operation(summary = "更新分类")
+    @Operation(operationId = "updateCategory", summary = "更新分类")
     @PutMapping("/categories/{id}")
     public ApiResponse<CategoryVO> updateCategory(@PathVariable Long id,
                                                   @Valid @RequestBody CategoryUpdateReq req) {
         return ApiResponse.ok(categoryService.update(id, req));
     }
 
-    @Operation(summary = "删除分类")
+    @Operation(operationId = "deleteCategory", summary = "删除分类")
     @DeleteMapping("/categories/{id}")
     public ApiResponse<Void> deleteCategory(@PathVariable Long id) {
         categoryService.delete(id);
@@ -97,13 +97,13 @@ public class PrdAdminController {
 
     // ==================== 商品 ====================
 
-    @Operation(summary = "创建商品")
+    @Operation(operationId = "createProduct", summary = "创建商品")
     @PostMapping("/products")
     public ApiResponse<ProductVO> createProduct(@Valid @RequestBody ProductCreateReq req) {
         return ApiResponse.ok(productService.create(req));
     }
 
-    @Operation(summary = "商品分页列表")
+    @Operation(operationId = "listProducts", summary = "商品分页列表")
     @GetMapping("/products")
     public ApiResponse<PageResult<ProductVO>> listProducts(
             @RequestParam(defaultValue = "1") int page,
@@ -117,13 +117,13 @@ public class PrdAdminController {
                 isAvailable, productStatus, keyword));
     }
 
-    @Operation(summary = "商品详情")
+    @Operation(operationId = "getProduct", summary = "商品详情")
     @GetMapping("/products/{id}")
     public ApiResponse<ProductVO> getProduct(@PathVariable Long id) {
         return ApiResponse.ok(productService.getById(id));
     }
 
-    @Operation(summary = "更新商品")
+    @Operation(operationId = "updateProduct", summary = "更新商品")
     @PutMapping("/products/{id}")
     public ApiResponse<ProductVO> updateProduct(@PathVariable Long id,
                                                 @Valid @RequestBody ProductUpdateReq req) {
@@ -131,7 +131,7 @@ public class PrdAdminController {
     }
 
     /** 上下架（状态推进风格） */
-    @Operation(summary = "商品上下架/状态生命周期（0-草稿, 1-待审核, 2-上架, 3-下架, 4-停售）")
+    @Operation(operationId = "updateProductStatus", summary = "商品上下架/状态生命周期（0-草稿, 1-待审核, 2-上架, 3-下架, 4-停售）")
 
     @OperationLog("商品上下架")
     @PutMapping("/products/{id}/status")
@@ -140,7 +140,7 @@ public class PrdAdminController {
         return ApiResponse.ok(productService.updateStatus(id, req));
     }
 
-    @Operation(summary = "删除商品")
+    @Operation(operationId = "deleteProduct", summary = "删除商品")
     @DeleteMapping("/products/{id}")
     public ApiResponse<Void> deleteProduct(@PathVariable Long id) {
         productService.delete(id);
@@ -149,13 +149,13 @@ public class PrdAdminController {
 
     // ==================== SKU（1.3 商品中心 SKU 化） ====================
 
-    @Operation(summary = "商品 SKU 列表")
+    @Operation(operationId = "listProductSkus", summary = "商品 SKU 列表")
     @GetMapping("/products/{id}/skus")
     public ApiResponse<List<SkuVO>> listSkus(@PathVariable Long id) {
         return ApiResponse.ok(skuService.listByProduct(id));
     }
 
-    @Operation(summary = "创建 SKU（specValueIds 为空 → 默认 SKU）")
+    @Operation(operationId = "createProductSku", summary = "创建 SKU（specValueIds 为空 → 默认 SKU）")
     @OperationLog("创建SKU")
     @PostMapping("/products/{id}/skus")
     public ApiResponse<SkuVO> createSku(@PathVariable Long id,
@@ -163,7 +163,7 @@ public class PrdAdminController {
         return ApiResponse.ok(skuService.create(id, req));
     }
 
-    @Operation(summary = "更新 SKU")
+    @Operation(operationId = "updateProductSku", summary = "更新 SKU")
     @PutMapping("/products/{id}/skus/{skuId}")
     public ApiResponse<SkuVO> updateSku(@PathVariable Long id,
                                         @PathVariable Long skuId,
@@ -171,14 +171,14 @@ public class PrdAdminController {
         return ApiResponse.ok(skuService.update(id, skuId, req));
     }
 
-    @Operation(summary = "删除 SKU（被订单引用时拒绝）")
+    @Operation(operationId = "deleteProductSku", summary = "删除 SKU（被订单引用时拒绝）")
     @DeleteMapping("/products/{id}/skus/{skuId}")
     public ApiResponse<Void> deleteSku(@PathVariable Long id, @PathVariable Long skuId) {
         skuService.delete(id, skuId);
         return ApiResponse.ok(null);
     }
 
-    @Operation(summary = "SKU 上下架（0-停售, 1-可售）")
+    @Operation(operationId = "updateProductSkuStatus", summary = "SKU 上下架（0-停售, 1-可售）")
     @PutMapping("/products/{id}/skus/{skuId}/status")
     public ApiResponse<SkuVO> updateSkuStatus(@PathVariable Long id,
                                               @PathVariable Long skuId,
@@ -188,13 +188,13 @@ public class PrdAdminController {
 
     // ==================== 规格组 / 规格值（1.3） ====================
 
-    @Operation(summary = "商品规格组列表（含规格值）")
+    @Operation(operationId = "listProductSpecGroups", summary = "商品规格组列表（含规格值）")
     @GetMapping("/products/{id}/spec-groups")
     public ApiResponse<List<SpecGroupVO>> listSpecGroups(@PathVariable Long id) {
         return ApiResponse.ok(skuService.listSpecGroups(id));
     }
 
-    @Operation(summary = "创建规格组（可携带规格值）")
+    @Operation(operationId = "createProductSpecGroup", summary = "创建规格组（可携带规格值）")
     @OperationLog("创建规格组")
     @PostMapping("/products/{id}/spec-groups")
     public ApiResponse<SpecGroupVO> createSpecGroup(@PathVariable Long id,
@@ -202,7 +202,7 @@ public class PrdAdminController {
         return ApiResponse.ok(skuService.createSpecGroup(id, req));
     }
 
-    @Operation(summary = "更新规格组（values 全量替换；已被 SKU 引用时拒绝）")
+    @Operation(operationId = "updateProductSpecGroup", summary = "更新规格组（values 全量替换；已被 SKU 引用时拒绝）")
     @PutMapping("/products/{id}/spec-groups/{groupId}")
     public ApiResponse<SpecGroupVO> updateSpecGroup(@PathVariable Long id,
                                                     @PathVariable Long groupId,
@@ -210,7 +210,7 @@ public class PrdAdminController {
         return ApiResponse.ok(skuService.updateSpecGroup(id, groupId, req));
     }
 
-    @Operation(summary = "删除规格组（连同规格值；已被 SKU 引用时拒绝）")
+    @Operation(operationId = "deleteProductSpecGroup", summary = "删除规格组（连同规格值；已被 SKU 引用时拒绝）")
     @DeleteMapping("/products/{id}/spec-groups/{groupId}")
     public ApiResponse<Void> deleteSpecGroup(@PathVariable Long id, @PathVariable Long groupId) {
         skuService.deleteSpecGroup(id, groupId);
@@ -219,13 +219,13 @@ public class PrdAdminController {
 
     // ==================== 每日菜单 ====================
 
-    @Operation(summary = "创建菜单项")
+    @Operation(operationId = "createMenu", summary = "创建菜单项")
     @PostMapping("/menus")
     public ApiResponse<MenuVO> createMenu(@Valid @RequestBody MenuCreateReq req) {
         return ApiResponse.ok(menuService.create(req));
     }
 
-    @Operation(summary = "菜单分页列表")
+    @Operation(operationId = "listMenus", summary = "菜单分页列表")
     @GetMapping("/menus")
     public ApiResponse<PageResult<MenuVO>> listMenus(
             @RequestParam(defaultValue = "1") int page,
@@ -235,34 +235,34 @@ public class PrdAdminController {
         return ApiResponse.ok(menuService.page(page, size, date, productId));
     }
 
-    @Operation(summary = "菜单项详情")
+    @Operation(operationId = "getMenu", summary = "菜单项详情")
     @GetMapping("/menus/{id}")
     public ApiResponse<MenuVO> getMenu(@PathVariable Long id) {
         return ApiResponse.ok(menuService.getById(id));
     }
 
-    @Operation(summary = "更新菜单项")
+    @Operation(operationId = "updateMenu", summary = "更新菜单项")
     @PutMapping("/menus/{id}")
     public ApiResponse<MenuVO> updateMenu(@PathVariable Long id,
                                           @Valid @RequestBody MenuUpdateReq req) {
         return ApiResponse.ok(menuService.update(id, req));
     }
 
-    @Operation(summary = "删除菜单项")
+    @Operation(operationId = "deleteMenu", summary = "删除菜单项")
     @DeleteMapping("/menus/{id}")
     public ApiResponse<Void> deleteMenu(@PathVariable Long id) {
         menuService.delete(id);
         return ApiResponse.ok(null);
     }
 
-    @Operation(summary = "整单配置菜单（覆盖指定日期全部菜品）")
+    @Operation(operationId = "batchMenus", summary = "整单配置菜单（覆盖指定日期全部菜品）")
     @PostMapping("/menus/batch")
     public ApiResponse<java.util.List<MenuVO>> batchMenus(
             @Valid @RequestBody com.example.leaseplatform.prd.dto.MenuBatchReq req) {
         return ApiResponse.ok(menuService.batchCreate(req));
     }
 
-    @Operation(summary = "复制整单菜单（sourceDate → targetDate，目标日期先清空）")
+    @Operation(operationId = "copyMenus", summary = "复制整单菜单（sourceDate → targetDate，目标日期先清空）")
     @PostMapping("/menus/copy")
     public ApiResponse<Void> copyMenus(
             @Valid @RequestBody com.example.leaseplatform.prd.dto.MenuCopyReq req) {
@@ -270,7 +270,7 @@ public class PrdAdminController {
         return ApiResponse.ok(null);
     }
 
-    @Operation(summary = "按日期清空菜单")
+    @Operation(operationId = "clearMenusByDate", summary = "按日期清空菜单")
     @DeleteMapping("/menus")
     public ApiResponse<Void> deleteMenusByDate(
             @RequestParam @org.springframework.format.annotation.DateTimeFormat(

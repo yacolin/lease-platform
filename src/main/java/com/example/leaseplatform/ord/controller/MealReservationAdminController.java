@@ -33,7 +33,7 @@ public class MealReservationAdminController {
 
     private final MealReservationService reservationService;
 
-    @Operation(summary = "预订分页（日期/状态筛选）")
+    @Operation(operationId = "listMealReservations", summary = "预订分页（日期/状态筛选）")
     @GetMapping
     public ApiResponse<PageResult<MealReservationVO>> page(
             @RequestParam(defaultValue = "1") int page,
@@ -43,13 +43,13 @@ public class MealReservationAdminController {
         return ApiResponse.ok(reservationService.adminPage(page, size, date, status));
     }
 
-    @Operation(summary = "预订详情")
+    @Operation(operationId = "getMealReservation", summary = "预订详情")
     @GetMapping("/{id}")
     public ApiResponse<MealReservationVO> get(@PathVariable Long id) {
         return ApiResponse.ok(reservationService.adminGet(id));
     }
 
-    @Operation(summary = "备餐状态推进（1→2→3；1/2→5 退款）")
+    @Operation(operationId = "updateMealReservationStatus", summary = "备餐状态推进（1→2→3；1/2→5 退款）")
     @PutMapping("/{id}/status")
     public ApiResponse<MealReservationVO> updateStatus(@PathVariable Long id,
                                                        @Valid @RequestBody OrderStatusReq req) {

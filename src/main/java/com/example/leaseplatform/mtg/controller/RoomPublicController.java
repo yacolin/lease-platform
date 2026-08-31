@@ -23,7 +23,7 @@ public class RoomPublicController {
 
     private final RoomService roomService;
 
-    @Operation(summary = "可预约会议室列表")
+    @Operation(operationId = "listPublicRooms", summary = "可预约会议室列表")
     @GetMapping
     public ApiResponse<List<RoomVO>> list() {
         return ApiResponse.ok(roomService.publicList());

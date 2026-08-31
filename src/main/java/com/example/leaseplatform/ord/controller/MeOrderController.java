@@ -29,19 +29,19 @@ public class MeOrderController {
 
     private final OrderService orderService;
 
-    @Operation(summary = "咖啡下单（商品+规格，待支付）")
+    @Operation(operationId = "createOrder", summary = "咖啡下单（商品+规格，待支付）")
     @PostMapping
     public ApiResponse<OrderVO> create(@Valid @RequestBody OrderCreateReq req) {
         return ApiResponse.ok(orderService.create(UserContext.getUserId(), req));
     }
 
-    @Operation(summary = "余额支付（赠送余额优先扣；生成取餐码）")
+    @Operation(operationId = "payOrder", summary = "余额支付（赠送余额优先扣；生成取餐码）")
     @PostMapping("/{id}/pay")
     public ApiResponse<OrderVO> pay(@PathVariable Long id) {
         return ApiResponse.ok(orderService.pay(UserContext.getUserId(), id));
     }
 
-    @Operation(summary = "取消订单（待取餐取消原路退款）")
+    @Operation(operationId = "cancelOrder", summary = "取消订单（待取餐取消原路退款）")
     @PostMapping("/{id}/cancel")
     public ApiResponse<OrderVO> cancel(@PathVariable Long id,
                                        @org.springframework.web.bind.annotation.RequestBody(required = false)
@@ -50,7 +50,7 @@ public class MeOrderController {
                 req == null ? null : req.getReason()));
     }
 
-    @Operation(summary = "我的订单分页")
+    @Operation(operationId = "listMyOrders", summary = "我的订单分页")
     @GetMapping
     public ApiResponse<PageResult<OrderVO>> myOrders(
             @RequestParam(defaultValue = "1") int page,
@@ -59,7 +59,7 @@ public class MeOrderController {
         return ApiResponse.ok(orderService.myOrders(UserContext.getUserId(), page, size, status));
     }
 
-    @Operation(summary = "订单详情")
+    @Operation(operationId = "getMyOrder", summary = "订单详情")
     @GetMapping("/{id}")
     public ApiResponse<OrderVO> get(@PathVariable Long id) {
         return ApiResponse.ok(orderService.getMine(UserContext.getUserId(), id));

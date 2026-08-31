@@ -33,7 +33,7 @@ public class TradeAdminController {
     private final RefundService refundService;
     private final OrderStatusHistoryService statusHistoryService;
 
-    @Operation(summary = "支付单分页（编号/业务类型/状态筛选）")
+    @Operation(operationId = "listPayments", summary = "支付单分页（编号/业务类型/状态筛选）")
     @GetMapping("/payments")
     public ApiResponse<PageResult<PaymentVO>> payments(
             @RequestParam(defaultValue = "1") int page,
@@ -44,7 +44,7 @@ public class TradeAdminController {
         return ApiResponse.ok(paymentService.adminPage(page, size, paymentNo, bizType, status));
     }
 
-    @Operation(summary = "退款单分页（编号/状态筛选）")
+    @Operation(operationId = "listRefunds", summary = "退款单分页（编号/状态筛选）")
     @GetMapping("/refunds")
     public ApiResponse<PageResult<RefundVO>> refunds(
             @RequestParam(defaultValue = "1") int page,
@@ -54,7 +54,7 @@ public class TradeAdminController {
         return ApiResponse.ok(refundService.adminPage(page, size, refundNo, status));
     }
 
-    @Operation(summary = "订单状态历史（bizType：1-咖啡订单, 2-正餐预订）")
+    @Operation(operationId = "getOrderStatusHistory", summary = "订单状态历史（bizType：1-咖啡订单, 2-正餐预订）")
     @GetMapping("/status-history")
     public ApiResponse<List<OrderStatusHistoryVO>> statusHistory(
             @RequestParam Integer bizType,

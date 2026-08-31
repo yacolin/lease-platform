@@ -30,7 +30,7 @@ public class EnterpriseAdminController {
 
     private final EnterpriseService enterpriseService;
 
-    @Operation(summary = "企业分页列表")
+    @Operation(operationId = "listEnterprises", summary = "企业分页列表")
     @GetMapping
     public ApiResponse<PageResult<EnterpriseVO>> page(
             @RequestParam(defaultValue = "1") int page,
@@ -40,13 +40,13 @@ public class EnterpriseAdminController {
         return ApiResponse.ok(enterpriseService.page(page, size, auditStatus, keyword));
     }
 
-    @Operation(summary = "企业详情")
+    @Operation(operationId = "getEnterprise", summary = "企业详情")
     @GetMapping("/{id}")
     public ApiResponse<EnterpriseVO> get(@PathVariable Long id) {
         return ApiResponse.ok(enterpriseService.getById(id));
     }
 
-    @Operation(summary = "审核企业（1-通过, 2-拒绝；拒绝必填原因）")
+    @Operation(operationId = "auditEnterprise", summary = "审核企业（1-通过, 2-拒绝；拒绝必填原因）")
 
     @OperationLog("审核企业")
     @PutMapping("/{id}/audit")

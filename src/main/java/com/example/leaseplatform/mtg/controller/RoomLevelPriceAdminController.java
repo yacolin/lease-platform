@@ -33,13 +33,13 @@ public class RoomLevelPriceAdminController {
 
     private final RoomLevelPriceService priceService;
 
-    @Operation(summary = "创建定价（同会议室同等级重复 → 409）")
+    @Operation(operationId = "createRoomLevelPrice", summary = "创建定价（同会议室同等级重复 → 409）")
     @PostMapping
     public ApiResponse<RoomLevelPriceVO> create(@Valid @RequestBody RoomLevelPriceReq req) {
         return ApiResponse.ok(priceService.create(req));
     }
 
-    @Operation(summary = "定价分页列表（可按会议室过滤）")
+    @Operation(operationId = "listRoomLevelPrices", summary = "定价分页列表（可按会议室过滤）")
     @GetMapping
     public ApiResponse<PageResult<RoomLevelPriceVO>> page(
             @RequestParam(defaultValue = "1") int page,
@@ -48,25 +48,25 @@ public class RoomLevelPriceAdminController {
         return ApiResponse.ok(priceService.page(page, size, roomId));
     }
 
-    @Operation(summary = "某会议室全部定价")
+    @Operation(operationId = "listRoomLevelPricesByRoom", summary = "某会议室全部定价")
     @GetMapping("/rooms/{roomId}")
     public ApiResponse<List<RoomLevelPriceVO>> listByRoom(@PathVariable Long roomId) {
         return ApiResponse.ok(priceService.listByRoom(roomId));
     }
 
-    @Operation(summary = "定价详情")
+    @Operation(operationId = "getRoomLevelPrice", summary = "定价详情")
     @GetMapping("/{id}")
     public ApiResponse<RoomLevelPriceVO> get(@PathVariable Long id) {
         return ApiResponse.ok(priceService.getById(id));
     }
 
-    @Operation(summary = "更新定价")
+    @Operation(operationId = "updateRoomLevelPrice", summary = "更新定价")
     @PutMapping("/{id}")
     public ApiResponse<RoomLevelPriceVO> update(@PathVariable Long id, @Valid @RequestBody RoomLevelPriceReq req) {
         return ApiResponse.ok(priceService.update(id, req));
     }
 
-    @Operation(summary = "删除定价")
+    @Operation(operationId = "deleteRoomLevelPrice", summary = "删除定价")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         priceService.delete(id);

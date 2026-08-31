@@ -26,13 +26,13 @@ public class MeController {
 
     private final UsrUserService userService;
 
-    @Operation(summary = "获取我的资料")
+    @Operation(operationId = "getMe", summary = "获取我的资料")
     @GetMapping
     public ApiResponse<MeVO> me() {
         return ApiResponse.ok(userService.me());
     }
 
-    @Operation(summary = "更新我的资料（昵称 / 头像 / 手机号）")
+    @Operation(operationId = "updateMe", summary = "更新我的资料（昵称 / 头像 / 手机号）")
     @PutMapping
     public ApiResponse<MeVO> updateMe(@Valid @RequestBody MeUpdateReq req) {
         return ApiResponse.ok(userService.updateMe(req));

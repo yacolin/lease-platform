@@ -26,7 +26,7 @@ public class MeNotificationController {
 
     private final NotificationService notificationService;
 
-    @Operation(summary = "我的通知分页（可仅未读）")
+    @Operation(operationId = "listMyNotifications", summary = "我的通知分页（可仅未读）")
     @GetMapping
     public ApiResponse<PageResult<NotificationVO>> list(
             @RequestParam(defaultValue = "1") int page,
@@ -35,20 +35,20 @@ public class MeNotificationController {
         return ApiResponse.ok(notificationService.myNotifications(UserContext.getUserId(), page, size, unreadOnly));
     }
 
-    @Operation(summary = "未读通知数")
+    @Operation(operationId = "getUnreadNotificationCount", summary = "未读通知数")
     @GetMapping("/unread-count")
     public ApiResponse<Long> unreadCount() {
         return ApiResponse.ok(notificationService.unreadCount(UserContext.getUserId()));
     }
 
-    @Operation(summary = "标记单条已读")
+    @Operation(operationId = "markNotificationRead", summary = "标记单条已读")
     @PutMapping("/{id}/read")
     public ApiResponse<Void> markRead(@PathVariable Long id) {
         notificationService.markRead(UserContext.getUserId(), id);
         return ApiResponse.ok(null);
     }
 
-    @Operation(summary = "全部标记已读")
+    @Operation(operationId = "markAllNotificationsRead", summary = "全部标记已读")
     @PutMapping("/read-all")
     public ApiResponse<Void> markAllRead() {
         notificationService.markAllRead(UserContext.getUserId());

@@ -23,7 +23,7 @@ public class MemberLevelPublicController {
 
     private final MemberPurchaseService purchaseService;
 
-    @Operation(summary = "会员等级列表（仅启用）")
+    @Operation(operationId = "listPublicMemberLevels", summary = "会员等级列表（仅启用）")
     @GetMapping
     public ApiResponse<List<MemberLevelVO>> list() {
         return ApiResponse.ok(purchaseService.publicLevels());

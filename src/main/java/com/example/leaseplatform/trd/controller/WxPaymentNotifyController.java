@@ -25,7 +25,7 @@ public class WxPaymentNotifyController {
 
     private final RechargeService rechargeService;
 
-    @Operation(summary = "支付结果回调 notify（微信 V3）", hidden = true)
+    @Operation(operationId = "wxPaymentNotify", summary = "支付结果回调 notify（微信 V3）", hidden = true)
     @PostMapping("/notify")
     public ResponseEntity<Map<String, String>> notify(@RequestBody String body) {
         try {

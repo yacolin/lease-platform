@@ -30,19 +30,19 @@ public class MeMeetingReservationController {
 
     private final MeetingReservationService reservationService;
 
-    @Operation(summary = "预约会议室（时段冲突 409；会员免费时长抵扣，超出按等级/会议室定价计费并写入价格快照）")
+    @Operation(operationId = "createMeetingReservation", summary = "预约会议室（时段冲突 409；会员免费时长抵扣，超出按等级/会议室定价计费并写入价格快照）")
     @PostMapping
     public ApiResponse<MeetingReservationVO> create(@Valid @RequestBody MeetingReservationCreateReq req) {
         return ApiResponse.ok(reservationService.create(UserContext.getUserId(), req));
     }
 
-    @Operation(summary = "余额支付付费预约（待确认 → 已确认）")
+    @Operation(operationId = "payMeetingReservation", summary = "余额支付付费预约（待确认 → 已确认）")
     @PostMapping("/{id}/pay")
     public ApiResponse<MeetingReservationVO> pay(@PathVariable Long id) {
         return ApiResponse.ok(reservationService.pay(UserContext.getUserId(), id));
     }
 
-    @Operation(summary = "取消预约（已付费原路退款）")
+    @Operation(operationId = "cancelMeetingReservation", summary = "取消预约（已付费原路退款）")
     @PostMapping("/{id}/cancel")
     public ApiResponse<MeetingReservationVO> cancel(@PathVariable Long id,
                                                     @RequestBody(required = false)
@@ -51,7 +51,7 @@ public class MeMeetingReservationController {
                 req == null ? null : req.getReason()));
     }
 
-    @Operation(summary = "我的预约分页")
+    @Operation(operationId = "listMyMeetingReservations", summary = "我的预约分页")
     @GetMapping
     public ApiResponse<PageResult<MeetingReservationVO>> myReservations(
             @RequestParam(defaultValue = "1") int page,
@@ -60,13 +60,13 @@ public class MeMeetingReservationController {
         return ApiResponse.ok(reservationService.myReservations(UserContext.getUserId(), page, size, status));
     }
 
-    @Operation(summary = "预约详情")
+    @Operation(operationId = "getMyMeetingReservation", summary = "预约详情")
     @GetMapping("/{id}")
     public ApiResponse<MeetingReservationVO> get(@PathVariable Long id) {
         return ApiResponse.ok(reservationService.getMine(UserContext.getUserId(), id));
     }
 
-    @Operation(summary = "指定月份剩余免费会议室时长（缺省当月）")
+    @Operation(operationId = "getMeetingFreeHours", summary = "指定月份剩余免费会议室时长（缺省当月）")
     @GetMapping("/free-hours")
     public ApiResponse<MeetingFreeHoursVO> freeHours(
             @RequestParam(required = false)

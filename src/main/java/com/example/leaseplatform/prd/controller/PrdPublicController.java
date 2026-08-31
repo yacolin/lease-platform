@@ -36,14 +36,14 @@ public class PrdPublicController {
     private final PrdDailyMenuService menuService;
 
     /** 商品分类列表（仅启用） */
-    @Operation(summary = "商品分类列表")
+    @Operation(operationId = "listPublicCategories", summary = "商品分类列表")
     @GetMapping("/categories")
     public ApiResponse<List<CategoryVO>> categories() {
         return ApiResponse.ok(categoryService.publicList());
     }
 
     /** 商品分页列表（仅上架；可按分类/类型筛选） */
-    @Operation(summary = "商品分页列表")
+    @Operation(operationId = "listPublicProducts", summary = "商品分页列表")
     @GetMapping("/products")
     public ApiResponse<PageResult<ProductVO>> products(
             @RequestParam(defaultValue = "1") int page,
@@ -54,14 +54,14 @@ public class PrdPublicController {
     }
 
     /** 商品详情（仅上架） */
-    @Operation(summary = "商品详情")
+    @Operation(operationId = "getPublicProduct", summary = "商品详情")
     @GetMapping("/products/{id}")
     public ApiResponse<ProductVO> product(@PathVariable Long id) {
         return ApiResponse.ok(productService.publicGet(id));
     }
 
     /** 每日菜单（按日期查询，缺省今天） */
-    @Operation(summary = "每日菜单")
+    @Operation(operationId = "getPublicDailyMenu", summary = "每日菜单")
     @GetMapping("/menus")
     public ApiResponse<List<MenuVO>> menus(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {

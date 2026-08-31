@@ -31,13 +31,13 @@ public class RoomAdminController {
 
     private final RoomService roomService;
 
-    @Operation(summary = "创建会议室")
+    @Operation(operationId = "createRoom", summary = "创建会议室")
     @PostMapping
     public ApiResponse<RoomVO> create(@Valid @RequestBody RoomReq req) {
         return ApiResponse.ok(roomService.create(req));
     }
 
-    @Operation(summary = "会议室分页列表")
+    @Operation(operationId = "listRooms", summary = "会议室分页列表")
     @GetMapping
     public ApiResponse<PageResult<RoomVO>> page(
             @RequestParam(defaultValue = "1") int page,
@@ -47,19 +47,19 @@ public class RoomAdminController {
         return ApiResponse.ok(roomService.page(page, size, status, keyword));
     }
 
-    @Operation(summary = "会议室详情")
+    @Operation(operationId = "getRoom", summary = "会议室详情")
     @GetMapping("/{id}")
     public ApiResponse<RoomVO> get(@PathVariable Long id) {
         return ApiResponse.ok(roomService.getById(id));
     }
 
-    @Operation(summary = "更新会议室")
+    @Operation(operationId = "updateRoom", summary = "更新会议室")
     @PutMapping("/{id}")
     public ApiResponse<RoomVO> update(@PathVariable Long id, @Valid @RequestBody RoomReq req) {
         return ApiResponse.ok(roomService.update(id, req));
     }
 
-    @Operation(summary = "删除会议室")
+    @Operation(operationId = "deleteRoom", summary = "删除会议室")
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         roomService.delete(id);

@@ -33,7 +33,7 @@ public class MeTradeController {
     private final RefundService refundService;
     private final OrderStatusHistoryService statusHistoryService;
 
-    @Operation(summary = "我的支付单（分页，可选业务类型筛选）")
+    @Operation(operationId = "listMyPayments", summary = "我的支付单（分页，可选业务类型筛选）")
     @GetMapping("/payments")
     public ApiResponse<PageResult<PaymentVO>> payments(
             @RequestParam(defaultValue = "1") int page,
@@ -42,7 +42,7 @@ public class MeTradeController {
         return ApiResponse.ok(paymentService.myPayments(UserContext.getUserId(), page, size, bizType));
     }
 
-    @Operation(summary = "我的退款单（分页）")
+    @Operation(operationId = "listMyRefunds", summary = "我的退款单（分页）")
     @GetMapping("/refunds")
     public ApiResponse<PageResult<RefundVO>> refunds(
             @RequestParam(defaultValue = "1") int page,
@@ -50,7 +50,7 @@ public class MeTradeController {
         return ApiResponse.ok(refundService.myRefunds(UserContext.getUserId(), page, size));
     }
 
-    @Operation(summary = "我的订单状态历史（bizType：1-咖啡订单, 2-正餐预订）")
+    @Operation(operationId = "getMyOrderStatusHistory", summary = "我的订单状态历史（bizType：1-咖啡订单, 2-正餐预订）")
     @GetMapping("/status-history")
     public ApiResponse<List<OrderStatusHistoryVO>> statusHistory(
             @RequestParam Integer bizType,

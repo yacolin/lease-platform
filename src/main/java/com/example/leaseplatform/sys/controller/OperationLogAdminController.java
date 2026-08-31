@@ -24,7 +24,7 @@ public class OperationLogAdminController {
 
     private final OperationLogService operationLogService;
 
-    @Operation(summary = "操作日志分页（操作人/操作类型筛选）")
+    @Operation(operationId = "listOperationLogs", summary = "操作日志分页（操作人/操作类型筛选）")
     @GetMapping
     public ApiResponse<PageResult<OperationLogVO>> page(
             @RequestParam(defaultValue = "1") int page,
