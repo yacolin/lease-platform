@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.common.TimeUtil;
+import com.example.leaseplatform.sys.service.SysIdempotencyService;
 import com.example.leaseplatform.trd.dto.RechargeCreateResultVO;
 import com.example.leaseplatform.trd.dto.RechargeRecordVO;
 import com.example.leaseplatform.trd.entity.TrdRechargeRecord;
@@ -29,11 +30,14 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 充值服务（参照 campus_express 支付模式）：
- * - 下单 {@link #createRecharge}：创建待支付记录；微信支付已配置 → 额外 JSAPI 下单返回调起支付参数；
- *   未配置（开发默认）→ prepayParams 为空，前端走 mock-pay 直充；
+ * - 下单 {@link #createRecharge}：创建待支付记录 + 支付单（trd_payments，1.2）；
+ *   微信支付已配置 → 额外 JSAPI 下单返回调起支付参数；未配置（开发默认）→ prepayParams
+ *   为空，前端走 mock-pay 直充；
  * - mock 直充 {@link #mockPay}（开发模式）；
  * - 微信支付回调 {@link #handleNotify} + 主动查单 {@link #query} 兜底；
- * - 入账统一走 {@link #settleRecharge}（事务 + 幂等：状态 0→1 乐观更新，成功后余额/赠送余额入账 + 流水）。
+ * - 入账统一走 {@link #settleRecharge}（事务 + 幂等：充值记录状态 0→1 乐观更新，
+ *   成功后同步支付单结算 trd_payments + 余额/赠送余额入账 + 流水）。
+ * - 微信回调外层用 sys_idempotency 去重（roadmap 1.2「支付幂等」）。
  */
 @Service
 @RequiredArgsConstructor
@@ -48,6 +52,8 @@ public class RechargeService {
     private final TrdRechargeTierMapper tierMapper;
     private final UsrUserMapper userMapper;
     private final BalanceService balanceService;
+    private final PaymentService paymentService;
+    private final SysIdempotencyService idempotencyService;
     private final WechatPayClient wechatPayClient;
 
     /** 充值下单：创建待支付记录（未配置微信支付时 prepayParams 为空，走 mock-pay） */
@@ -76,6 +82,11 @@ public class RechargeService {
         record.setOutTradeNo(outTradeNo);
         record.setPaymentStatus(PAY_PENDING);
         recordMapper.insert(record);
+        // 1.2：同步创建支付单（业务单 → 支付单解耦，支付事实统一入 trd_payments）
+        paymentService.create(userId, PaymentService.BIZ_RECHARGE, record.getId(),
+                tier.getRechargeAmount(), PaymentService.METHOD_WECHAT,
+                wechatPayClient.isConfigured() ? PaymentService.CHANNEL_WECHAT_JSAPI
+                        : PaymentService.CHANNEL_MOCK, outTradeNo);
 
         RechargeCreateResultVO result = new RechargeCreateResultVO();
         result.setRecord(toVO(record));
@@ -127,7 +138,14 @@ public class RechargeService {
         if (record == null) {
             throw BizException.notFound("充值记录不存在");
         }
+        // 1.2：回调幂等去重（sys_idempotency）——微信可能重复通知，同一 out_trade_no 只处理一次
+        String key = "WX_NOTIFY:" + outTradeNo;
+        if (!idempotencyService.acquire(key, "RECHARGE_NOTIFY", record.getId(),
+                SysIdempotencyService.sha256(body), LocalDateTime.now().plusDays(7))) {
+            return; // 已处理过或并发处理中：幂等返回
+        }
         settleRecharge(record, transactionId);
+        idempotencyService.complete(key, "OK");
     }
 
     /** 主动查单兜底：已配置微信支付时查微信侧，SUCCESS 则入账；返回最新状态 */
@@ -154,7 +172,8 @@ public class RechargeService {
 
     /**
      * 支付成功入账（mock 直充 / 微信回调 / 查单共用）：事务 + 幂等。
-     * 用 payment_status=0 条件做乐观更新，并发重复回调不会重复入账。
+     * 用 payment_status=0 条件做乐观更新，并发重复回调不会重复入账；
+     * 成功后再结算支付单（trd_payments status 0→1，同样幂等）+ 余额/赠送余额入账 + 流水。
      */
     @Transactional
     public RechargeRecordVO settleRecharge(TrdRechargeRecord record, String transactionId) {
@@ -174,6 +193,8 @@ public class RechargeService {
         record.setPaymentStatus(PAY_SUCCESS);
         record.setTransactionId(transactionId);
         record.setPaidAt(LocalDateTime.now());
+        // 1.2：同步结算支付单（幂等；历史无支付单的数据跳过）
+        paymentService.settleByOutTradeNo(record.getOutTradeNo(), transactionId);
         // 余额 + 赠送余额入账 + 流水（同事务）
         balanceService.credit(record.getUserId(), record.getRechargeAmount(), record.getBonusAmount(),
                 BalanceService.TX_RECHARGE, null, record.getId(), "余额充值");

@@ -5,6 +5,7 @@ import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.ord.dto.MealReservationVO;
 import com.example.leaseplatform.ord.dto.OrderStatusReq;
 import com.example.leaseplatform.ord.service.MealReservationService;
+import com.example.leaseplatform.security.UserContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -52,6 +53,7 @@ public class MealReservationAdminController {
     @PutMapping("/{id}/status")
     public ApiResponse<MealReservationVO> updateStatus(@PathVariable Long id,
                                                        @Valid @RequestBody OrderStatusReq req) {
-        return ApiResponse.ok(reservationService.adminUpdateStatus(id, req.getOrderStatus()));
+        return ApiResponse.ok(reservationService.adminUpdateStatus(id, req.getOrderStatus(),
+                UserContext.getUserId()));
     }
 }

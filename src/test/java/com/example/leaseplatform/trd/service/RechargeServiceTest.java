@@ -60,6 +60,10 @@ class RechargeServiceTest {
     @Mock
     private BalanceService balanceService;
     @Mock
+    private com.example.leaseplatform.trd.service.PaymentService paymentService;
+    @Mock
+    private com.example.leaseplatform.sys.service.SysIdempotencyService idempotencyService;
+    @Mock
     private WechatPayClient wechatPayClient;
 
     private RechargeService service;
@@ -67,7 +71,8 @@ class RechargeServiceTest {
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
         // 注意：须在 @Mock 注入后构造服务（字段初始化器在注入前执行会拿到 null mock）
-        service = new RechargeService(recordMapper, tierMapper, userMapper, balanceService, wechatPayClient);
+        service = new RechargeService(recordMapper, tierMapper, userMapper, balanceService,
+                paymentService, idempotencyService, wechatPayClient);
     }
 
     private TrdRechargeTier tier() {
@@ -213,6 +218,7 @@ class RechargeServiceTest {
         TrdRechargeRecord r = record(100L, 0);
         when(recordMapper.selectOne(any(Wrapper.class))).thenReturn(r);
         when(recordMapper.update(any(), any(Wrapper.class))).thenReturn(1);
+        when(idempotencyService.acquire(any(), any(), any(), any(), any())).thenReturn(true);
 
         String body = """
                 {"event_type":"TRANSACTION.SUCCESS",
@@ -220,6 +226,28 @@ class RechargeServiceTest {
         service.handleNotify(body);
 
         verify(balanceService).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
+        // 1.2：回调幂等键落库 + 支付单结算
+        verify(idempotencyService).acquire(eq("WX_NOTIFY:RC123"), eq("RECHARGE_NOTIFY"),
+                eq(100L), any(), any());
+        verify(paymentService).settleByOutTradeNo("RC123", "WX001");
+        verify(idempotencyService).complete("WX_NOTIFY:RC123", "OK");
+    }
+
+    @Test
+    void handleNotify_duplicate_shouldSkip() {
+        // 重复回调：幂等键已存在 → 直接跳过，不重复入账
+        when(wechatPayClient.isConfigured()).thenReturn(true);
+        when(wechatPayClient.decryptNotify(any()))
+                .thenReturn("{\"out_trade_no\":\"RC123\",\"transaction_id\":\"WX001\",\"trade_state\":\"SUCCESS\"}");
+        when(recordMapper.selectOne(any(Wrapper.class))).thenReturn(record(100L, 0));
+        when(idempotencyService.acquire(any(), any(), any(), any(), any())).thenReturn(false);
+
+        service.handleNotify("""
+                {"event_type":"TRANSACTION.SUCCESS",
+                 "resource":{"ciphertext":"x","nonce":"n","associated_data":"a"}}""");
+
+        verify(balanceService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
+        verify(paymentService, never()).settleByOutTradeNo(any(), any());
     }
 
     @Test

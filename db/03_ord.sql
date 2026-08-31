@@ -1,6 +1,7 @@
 -- ============================ 订单域 (ord_) ============================
 -- ord_orders 订单主表（咖啡点单 / 正餐预订） / ord_order_items 订单明细 /
--- ord_meal_reservations 正餐预订 / ord_meal_reservation_items 正餐预订明细
+-- ord_meal_reservations 正餐预订 / ord_meal_reservation_items 正餐预订明细 /
+-- ord_order_status_history 订单状态历史（1.2）
 -- 本文件可重复执行（先 DROP 再 CREATE）；删除或调整本域表时直接修改本文件
 --
 -- 表结构遵照 1.0 版本共享对话的 MySQL 设计（数据库 lease_db）；
@@ -8,7 +9,8 @@
 -- 约定：业务表主键 BIGINT UNSIGNED（雪花，无自增，见 db/README.md 主键 ID 策略）；
 -- 金额 BIGINT（分，最小单位整数，全链路统一以「分」为单位）；业务编号（order_no / reservation_no / purchase_no）建唯一索引。
 
--- 反向依赖顺序删除（ord_meal_reservation_items → ord_meal_reservations → ord_order_items → ord_orders）
+-- 反向依赖顺序删除（ord_order_status_history → ord_meal_reservation_items → ord_meal_reservations → ord_order_items → ord_orders）
+DROP TABLE IF EXISTS `ord_order_status_history`;
 DROP TABLE IF EXISTS `ord_meal_reservation_items`;
 DROP TABLE IF EXISTS `ord_meal_reservations`;
 DROP TABLE IF EXISTS `ord_order_items`;
@@ -128,3 +130,19 @@ CREATE TABLE `ord_meal_reservation_items` (
   PRIMARY KEY (`id`),
   KEY `idx_reservation_id` (`reservation_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='正餐预订明细表';
+
+-- 订单状态历史表（1.2 交易可靠性）：咖啡订单/正餐预订状态流转全量留痕
+CREATE TABLE `ord_order_status_history` (
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '记录ID（雪花）',
+  `order_id` BIGINT UNSIGNED NOT NULL COMMENT '业务单ID（咖啡订单 ord_orders.id 或 正餐预订 ord_meal_reservations.id）',
+  `biz_type` TINYINT NOT NULL DEFAULT 1 COMMENT '业务类型：1-咖啡订单, 2-正餐预订',
+  `from_status` TINYINT DEFAULT NULL COMMENT '变更前状态（初始状态为 NULL）',
+  `to_status` TINYINT NOT NULL COMMENT '变更后状态（与 ord_orders.order_status / ord_meal_reservations.status 对齐）',
+  `operator_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '操作人ID（用户或管理员）',
+  `operator_type` TINYINT NOT NULL DEFAULT 1 COMMENT '操作人类型：1-用户, 2-商家/系统',
+  `reason` VARCHAR(255) DEFAULT NULL COMMENT '变更原因',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_order` (`biz_type`, `order_id`),
+  KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='订单状态历史表';

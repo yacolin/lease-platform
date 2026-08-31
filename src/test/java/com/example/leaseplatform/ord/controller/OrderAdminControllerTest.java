@@ -7,13 +7,17 @@ import com.example.leaseplatform.ord.dto.OrderStatsVO;
 import com.example.leaseplatform.ord.dto.OrderVO;
 import com.example.leaseplatform.ord.service.OrderService;
 import com.example.leaseplatform.security.JwtTokenProvider;
+import com.example.leaseplatform.security.LoginUser;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -34,7 +38,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(OrderAdminController.class)
 @Import(SecurityConfig.class)
 @EnableConfigurationProperties(SecurityProperties.class)
-@WithMockUser(roles = "ADMIN")
 class OrderAdminControllerTest {
 
     @Autowired
@@ -44,6 +47,19 @@ class OrderAdminControllerTest {
     private OrderService orderService;
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
+
+    /** 管理员登录态（user_type=1 → ROLE_ADMIN，UserContext 可取到操作人 ID） */
+    @BeforeEach
+    void setUpAuth() {
+        LoginUser admin = LoginUser.of(9L, 1);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(admin, null, admin.getAuthorities()));
+    }
+
+    @AfterEach
+    void clearAuth() {
+        SecurityContextHolder.clearContext();
+    }
 
     private OrderVO orderVO() {
         OrderVO vo = new OrderVO();
@@ -77,7 +93,7 @@ class OrderAdminControllerTest {
     void updateStatus_shouldReturnVo() throws Exception {
         OrderVO vo = orderVO();
         vo.setOrderStatus(2);
-        when(orderService.adminUpdateStatus(eq(100L), eq(2))).thenReturn(vo);
+        when(orderService.adminUpdateStatus(eq(100L), eq(2), eq(9L))).thenReturn(vo);
 
         mockMvc.perform(put("/api/v1/orders/100/status")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -99,7 +115,7 @@ class OrderAdminControllerTest {
     void verifyPickup_shouldReturnVo() throws Exception {
         OrderVO vo = orderVO();
         vo.setOrderStatus(3);
-        when(orderService.verifyPickup("123456")).thenReturn(vo);
+        when(orderService.verifyPickup("123456", 9L)).thenReturn(vo);
 
         mockMvc.perform(post("/api/v1/orders/verify-pickup")
                         .contentType(MediaType.APPLICATION_JSON)

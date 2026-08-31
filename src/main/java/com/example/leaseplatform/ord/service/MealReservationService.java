@@ -1,6 +1,7 @@
 package com.example.leaseplatform.ord.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
@@ -18,7 +19,10 @@ import com.example.leaseplatform.prd.entity.PrdDailyMenu;
 import com.example.leaseplatform.prd.entity.PrdProduct;
 import com.example.leaseplatform.prd.mapper.PrdDailyMenuMapper;
 import com.example.leaseplatform.prd.mapper.PrdProductMapper;
+import com.example.leaseplatform.trd.entity.TrdPayment;
 import com.example.leaseplatform.trd.service.BalanceService;
+import com.example.leaseplatform.trd.service.PaymentService;
+import com.example.leaseplatform.trd.service.RefundService;
 import com.example.leaseplatform.usr.entity.UsrUser;
 import com.example.leaseplatform.usr.mapper.UsrUserMapper;
 import lombok.RequiredArgsConstructor;
@@ -71,6 +75,9 @@ public class MealReservationService {
     private final UsrUserMapper userMapper;
     private final DiscountCalculator discountCalculator;
     private final BalanceService balanceService;
+    private final PaymentService paymentService;
+    private final RefundService refundService;
+    private final OrderStatusHistoryService statusHistoryService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -167,25 +174,55 @@ public class MealReservationService {
         item.setDishDetails(menuSnapshotJson(req.getMenuDate(), req.getProductId()));
         itemMapper.insert(item);
 
+        // 1.2：初始状态留痕（待支付）
+        statusHistoryService.record(OrderStatusHistoryService.BIZ_MEAL_RESERVATION,
+                reservation.getId(), null, STATUS_PENDING, userId,
+                OrderStatusHistoryService.OPERATOR_USER, "预订下单");
+
         return toVO(reservation, List.of(item));
     }
 
-    /** 余额支付：扣款（赠送优先）→ 待备餐 */
+    /**
+     * 余额支付：扣款（赠送余额优先）→ 乐观锁定预订 0→1（防并发重复支付，失败时本事务回滚扣款）→
+     * 创建并结算支付单（trd_payments，幂等）→ 同步关联订单 → 状态历史。全程同一事务。
+     */
     @Transactional
     public MealReservationVO pay(Long userId, Long reservationId) {
         OrdMealReservation reservation = requireOwn(userId, reservationId);
         if (reservation.getStatus() == null || reservation.getStatus() != STATUS_PENDING) {
             throw BizException.conflict("预订已处理");
         }
+        // 1. 余额扣款（余额不足时抛异常，此时未产生任何写操作，预订保持待支付可重试）
         balanceService.debit(userId, reservation.getPayableAmount(), reservation.getOrderId(), "正餐预订");
-        reservation.setStatus(STATUS_READY);
-        reservation.setPaidAt(LocalDateTime.now());
-        reservationMapper.updateById(reservation);
+        // 2. 乐观锁定预订 0→1（并发重复支付只有一个成功；锁定失败抛异常，本事务回滚扣款）
+        LocalDateTime paidAt = LocalDateTime.now();
+        String outTradeNo = generateNo("PO");
+        int updated = reservationMapper.update(null, new LambdaUpdateWrapper<OrdMealReservation>()
+                .eq(OrdMealReservation::getId, reservationId)
+                .eq(OrdMealReservation::getStatus, STATUS_PENDING)
+                .set(OrdMealReservation::getStatus, STATUS_READY)
+                .set(OrdMealReservation::getPaidAt, paidAt)
+                .set(OrdMealReservation::getOutTradeNo, outTradeNo));
+        if (updated == 0) {
+            throw BizException.conflict("预订已处理");
+        }
+        // 3. 创建支付单并立即结算（余额支付即时成功）
+        TrdPayment payment = paymentService.create(userId, PaymentService.BIZ_MEAL_RESERVATION,
+                reservationId, reservation.getPayableAmount(), PaymentService.METHOD_BALANCE,
+                PaymentService.CHANNEL_BALANCE, outTradeNo);
+        paymentService.settle(payment.getId(), null);
+        // 4. 同步关联订单状态 + 状态历史
         syncOrderStatus(reservation.getOrderId(), STATUS_READY);
+        statusHistoryService.record(OrderStatusHistoryService.BIZ_MEAL_RESERVATION,
+                reservationId, STATUS_PENDING, STATUS_READY, userId,
+                OrderStatusHistoryService.OPERATOR_USER, "余额支付");
+        reservation.setStatus(STATUS_READY);
+        reservation.setPaidAt(paidAt);
+        reservation.setOutTradeNo(outTradeNo);
         return toVO(reservation, itemsOf(reservation.getId()));
     }
 
-    /** 取消：待支付直接取消；已支付取消原路退款 */
+    /** 取消：待支付直接取消；已支付取消原路退款（退款单 + 状态历史） */
     @Transactional
     public MealReservationVO cancel(Long userId, Long reservationId, String reason) {
         OrdMealReservation reservation = requireOwn(userId, reservationId);
@@ -197,22 +234,28 @@ public class MealReservationService {
             throw BizException.conflict("预订备餐中，暂不可取消");
         }
         if (status == STATUS_READY) {
-            balanceService.credit(userId, reservation.getPayableAmount(), 0L,
-                    BalanceService.TX_REFUND, reservation.getOrderId(), null, "预订取消退款");
+            // 已支付 → 原路退款（生成退款单 trd_refunds，幂等键防重复退款）
+            refundReservationPayment(reservation, "预订取消退款",
+                    "MEAL_CANCEL_REFUND:" + reservationId);
         }
         reservation.setStatus(STATUS_CANCELLED);
         reservation.setCancelledAt(LocalDateTime.now());
         reservation.setCancelReason(reason);
         reservationMapper.updateById(reservation);
         syncOrderStatus(reservation.getOrderId(), STATUS_CANCELLED);
+        // 1.2：状态历史
+        statusHistoryService.record(OrderStatusHistoryService.BIZ_MEAL_RESERVATION,
+                reservationId, status, STATUS_CANCELLED, userId,
+                OrderStatusHistoryService.OPERATOR_USER,
+                reason == null || reason.isBlank() ? "用户取消" : reason);
         return toVO(reservation, itemsOf(reservation.getId()));
     }
 
     // ==================== 商家：备餐流转 ====================
 
-    /** 备餐状态流转：1→2→3；1/2→5（退款）；同步关联订单 */
+    /** 备餐状态流转：1→2→3；1/2→5（退款，退款单 + 状态历史）；同步关联订单 */
     @Transactional
-    public MealReservationVO adminUpdateStatus(Long reservationId, Integer target) {
+    public MealReservationVO adminUpdateStatus(Long reservationId, Integer target, Long operatorId) {
         OrdMealReservation reservation = require(reservationId);
         int cur = reservation.getStatus() == null ? STATUS_PENDING : reservation.getStatus();
         boolean valid = switch (target) {
@@ -225,8 +268,9 @@ public class MealReservationService {
             throw BizException.conflict("非法的状态流转：" + cur + " → " + target);
         }
         if (target == STATUS_REFUNDED) {
-            balanceService.credit(reservation.getUserId(), reservation.getPayableAmount(), 0L,
-                    BalanceService.TX_REFUND, reservation.getOrderId(), null, "商家退款");
+            // 退款原路退回（生成退款单 trd_refunds，幂等键防重复退款）
+            refundReservationPayment(reservation, "商家退款",
+                    "MEAL_ADMIN_REFUND:" + reservationId);
         }
         reservation.setStatus(target);
         if (target == STATUS_COMPLETED) {
@@ -234,7 +278,34 @@ public class MealReservationService {
         }
         reservationMapper.updateById(reservation);
         syncOrderStatus(reservation.getOrderId(), target);
+        // 1.2：状态历史
+        String reason = switch (target) {
+            case STATUS_MAKING -> "商家开始备餐";
+            case STATUS_COMPLETED -> "备餐完成";
+            case STATUS_REFUNDED -> "商家退款";
+            default -> "状态变更";
+        };
+        statusHistoryService.record(OrderStatusHistoryService.BIZ_MEAL_RESERVATION,
+                reservationId, cur, target, operatorId,
+                OrderStatusHistoryService.OPERATOR_ADMIN, reason);
         return toVO(reservation, itemsOf(reservation.getId()));
+    }
+
+    /**
+     * 预订原路退款：优先走退款单（trd_refunds，校验可退金额 + 幂等）；
+     * 1.2 之前的历史预订无支付单，回退为 1.1 直接余额入账。
+     */
+    private void refundReservationPayment(OrdMealReservation reservation, String reason,
+                                          String idempotencyKey) {
+        TrdPayment payment = paymentService.getByBiz(PaymentService.BIZ_MEAL_RESERVATION,
+                reservation.getId());
+        if (payment == null) {
+            balanceService.credit(reservation.getUserId(), reservation.getPayableAmount(), 0L,
+                    BalanceService.TX_REFUND, reservation.getOrderId(), null, reason);
+            return;
+        }
+        refundService.refundToBalance(reservation.getUserId(), payment.getId(),
+                reservation.getPayableAmount(), reason, idempotencyKey, reservation.getOrderId());
     }
 
     // ==================== 查询 ====================

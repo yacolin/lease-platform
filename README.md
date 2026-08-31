@@ -153,7 +153,15 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 | GET | `/api/v1/me/recharge/records` | 我的充值记录 |
 | GET | `/api/v1/me/balance-transactions` | 我的余额流水（充值/消费/退款，含赠送余额） |
 
-**微信支付回调（`POST /api/v1/wx/payments/notify`，白名单，微信服务器调用）**：V3 回调解密入账（幂等）；开发环境未配置微信支付时返回失败，走 mock-pay 直充。
+**我的交易（1.2，`/api/v1/me/**`，需登录）**
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/v1/me/payments` | 我的支付单（分页，`bizType`：1-充值, 2-咖啡订单, 3-正餐预订, 4-会员购买） |
+| GET | `/api/v1/me/refunds` | 我的退款单（分页） |
+| GET | `/api/v1/me/status-history` | 我的订单状态历史（`bizType`+`bizId`，校验归属） |
+
+**微信支付回调（`POST /api/v1/wx/payments/notify`，白名单，微信服务器调用）**：V3 回调解密入账（sys_idempotency 幂等去重，重复通知不重复入账）；开发环境未配置微信支付时返回失败，走 mock-pay 直充。
 
 **我的订单（咖啡点单，`/api/v1/me/orders/**`，需登录）**
 
@@ -278,6 +286,7 @@ make test     # 294 例：service 单元（Mockito）+ controller Web（@WebMvcT
 - [x] P4 正餐预订：菜单整单配置/复制 / 按日期+时段预订（规则校验+菜品快照）/ 备餐流转 / 折扣复用 DiscountCalculator
 - [x] P5 会议室：public+admin 管理 / 预约冲突校验 / 会员免费时长抵扣+超时计费 / 状态流转（待确认→已确认→完成/取消/过期）
 - [x] P6 系统域与工程化：通知中心 / 操作日志（AOP）/ dev-prod 环境分离 / Flyway 自动迁移 / Docker 部署
+- [x] 1.2 交易可靠性：支付单 / 退款单（全额/部分/多次+幂等）/ 订单状态历史 / 幂等记录（V6 迁移 + 四表 + 充值/咖啡/正餐/会员购买全链路接入 + 我的交易/管理端查询接口）
 
 ## 部署（Docker）
 

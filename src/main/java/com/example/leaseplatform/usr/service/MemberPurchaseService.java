@@ -18,6 +18,8 @@ import com.example.leaseplatform.usr.mapper.UsrEnterpriseMemberMapper;
 import com.example.leaseplatform.usr.mapper.UsrMemberLevelMapper;
 import com.example.leaseplatform.usr.mapper.UsrMemberPurchaseMapper;
 import com.example.leaseplatform.usr.mapper.UsrUserMapper;
+import com.example.leaseplatform.security.UserContext;
+import com.example.leaseplatform.trd.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +51,7 @@ public class MemberPurchaseService {
     private final UsrEnterpriseMemberMapper memberMapper;
     private final UsrUserMapper userMapper;
     private final EnterpriseService enterpriseService;
+    private final PaymentService paymentService;
 
     // ==================== 公开：等级列表 ====================
 
@@ -86,6 +89,10 @@ public class MemberPurchaseService {
         purchase.setStartDate(today);
         purchase.setEndDate(today.plusYears(1));
         purchaseMapper.insert(purchase);
+        // 1.2：同步创建支付单（业务单 → 支付单解耦；微信支付接入前渠道为 mock 直充）
+        paymentService.create(UserContext.getUserId(), PaymentService.BIZ_MEMBER_PURCHASE,
+                purchase.getId(), purchase.getPayPrice(), PaymentService.METHOD_WECHAT,
+                PaymentService.CHANNEL_MOCK, purchase.getOutTradeNo());
         return toVO(purchase, level);
     }
 
@@ -111,6 +118,8 @@ public class MemberPurchaseService {
         purchase.setPaidAt(LocalDateTime.now());
         purchase.setTransactionId("mock_" + purchase.getPurchaseNo());
         purchaseMapper.updateById(purchase);
+        // 1.2：同步结算支付单（幂等）
+        paymentService.settleByOutTradeNo(purchase.getOutTradeNo(), "mock_" + purchase.getPurchaseNo());
 
         applyMembership(enterprise, level, purchase.getEndDate());
         return toVO(purchase, level);

@@ -18,7 +18,9 @@ import com.example.leaseplatform.prd.entity.PrdDailyMenu;
 import com.example.leaseplatform.prd.entity.PrdProduct;
 import com.example.leaseplatform.prd.mapper.PrdDailyMenuMapper;
 import com.example.leaseplatform.prd.mapper.PrdProductMapper;
+import com.example.leaseplatform.trd.entity.TrdPayment;
 import com.example.leaseplatform.trd.service.BalanceService;
+import com.example.leaseplatform.trd.service.PaymentService;
 import com.example.leaseplatform.usr.entity.UsrUser;
 import com.example.leaseplatform.usr.mapper.UsrUserMapper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -39,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,6 +68,12 @@ class MealReservationServiceTest {
     private DiscountCalculator discountCalculator;
     @Mock
     private BalanceService balanceService;
+    @Mock
+    private PaymentService paymentService;
+    @Mock
+    private com.example.leaseplatform.trd.service.RefundService refundService;
+    @Mock
+    private OrderStatusHistoryService statusHistoryService;
 
     private MealReservationService service;
 
@@ -83,7 +92,8 @@ class MealReservationServiceTest {
     @BeforeEach
     void setUp() {
         service = new MealReservationService(reservationMapper, itemMapper, orderMapper,
-                productMapper, menuMapper, userMapper, discountCalculator, balanceService);
+                productMapper, menuMapper, userMapper, discountCalculator, balanceService,
+                paymentService, refundService, statusHistoryService);
     }
 
     private UsrUser user() {
@@ -197,20 +207,47 @@ class MealReservationServiceTest {
         when(reservationMapper.selectById(300L)).thenReturn(r);
         when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
         when(orderMapper.selectById(200L)).thenReturn(new OrdOrder());
+        when(reservationMapper.update(any(), any(Wrapper.class))).thenReturn(1); // 乐观锁定 0→1
+        TrdPayment payment = new TrdPayment();
+        payment.setId(900L);
+        when(paymentService.create(any(), anyInt(), any(), anyLong(), anyInt(), anyInt(), any()))
+                .thenReturn(payment);
 
         MealReservationVO vo = service.pay(1L, 300L);
 
         verify(balanceService).debit(1L, 3560L, 200L, "正餐预订");
+        // 1.2：创建并结算支付单 + 状态历史
+        verify(paymentService).create(eq(1L), eq(PaymentService.BIZ_MEAL_RESERVATION), eq(300L),
+                eq(3560L), eq(PaymentService.METHOD_BALANCE), eq(PaymentService.CHANNEL_BALANCE), any());
+        verify(paymentService).settle(900L, null);
+        verify(statusHistoryService).record(eq(OrderStatusHistoryService.BIZ_MEAL_RESERVATION),
+                eq(300L), eq(0), eq(1), eq(1L), eq(OrderStatusHistoryService.OPERATOR_USER), any());
         assertThat(vo.getStatus()).isEqualTo(1);
         verify(orderMapper).updateById(any(OrdOrder.class)); // 同步关联订单
     }
 
     @Test
-    void cancel_paid_shouldRefundAndSync() {
+    void pay_concurrentDuplicate_shouldConflictAndNotSettle() {
+        // 并发：先扣款、乐观更新失败 → 抛"预订已处理"，本事务回滚扣款（生产由事务保证）
+        OrdMealReservation r = reservation(300L, 0);
+        when(reservationMapper.selectById(300L)).thenReturn(r);
+        when(reservationMapper.update(any(), any(Wrapper.class))).thenReturn(0); // 并发
+
+        assertThatThrownBy(() -> service.pay(1L, 300L))
+                .isInstanceOf(BizException.class)
+                .hasMessage("预订已处理");
+        verify(balanceService).debit(1L, 3560L, 200L, "正餐预订");
+        verify(paymentService, never()).settle(any(), any());
+    }
+
+    @Test
+    void cancel_paidNoPayment_shouldLegacyRefundAndSync() {
+        // 1.2 之前的历史预订无支付单：回退为直接余额入账
         OrdMealReservation r = reservation(300L, 1);
         when(reservationMapper.selectById(300L)).thenReturn(r);
         when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
         when(orderMapper.selectById(200L)).thenReturn(new OrdOrder());
+        when(paymentService.getByBiz(anyInt(), any())).thenReturn(null);
 
         MealReservationVO vo = service.cancel(1L, 300L, "行程变化");
 
@@ -218,6 +255,26 @@ class MealReservationServiceTest {
                 BalanceService.TX_REFUND, 200L, null, "预订取消退款");
         assertThat(vo.getStatus()).isEqualTo(4);
         assertThat(vo.getCancelReason()).isEqualTo("行程变化");
+    }
+
+    @Test
+    void cancel_paid_shouldRefundViaRefundService() {
+        OrdMealReservation r = reservation(300L, 1);
+        when(reservationMapper.selectById(300L)).thenReturn(r);
+        when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
+        when(orderMapper.selectById(200L)).thenReturn(new OrdOrder());
+        TrdPayment payment = new TrdPayment();
+        payment.setId(900L);
+        when(paymentService.getByBiz(PaymentService.BIZ_MEAL_RESERVATION, 300L)).thenReturn(payment);
+        when(refundService.refundToBalance(any(), any(), anyLong(), any(), any(), any()))
+                .thenReturn(new com.example.leaseplatform.trd.entity.TrdRefund());
+
+        MealReservationVO vo = service.cancel(1L, 300L, "行程变化");
+
+        verify(refundService).refundToBalance(1L, 900L, 3560L, "预订取消退款",
+                "MEAL_CANCEL_REFUND:300", 200L);
+        verify(balanceService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
+        assertThat(vo.getStatus()).isEqualTo(4);
     }
 
     @Test
@@ -238,29 +295,51 @@ class MealReservationServiceTest {
         when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
         when(orderMapper.selectById(200L)).thenReturn(new OrdOrder());
 
-        MealReservationVO vo = service.adminUpdateStatus(300L, 2);
+        MealReservationVO vo = service.adminUpdateStatus(300L, 2, 9L);
 
         assertThat(vo.getStatus()).isEqualTo(2);
         verify(orderMapper).updateById(any(OrdOrder.class));
+        verify(statusHistoryService).record(eq(OrderStatusHistoryService.BIZ_MEAL_RESERVATION),
+                eq(300L), eq(1), eq(2), eq(9L), eq(OrderStatusHistoryService.OPERATOR_ADMIN), any());
     }
 
     @Test
-    void adminUpdateStatus_refund_shouldRefund() {
+    void adminUpdateStatus_refundNoPayment_shouldLegacyRefund() {
         OrdMealReservation r = reservation(300L, 2);
         when(reservationMapper.selectById(300L)).thenReturn(r);
         when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
+        when(paymentService.getByBiz(anyInt(), any())).thenReturn(null);
 
-        MealReservationVO vo = service.adminUpdateStatus(300L, 5);
+        MealReservationVO vo = service.adminUpdateStatus(300L, 5, 9L);
 
         assertThat(vo.getStatus()).isEqualTo(5);
         verify(balanceService).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
     }
 
     @Test
+    void adminUpdateStatus_refund_shouldRefundViaRefundService() {
+        OrdMealReservation r = reservation(300L, 2);
+        when(reservationMapper.selectById(300L)).thenReturn(r);
+        when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
+        when(orderMapper.selectById(200L)).thenReturn(new OrdOrder());
+        TrdPayment payment = new TrdPayment();
+        payment.setId(900L);
+        when(paymentService.getByBiz(PaymentService.BIZ_MEAL_RESERVATION, 300L)).thenReturn(payment);
+        when(refundService.refundToBalance(any(), any(), anyLong(), any(), any(), any()))
+                .thenReturn(new com.example.leaseplatform.trd.entity.TrdRefund());
+
+        MealReservationVO vo = service.adminUpdateStatus(300L, 5, 9L);
+
+        verify(refundService).refundToBalance(1L, 900L, 3560L, "商家退款",
+                "MEAL_ADMIN_REFUND:300", 200L);
+        assertThat(vo.getStatus()).isEqualTo(5);
+    }
+
+    @Test
     void adminUpdateStatus_illegal_shouldConflict() {
         when(reservationMapper.selectById(300L)).thenReturn(reservation(300L, 0));
 
-        assertThatThrownBy(() -> service.adminUpdateStatus(300L, 2))
+        assertThatThrownBy(() -> service.adminUpdateStatus(300L, 2, 9L))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("非法的状态流转");
     }

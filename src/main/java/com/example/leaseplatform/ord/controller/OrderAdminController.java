@@ -8,6 +8,7 @@ import com.example.leaseplatform.ord.dto.OrderStatusReq;
 import com.example.leaseplatform.ord.dto.OrderVO;
 import com.example.leaseplatform.ord.dto.VerifyPickupReq;
 import com.example.leaseplatform.ord.service.OrderService;
+import com.example.leaseplatform.security.UserContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -59,13 +60,14 @@ public class OrderAdminController {
     @PutMapping("/{id}/status")
     public ApiResponse<OrderVO> updateStatus(@PathVariable Long id,
                                              @Valid @RequestBody OrderStatusReq req) {
-        return ApiResponse.ok(orderService.adminUpdateStatus(id, req.getOrderStatus()));
+        return ApiResponse.ok(orderService.adminUpdateStatus(id, req.getOrderStatus(),
+                UserContext.getUserId()));
     }
 
     @Operation(summary = "取餐码核销（待取餐/制作中 → 完成）")
     @PostMapping("/verify-pickup")
     public ApiResponse<OrderVO> verifyPickup(@Valid @RequestBody VerifyPickupReq req) {
-        return ApiResponse.ok(orderService.verifyPickup(req.getPickupCode()));
+        return ApiResponse.ok(orderService.verifyPickup(req.getPickupCode(), UserContext.getUserId()));
     }
 
     @Operation(summary = "订单统计（今日订单/金额/待取餐/制作中）")

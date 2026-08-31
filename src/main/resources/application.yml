@@ -139,6 +139,9 @@ springdoc:
         - /api/v1/rooms/**
         - /api/v1/meeting-reservations/**
         - /api/v1/operation-logs/**
+        - /api/v1/payments
+        - /api/v1/refunds
+        - /api/v1/status-history
     - group: public
       display-name: 公开/小程序端
       paths-to-match:
@@ -180,6 +183,9 @@ lease:
       - /api/v1/room-level-prices/**
       - /api/v1/meeting-reservations/**
       - /api/v1/operation-logs/**
+      - /api/v1/payments
+      - /api/v1/refunds
+      - /api/v1/status-history
     cors:
       # 开发期放开；生产改为小程序/后台实际域名列表
       allowed-origins:

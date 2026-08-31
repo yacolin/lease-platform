@@ -1,6 +1,7 @@
 package com.example.leaseplatform.ord.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
@@ -16,7 +17,10 @@ import com.example.leaseplatform.ord.mapper.OrdOrderItemMapper;
 import com.example.leaseplatform.ord.mapper.OrdOrderMapper;
 import com.example.leaseplatform.prd.entity.PrdProduct;
 import com.example.leaseplatform.prd.mapper.PrdProductMapper;
+import com.example.leaseplatform.trd.entity.TrdPayment;
 import com.example.leaseplatform.trd.service.BalanceService;
+import com.example.leaseplatform.trd.service.PaymentService;
+import com.example.leaseplatform.trd.service.RefundService;
 import com.example.leaseplatform.usr.entity.UsrUser;
 import com.example.leaseplatform.usr.mapper.UsrUserMapper;
 import lombok.RequiredArgsConstructor;
@@ -68,6 +72,9 @@ public class OrderService {
     private final UsrUserMapper userMapper;
     private final DiscountCalculator discountCalculator;
     private final BalanceService balanceService;
+    private final PaymentService paymentService;
+    private final RefundService refundService;
+    private final OrderStatusHistoryService statusHistoryService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -132,12 +139,18 @@ public class OrderService {
             item.setOrderId(order.getId());
             itemMapper.insert(item);
         }
+        // 1.2：初始状态留痕（待支付）
+        statusHistoryService.record(OrderStatusHistoryService.BIZ_COFFEE_ORDER, order.getId(),
+                null, STATUS_PENDING, userId, OrderStatusHistoryService.OPERATOR_USER, "下单");
         return toVO(order, items);
     }
 
     // ==================== 余额支付 / 取消（退款） ====================
 
-    /** 余额支付：扣款（赠送余额优先）→ 待取餐 + 取餐码 */
+    /**
+     * 余额支付：扣款（赠送余额优先）→ 乐观锁定订单 0→1（防并发重复支付，失败时本事务回滚扣款）→
+     * 创建并结算支付单（trd_payments，幂等）→ 状态历史。全程同一事务。
+     */
     @Transactional
     public OrderVO pay(Long userId, Long orderId) {
         OrdOrder order = requireOwnOrder(userId, orderId);
@@ -147,16 +160,38 @@ public class OrderService {
         if (order.getPaymentMethod() == null || order.getPaymentMethod() != 1) {
             throw BizException.badRequest("当前仅支持余额支付");
         }
-        // 余额不足时 debit 抛"余额不足"，订单保持待支付可重试
-        balanceService.debit(userId, order.getPayableAmount(), order.getId(), "咖啡订单");
+        // 1. 余额扣款（余额不足时抛异常，此时未产生任何写操作，订单保持待支付可重试）
+        balanceService.debit(userId, order.getPayableAmount(), orderId, "咖啡订单");
+        // 2. 乐观锁定订单 0→1（并发重复支付只有一个成功；锁定失败抛异常，本事务回滚扣款）
+        LocalDateTime paidAt = LocalDateTime.now();
+        String pickupCode = generatePickupCode();
+        String outTradeNo = generateNo("PO");
+        int updated = orderMapper.update(null, new LambdaUpdateWrapper<OrdOrder>()
+                .eq(OrdOrder::getId, orderId)
+                .eq(OrdOrder::getOrderStatus, STATUS_PENDING)
+                .set(OrdOrder::getOrderStatus, STATUS_PICKUP)
+                .set(OrdOrder::getPaidAt, paidAt)
+                .set(OrdOrder::getPickupCode, pickupCode)
+                .set(OrdOrder::getOutTradeNo, outTradeNo));
+        if (updated == 0) {
+            throw BizException.conflict("订单已处理");
+        }
+        // 3. 创建支付单并立即结算（余额支付即时成功）
+        TrdPayment payment = paymentService.create(userId, PaymentService.BIZ_ORDER, orderId,
+                order.getPayableAmount(), PaymentService.METHOD_BALANCE, PaymentService.CHANNEL_BALANCE,
+                outTradeNo);
+        paymentService.settle(payment.getId(), null);
+        // 4. 状态历史
+        statusHistoryService.record(OrderStatusHistoryService.BIZ_COFFEE_ORDER, orderId,
+                STATUS_PENDING, STATUS_PICKUP, userId, OrderStatusHistoryService.OPERATOR_USER, "余额支付");
         order.setOrderStatus(STATUS_PICKUP);
-        order.setPaidAt(LocalDateTime.now());
-        order.setPickupCode(generatePickupCode());
-        orderMapper.updateById(order);
+        order.setPaidAt(paidAt);
+        order.setPickupCode(pickupCode);
+        order.setOutTradeNo(outTradeNo);
         return toVO(order, itemsOf(order.getId()));
     }
 
-    /** 取消订单：待支付直接取消；待取餐取消并原路退款 */
+    /** 取消订单：待支付直接取消；待取餐取消并原路退款（退款单 + 状态历史） */
     @Transactional
     public OrderVO cancel(Long userId, Long orderId, String reason) {
         OrdOrder order = requireOwnOrder(userId, orderId);
@@ -168,22 +203,40 @@ public class OrderService {
             throw BizException.conflict("订单制作中，暂不可取消");
         }
         if (status == STATUS_PICKUP) {
-            // 已支付 → 原路退款（余额流水 TX_REFUND）
-            balanceService.credit(userId, order.getPayableAmount(), 0L,
-                    BalanceService.TX_REFUND, order.getId(), null, "订单取消退款");
+            // 已支付 → 原路退款（生成退款单 trd_refunds，幂等键防重复退款）
+            refundOrderPayment(order, "订单取消退款", "ORDER_CANCEL_REFUND:" + orderId);
         }
         order.setOrderStatus(STATUS_CANCELLED);
         order.setCancelledAt(LocalDateTime.now());
         order.setCancelReason(reason);
         orderMapper.updateById(order);
+        // 1.2：状态历史
+        statusHistoryService.record(OrderStatusHistoryService.BIZ_COFFEE_ORDER, orderId,
+                status, STATUS_CANCELLED, userId, OrderStatusHistoryService.OPERATOR_USER,
+                reason == null || reason.isBlank() ? "用户取消" : reason);
         return toVO(order, itemsOf(order.getId()));
+    }
+
+    /**
+     * 订单原路退款：优先走退款单（trd_refunds，校验可退金额 + 幂等）；
+     * 1.2 之前的历史订单无支付单，回退为 1.1 直接余额入账。
+     */
+    private void refundOrderPayment(OrdOrder order, String reason, String idempotencyKey) {
+        TrdPayment payment = paymentService.getByBiz(PaymentService.BIZ_ORDER, order.getId());
+        if (payment == null) {
+            balanceService.credit(order.getUserId(), order.getPayableAmount(), 0L,
+                    BalanceService.TX_REFUND, order.getId(), null, reason);
+            return;
+        }
+        refundService.refundToBalance(order.getUserId(), payment.getId(), order.getPayableAmount(),
+                reason, idempotencyKey, order.getId());
     }
 
     // ==================== 商家：状态推进 / 核销 / 退款 ====================
 
-    /** 商家状态推进：1→2→3；1/2→5（退款原路退回） */
+    /** 商家状态推进：1→2→3；1/2→5（退款原路退回，退款单 + 状态历史） */
     @Transactional
-    public OrderVO adminUpdateStatus(Long orderId, Integer target) {
+    public OrderVO adminUpdateStatus(Long orderId, Integer target, Long operatorId) {
         OrdOrder order = requireOrder(orderId);
         int cur = order.getOrderStatus() == null ? STATUS_PENDING : order.getOrderStatus();
         boolean valid = switch (target) {
@@ -196,21 +249,29 @@ public class OrderService {
             throw BizException.conflict("非法的状态流转：" + cur + " → " + target);
         }
         if (target == STATUS_REFUNDED) {
-            // 退款原路退回（余额流水 TX_REFUND）
-            balanceService.credit(order.getUserId(), order.getPayableAmount(), 0L,
-                    BalanceService.TX_REFUND, order.getId(), null, "商家退款");
+            // 退款原路退回（生成退款单 trd_refunds，幂等键防重复退款）
+            refundOrderPayment(order, "商家退款", "ORDER_ADMIN_REFUND:" + orderId);
         }
         order.setOrderStatus(target);
         if (target == STATUS_COMPLETED) {
             order.setCompletedAt(LocalDateTime.now());
         }
         orderMapper.updateById(order);
+        // 1.2：状态历史
+        String reason = switch (target) {
+            case STATUS_MAKING -> "商家开始制作";
+            case STATUS_COMPLETED -> "制作完成";
+            case STATUS_REFUNDED -> "商家退款";
+            default -> "状态变更";
+        };
+        statusHistoryService.record(OrderStatusHistoryService.BIZ_COFFEE_ORDER, orderId,
+                cur, target, operatorId, OrderStatusHistoryService.OPERATOR_ADMIN, reason);
         return toVO(order, itemsOf(order.getId()));
     }
 
-    /** 取餐码核销：待取餐/制作中 → 已完成 */
+    /** 取餐码核销：待取餐/制作中 → 已完成（商家操作） */
     @Transactional
-    public OrderVO verifyPickup(String pickupCode) {
+    public OrderVO verifyPickup(String pickupCode, Long operatorId) {
         OrdOrder order = orderMapper.selectOne(new LambdaQueryWrapper<OrdOrder>()
                 .eq(OrdOrder::getPickupCode, pickupCode));
         if (order == null) {
@@ -223,6 +284,9 @@ public class OrderService {
         order.setOrderStatus(STATUS_COMPLETED);
         order.setCompletedAt(LocalDateTime.now());
         orderMapper.updateById(order);
+        // 1.2：状态历史
+        statusHistoryService.record(OrderStatusHistoryService.BIZ_COFFEE_ORDER, order.getId(),
+                cur, STATUS_COMPLETED, operatorId, OrderStatusHistoryService.OPERATOR_ADMIN, "取餐码核销");
         return toVO(order, itemsOf(order.getId()));
     }
 

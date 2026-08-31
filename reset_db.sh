@@ -28,8 +28,10 @@ echo "==> 清空 $DB_NAME 所有表..."
 "${MYSQL[@]}" "$DB_NAME" <<'SQL'
 SET FOREIGN_KEY_CHECKS = 0;
 -- 反向依赖顺序删除（新增表时，按依赖关系补进对应位置；表名带域前缀 {域缩写}_）
+DROP TABLE IF EXISTS sys_idempotency;               -- 系统域，1.2 幂等记录（无依赖）
 DROP TABLE IF EXISTS sys_operation_logs;           -- 系统域，无依赖
 DROP TABLE IF EXISTS sys_notifications;            -- 系统域，依赖 usr_users
+DROP TABLE IF EXISTS ord_order_status_history;     -- 订单域，1.2 状态历史（无依赖）
 DROP TABLE IF EXISTS ord_meal_reservation_items;   -- 订单域，依赖 ord_meal_reservations
 DROP TABLE IF EXISTS ord_meal_reservations;        -- 订单域，依赖 usr_users / usr_enterprises / ord_orders / prd_products
 DROP TABLE IF EXISTS ord_order_items;              -- 订单域，依赖 ord_orders / prd_products
@@ -40,6 +42,8 @@ DROP TABLE IF EXISTS prd_categories;               -- 商品域，无依赖
 DROP TABLE IF EXISTS mtg_reservations;             -- 会议室域，依赖 mtg_rooms / usr_users / usr_enterprises
 DROP TABLE IF EXISTS mtg_rooms;                    -- 会议室域，无依赖
 DROP TABLE IF EXISTS trd_balance_transactions;     -- 交易域，依赖 usr_users / ord_orders
+DROP TABLE IF EXISTS trd_refunds;                  -- 交易域，1.2 退款单，依赖 trd_payments
+DROP TABLE IF EXISTS trd_payments;                 -- 交易域，1.2 支付单，依赖 usr_users
 DROP TABLE IF EXISTS trd_recharge_records;         -- 交易域，依赖 usr_users / trd_recharge_tiers
 DROP TABLE IF EXISTS trd_recharge_tiers;           -- 交易域，无依赖
 DROP TABLE IF EXISTS usr_member_purchases;         -- 用户域，依赖 usr_enterprises / usr_member_levels

@@ -58,13 +58,15 @@ class MemberPurchaseServiceTest {
     private UsrUserMapper userMapper;
     @Mock
     private EnterpriseService enterpriseService;
+    @Mock
+    private com.example.leaseplatform.trd.service.PaymentService paymentService;
 
     private MemberPurchaseService service;
 
     @BeforeEach
     void setUp() {
         service = new MemberPurchaseService(levelMapper, purchaseMapper, enterpriseMapper,
-                memberMapper, userMapper, enterpriseService);
+                memberMapper, userMapper, enterpriseService, paymentService);
         LoginUser loginUser = LoginUser.of(1L, 3);
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(loginUser, null, loginUser.getAuthorities()));
