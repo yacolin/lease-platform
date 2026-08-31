@@ -11,6 +11,18 @@ public class OrderItemVO {
 
     private Long productId;
 
+    /** SKU ID（1.3） */
+    private Long skuId;
+
+    /** SKU 名称快照（编码） */
+    private String skuNameSnapshot;
+
+    /** SKU 单价快照（分） */
+    private Long skuPriceSnapshot;
+
+    /** 规格快照（SKU 解析后） */
+    private tools.jackson.databind.JsonNode specificationSnapshot;
+
     /** 商品名称（快照） */
     private String productName;
 

@@ -13,9 +13,17 @@ import com.example.leaseplatform.prd.dto.ProductCreateReq;
 import com.example.leaseplatform.prd.dto.ProductStatusReq;
 import com.example.leaseplatform.prd.dto.ProductUpdateReq;
 import com.example.leaseplatform.prd.dto.ProductVO;
+import com.example.leaseplatform.prd.dto.SkuCreateReq;
+import com.example.leaseplatform.prd.dto.SkuStatusReq;
+import com.example.leaseplatform.prd.dto.SkuUpdateReq;
+import com.example.leaseplatform.prd.dto.SkuVO;
+import com.example.leaseplatform.prd.dto.SpecGroupCreateReq;
+import com.example.leaseplatform.prd.dto.SpecGroupUpdateReq;
+import com.example.leaseplatform.prd.dto.SpecGroupVO;
 import com.example.leaseplatform.prd.service.PrdCategoryService;
 import com.example.leaseplatform.prd.service.PrdDailyMenuService;
 import com.example.leaseplatform.prd.service.PrdProductService;
+import com.example.leaseplatform.prd.service.PrdSkuService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -32,10 +40,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * 商家后台商品管理接口（/api/v1/**，需登录；JWT 认证接入后生效）：
- * 分类 / 商品 / 每日菜单的完整 CRUD。
+ * 分类 / 商品（SPU）/ SKU / 规格组 / 每日菜单的完整 CRUD（1.3 商品中心 SKU 化）。
  */
 @Tag(name = "productAdmin", description = "商品管理（管理端）：需登录，JWT 认证接入后生效")
 @RestController
@@ -45,6 +54,7 @@ public class PrdAdminController {
 
     private final PrdCategoryService categoryService;
     private final PrdProductService productService;
+    private final PrdSkuService skuService;
     private final PrdDailyMenuService menuService;
 
     // ==================== 商品分类 ====================
@@ -101,8 +111,10 @@ public class PrdAdminController {
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) Integer productType,
             @RequestParam(required = false) Integer isAvailable,
+            @RequestParam(required = false) Integer productStatus,
             @RequestParam(required = false) String keyword) {
-        return ApiResponse.ok(productService.page(page, size, categoryId, productType, isAvailable, keyword));
+        return ApiResponse.ok(productService.page(page, size, categoryId, productType,
+                isAvailable, productStatus, keyword));
     }
 
     @Operation(summary = "商品详情")
@@ -119,7 +131,7 @@ public class PrdAdminController {
     }
 
     /** 上下架（状态推进风格） */
-    @Operation(summary = "商品上下架")
+    @Operation(summary = "商品上下架/状态生命周期（0-草稿, 1-待审核, 2-上架, 3-下架, 4-停售）")
 
     @OperationLog("商品上下架")
     @PutMapping("/products/{id}/status")
@@ -132,6 +144,76 @@ public class PrdAdminController {
     @DeleteMapping("/products/{id}")
     public ApiResponse<Void> deleteProduct(@PathVariable Long id) {
         productService.delete(id);
+        return ApiResponse.ok(null);
+    }
+
+    // ==================== SKU（1.3 商品中心 SKU 化） ====================
+
+    @Operation(summary = "商品 SKU 列表")
+    @GetMapping("/products/{id}/skus")
+    public ApiResponse<List<SkuVO>> listSkus(@PathVariable Long id) {
+        return ApiResponse.ok(skuService.listByProduct(id));
+    }
+
+    @Operation(summary = "创建 SKU（specValueIds 为空 → 默认 SKU）")
+    @OperationLog("创建SKU")
+    @PostMapping("/products/{id}/skus")
+    public ApiResponse<SkuVO> createSku(@PathVariable Long id,
+                                        @Valid @RequestBody SkuCreateReq req) {
+        return ApiResponse.ok(skuService.create(id, req));
+    }
+
+    @Operation(summary = "更新 SKU")
+    @PutMapping("/products/{id}/skus/{skuId}")
+    public ApiResponse<SkuVO> updateSku(@PathVariable Long id,
+                                        @PathVariable Long skuId,
+                                        @Valid @RequestBody SkuUpdateReq req) {
+        return ApiResponse.ok(skuService.update(id, skuId, req));
+    }
+
+    @Operation(summary = "删除 SKU（被订单引用时拒绝）")
+    @DeleteMapping("/products/{id}/skus/{skuId}")
+    public ApiResponse<Void> deleteSku(@PathVariable Long id, @PathVariable Long skuId) {
+        skuService.delete(id, skuId);
+        return ApiResponse.ok(null);
+    }
+
+    @Operation(summary = "SKU 上下架（0-停售, 1-可售）")
+    @PutMapping("/products/{id}/skus/{skuId}/status")
+    public ApiResponse<SkuVO> updateSkuStatus(@PathVariable Long id,
+                                              @PathVariable Long skuId,
+                                              @Valid @RequestBody SkuStatusReq req) {
+        return ApiResponse.ok(skuService.updateStatus(id, skuId, req.getStatus()));
+    }
+
+    // ==================== 规格组 / 规格值（1.3） ====================
+
+    @Operation(summary = "商品规格组列表（含规格值）")
+    @GetMapping("/products/{id}/spec-groups")
+    public ApiResponse<List<SpecGroupVO>> listSpecGroups(@PathVariable Long id) {
+        return ApiResponse.ok(skuService.listSpecGroups(id));
+    }
+
+    @Operation(summary = "创建规格组（可携带规格值）")
+    @OperationLog("创建规格组")
+    @PostMapping("/products/{id}/spec-groups")
+    public ApiResponse<SpecGroupVO> createSpecGroup(@PathVariable Long id,
+                                                    @Valid @RequestBody SpecGroupCreateReq req) {
+        return ApiResponse.ok(skuService.createSpecGroup(id, req));
+    }
+
+    @Operation(summary = "更新规格组（values 全量替换；已被 SKU 引用时拒绝）")
+    @PutMapping("/products/{id}/spec-groups/{groupId}")
+    public ApiResponse<SpecGroupVO> updateSpecGroup(@PathVariable Long id,
+                                                    @PathVariable Long groupId,
+                                                    @Valid @RequestBody SpecGroupUpdateReq req) {
+        return ApiResponse.ok(skuService.updateSpecGroup(id, groupId, req));
+    }
+
+    @Operation(summary = "删除规格组（连同规格值；已被 SKU 引用时拒绝）")
+    @DeleteMapping("/products/{id}/spec-groups/{groupId}")
+    public ApiResponse<Void> deleteSpecGroup(@PathVariable Long id, @PathVariable Long groupId) {
+        skuService.deleteSpecGroup(id, groupId);
         return ApiResponse.ok(null);
     }
 

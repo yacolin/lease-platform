@@ -29,12 +29,13 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 商品服务单元测试。
+ * 商品服务单元测试（1.3：创建默认 SKU / 状态生命周期 / 公开仅上架）。
  */
 @ExtendWith(MockitoExtension.class)
 class PrdProductServiceTest {
@@ -45,6 +46,8 @@ class PrdProductServiceTest {
     private PrdCategoryMapper categoryMapper;
     @Mock
     private PrdDailyMenuMapper menuMapper;
+    @Mock
+    private PrdSkuService skuService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -52,7 +55,7 @@ class PrdProductServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PrdProductService(productMapper, categoryMapper, menuMapper, objectMapper);
+        service = new PrdProductService(productMapper, categoryMapper, menuMapper, skuService, objectMapper);
     }
 
     private PrdCategory category(Long id) {
@@ -85,7 +88,7 @@ class PrdProductServiceTest {
     }
 
     @Test
-    void create_shouldSerializeSpecOptionsAndInsert() {
+    void create_shouldSerializeSpecOptionsAndInsertAndCreateDefaultSku() {
         when(categoryMapper.selectById(1L)).thenReturn(category(1L));
         when(productMapper.insert(any(PrdProduct.class))).thenAnswer(inv -> {
             PrdProduct p = inv.getArgument(0);
@@ -103,6 +106,8 @@ class PrdProductServiceTest {
         // VO 中解析回对象
         JsonNode returned = (JsonNode) vo.getSpecOptions();
         assertThat(returned.get("cup_size").get(1).asText()).isEqualTo("中杯");
+        // 1.3：创建商品自动生成默认 SKU（无规格，价格=SPU 价格）
+        verify(skuService).createDefault(1L, 1200L);
     }
 
     @Test
@@ -143,7 +148,7 @@ class PrdProductServiceTest {
     }
 
     @Test
-    void updateStatus_shouldSetAvailable() {
+    void updateStatus_isAvailable_shouldSyncProductStatus() {
         when(productMapper.selectById(1L)).thenReturn(product(1L, 1L, "美式", 1));
         ProductStatusReq req = new ProductStatusReq();
         req.setIsAvailable(0);
@@ -153,7 +158,22 @@ class PrdProductServiceTest {
         ArgumentCaptor<PrdProduct> captor = ArgumentCaptor.forClass(PrdProduct.class);
         verify(productMapper).updateById(captor.capture());
         assertThat(captor.getValue().getIsAvailable()).isZero();
+        assertThat(captor.getValue().getProductStatus()).isEqualTo(PrdProductService.STATUS_OFF_SHELF);
         assertThat(vo.getIsAvailable()).isZero();
+    }
+
+    @Test
+    void updateStatus_lifecycle_shouldPreferProductStatus() {
+        when(productMapper.selectById(1L)).thenReturn(product(1L, 1L, "美式", 1));
+        ProductStatusReq req = new ProductStatusReq();
+        req.setProductStatus(PrdProductService.STATUS_SUSPENDED);
+
+        service.updateStatus(1L, req);
+
+        ArgumentCaptor<PrdProduct> captor = ArgumentCaptor.forClass(PrdProduct.class);
+        verify(productMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getProductStatus()).isEqualTo(PrdProductService.STATUS_SUSPENDED);
+        assertThat(captor.getValue().getIsAvailable()).isZero(); // 停售 → 下架语义
     }
 
     @Test
@@ -165,31 +185,41 @@ class PrdProductServiceTest {
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("无法删除");
         verify(productMapper, never()).deleteById(any(PrdProduct.class));
+        verify(skuService, never()).deleteByProduct(anyLong());
     }
 
     @Test
-    void delete_withoutReference_shouldDelete() {
+    void delete_withoutReference_shouldDeleteAndCascadeSkus() {
         when(productMapper.selectById(1L)).thenReturn(product(1L, 1L, "美式", 1));
         when(menuMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
 
         service.delete(1L);
 
         verify(productMapper).deleteById(1L);
+        // 1.3：级联删除该商品 SKU（订单保留快照）
+        verify(skuService).deleteByProduct(1L);
     }
 
     @Test
-    void getById_shouldFillCategoryName() {
+    void getById_shouldFillCategoryNameAndSkuDetail() {
         when(productMapper.selectById(1L)).thenReturn(product(1L, 1L, "美式", 1));
         when(categoryMapper.selectBatchIds(List.of(1L))).thenReturn(List.of(category(1L)));
+        when(skuService.listByProduct(1L)).thenReturn(List.of());
+        when(skuService.listSpecGroups(1L)).thenReturn(List.of());
 
         ProductVO vo = service.getById(1L);
 
         assertThat(vo.getCategoryName()).isEqualTo("咖啡");
+        // 1.3：详情携带 SKU 列表与规格组
+        verify(skuService).listByProduct(1L);
+        verify(skuService).listSpecGroups(1L);
     }
 
     @Test
     void publicGet_available_shouldReturn() {
         when(productMapper.selectById(1L)).thenReturn(product(1L, 1L, "美式", 1));
+        when(skuService.listByProduct(1L)).thenReturn(List.of());
+        when(skuService.listSpecGroups(1L)).thenReturn(List.of());
 
         ProductVO vo = service.publicGet(1L);
 
@@ -200,6 +230,17 @@ class PrdProductServiceTest {
     @Test
     void publicGet_unavailable_shouldThrow404() {
         when(productMapper.selectById(1L)).thenReturn(product(1L, 1L, "美式", 0));
+
+        assertThatThrownBy(() -> service.publicGet(1L))
+                .isInstanceOf(BizException.class)
+                .hasMessage("商品不存在");
+    }
+
+    @Test
+    void publicGet_suspendedStatus_shouldThrow404() {
+        PrdProduct p = product(1L, 1L, "美式", 1);
+        p.setProductStatus(PrdProductService.STATUS_SUSPENDED);
+        when(productMapper.selectById(1L)).thenReturn(p);
 
         assertThatThrownBy(() -> service.publicGet(1L))
                 .isInstanceOf(BizException.class)

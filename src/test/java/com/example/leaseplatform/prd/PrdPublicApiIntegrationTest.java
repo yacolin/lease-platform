@@ -70,6 +70,26 @@ class PrdPublicApiIntegrationTest {
     }
 
     @Test
+    void publicProductDetail_shouldReturnSkusAndSpecGroups() throws Exception {
+        // 1.3：种子为有规格商品生成 规格组/规格值 + SKU 笛卡尔积（美式 2杯型×2温度×3糖度=12 SKU）
+        mockMvc.perform(get("/api/v1/public/products/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.skus.length()").value(12))
+                .andExpect(jsonPath("$.data.skus[0].skuCode").value("SKU000101"))
+                .andExpect(jsonPath("$.data.skus[0].price").value(1200))
+                .andExpect(jsonPath("$.data.skus[0].specSnapshot.cup_size").value("大杯"))
+                .andExpect(jsonPath("$.data.specGroups.length()").value(3))
+                .andExpect(jsonPath("$.data.specGroups[0].groupName").value("cup_size"))
+                .andExpect(jsonPath("$.data.specGroups[0].values.length()").value(2));
+        // 无规格商品（如加饭 id=6）→ 1 条默认 SKU（specSnapshot 为 null，JSON non_null 省略）
+        mockMvc.perform(get("/api/v1/public/products/6"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.skus.length()").value(1))
+                .andExpect(jsonPath("$.data.skus[0].skuCode").value("SKU000600"))
+                .andExpect(jsonPath("$.data.skus[0].specSnapshot").doesNotExist());
+    }
+
+    @Test
     void publicMenus_shouldReturnSeededMenusWithProductName() throws Exception {
         mockMvc.perform(get("/api/v1/public/menus").param("date", "2026-08-30"))
                 .andExpect(status().isOk())

@@ -18,32 +18,44 @@ import com.example.leaseplatform.prd.mapper.PrdProductMapper;
 import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 商品服务（管理端 CRUD / 上下架 + 小程序公开浏览）。
+ * 商品服务（1.3 起 prd_products 收拢为 SPU）：
+ * - 管理端 CRUD / 状态生命周期（草稿/待审核/上架/下架/停售）+ 商品创建时自动建默认 SKU；
+ * - 小程序公开浏览：仅「上架」商品可见（product_status=2，兼容 1.0 is_available）；
+ * - 详情返回 SKU 列表与规格组（PrdSkuService）。
  */
 @Service
 @RequiredArgsConstructor
 public class PrdProductService {
 
+    /** 商品状态生命周期（roadmap 1.3.5） */
+    public static final int STATUS_DRAFT = 0;       // 草稿
+    public static final int STATUS_PENDING = 1;     // 待审核
+    public static final int STATUS_ON_SHELF = 2;    // 上架
+    public static final int STATUS_OFF_SHELF = 3;   // 下架
+    public static final int STATUS_SUSPENDED = 4;   // 停售
+
     private final PrdProductMapper productMapper;
     private final PrdCategoryMapper categoryMapper;
     private final PrdDailyMenuMapper menuMapper;
+    private final PrdSkuService skuService;
     private final ObjectMapper objectMapper;
 
-    /** 管理端分页列表：可按分类 / 类型 / 上下架 / 名称关键字筛选 */
+    /** 管理端分页列表：可按分类 / 类型 / 上下架 / 状态 / 名称关键字筛选 */
     public PageResult<ProductVO> page(int page, int size, Long categoryId, Integer productType,
-                                      Integer isAvailable, String keyword) {
+                                      Integer isAvailable, Integer productStatus, String keyword) {
         Page<PrdProduct> p = new Page<>(PrdCategoryService.normalizePage(page), PrdCategoryService.normalizeSize(size));
         LambdaQueryWrapper<PrdProduct> qw = new LambdaQueryWrapper<PrdProduct>()
                 .eq(categoryId != null, PrdProduct::getCategoryId, categoryId)
                 .eq(productType != null, PrdProduct::getProductType, productType)
                 .eq(isAvailable != null, PrdProduct::getIsAvailable, isAvailable)
+                .eq(productStatus != null, PrdProduct::getProductStatus, productStatus)
                 .like(keyword != null && !keyword.isBlank(), PrdProduct::getProductName, keyword)
                 .orderByAsc(PrdProduct::getSortOrder)
                 .orderByAsc(PrdProduct::getId);
@@ -51,22 +63,26 @@ public class PrdProductService {
         return PageResult.of(p.getTotal(), toVOList(p.getRecords()));
     }
 
-    /** 详情（不存在抛 404） */
+    /** 详情（不存在抛 404；含 SKU 列表 + 规格组） */
     public ProductVO getById(Long id) {
         PrdProduct entity = require(id);
         Map<Long, String> categoryNames = categoryMapper.selectBatchIds(List.of(entity.getCategoryId()))
                 .stream().collect(Collectors.toMap(PrdCategory::getId, PrdCategory::getCategoryName, (a, b) -> a));
-        return toVO(entity, categoryNames);
+        return withSkuDetail(toVO(entity, categoryNames), id);
     }
 
+    /** 创建商品：插入 SPU 并自动创建默认 SKU（无规格，价格=SPU 价格） */
+    @Transactional
     public ProductVO create(ProductCreateReq req) {
         requireCategory(req.getCategoryId());
         PrdProduct entity = new PrdProduct();
         apply(entity, req);
         productMapper.insert(entity);
+        skuService.createDefault(entity.getId(), entity.getPrice());
         return toVO(entity);
     }
 
+    @Transactional
     public ProductVO update(Long id, ProductUpdateReq req) {
         require(id);
         requireCategory(req.getCategoryId());
@@ -76,15 +92,26 @@ public class PrdProductService {
         return toVO(entity);
     }
 
-    /** 上下架（PUT /products/{id}/status） */
+    /**
+     * 商品状态（上下架 + 生命周期）：productStatus 优先（0-草稿, 1-待审核, 2-上架, 3-下架, 4-停售），
+     * 并联动 is_available（上架=1，其余=0）；只传 isAvailable 时按 1.0 语义同步 product_status（上/下架）。
+     */
     public ProductVO updateStatus(Long id, ProductStatusReq req) {
         PrdProduct entity = require(id);
-        entity.setIsAvailable(req.getIsAvailable());
+        if (req.getProductStatus() != null) {
+            entity.setProductStatus(req.getProductStatus());
+            entity.setIsAvailable(req.getProductStatus() == STATUS_ON_SHELF ? 1 : 0);
+        } else {
+            entity.setIsAvailable(req.getIsAvailable());
+            entity.setProductStatus(req.getIsAvailable() != null && req.getIsAvailable() == 1
+                    ? STATUS_ON_SHELF : STATUS_OFF_SHELF);
+        }
         productMapper.updateById(entity);
         return toVO(entity);
     }
 
-    /** 删除商品：被每日菜单引用时拒绝（409） */
+    /** 删除商品：被每日菜单引用时拒绝（409）；级联删除其 SKU（订单保留快照） */
+    @Transactional
     public void delete(Long id) {
         require(id);
         Long count = menuMapper.selectCount(new LambdaQueryWrapper<PrdDailyMenu>()
@@ -93,6 +120,7 @@ public class PrdProductService {
             throw BizException.conflict("该商品已被每日菜单引用，无法删除");
         }
         productMapper.deleteById(id);
+        skuService.deleteByProduct(id);
     }
 
     /** 小程序公开分页：仅上架商品 */
@@ -100,6 +128,7 @@ public class PrdProductService {
         Page<PrdProduct> p = new Page<>(PrdCategoryService.normalizePage(page), Math.min(Math.max(size, 1), 100));
         LambdaQueryWrapper<PrdProduct> qw = new LambdaQueryWrapper<PrdProduct>()
                 .eq(PrdProduct::getIsAvailable, 1)
+                .and(w -> w.isNull(PrdProduct::getProductStatus).or().eq(PrdProduct::getProductStatus, STATUS_ON_SHELF))
                 .eq(categoryId != null, PrdProduct::getCategoryId, categoryId)
                 .eq(productType != null, PrdProduct::getProductType, productType)
                 .orderByAsc(PrdProduct::getSortOrder)
@@ -108,13 +137,14 @@ public class PrdProductService {
         return PageResult.of(p.getTotal(), toVOList(p.getRecords()));
     }
 
-    /** 小程序公开详情：仅上架商品，下架视为不存在（404） */
+    /** 小程序公开详情：仅上架商品，下架视为不存在（404）；含 SKU 列表 + 规格组 */
     public ProductVO publicGet(Long id) {
         PrdProduct entity = productMapper.selectById(id);
-        if (entity == null || entity.getIsAvailable() == null || entity.getIsAvailable() != 1) {
+        if (entity == null || entity.getIsAvailable() == null || entity.getIsAvailable() != 1
+                || (entity.getProductStatus() != null && entity.getProductStatus() != STATUS_ON_SHELF)) {
             throw BizException.notFound("商品不存在");
         }
-        return toVO(entity);
+        return withSkuDetail(toVO(entity), id);
     }
 
     private PrdProduct require(Long id) {
@@ -140,6 +170,8 @@ public class PrdProductService {
         entity.setImageUrl(req.getImageUrl());
         entity.setSpecOptions(writeJson(req.getSpecOptions()));
         entity.setIsAvailable(req.getIsAvailable() == null ? 1 : req.getIsAvailable());
+        entity.setProductStatus(req.getIsAvailable() == null || req.getIsAvailable() == 1
+                ? STATUS_ON_SHELF : STATUS_OFF_SHELF);
         entity.setStock(req.getStock());
         entity.setSortOrder(req.getSortOrder() == null ? 0 : req.getSortOrder());
     }
@@ -153,8 +185,17 @@ public class PrdProductService {
         entity.setImageUrl(req.getImageUrl());
         entity.setSpecOptions(writeJson(req.getSpecOptions()));
         entity.setIsAvailable(req.getIsAvailable() == null ? 1 : req.getIsAvailable());
+        entity.setProductStatus(req.getIsAvailable() == null || req.getIsAvailable() == 1
+                ? STATUS_ON_SHELF : STATUS_OFF_SHELF);
         entity.setStock(req.getStock());
         entity.setSortOrder(req.getSortOrder() == null ? 0 : req.getSortOrder());
+    }
+
+    /** 详情补充 SKU 列表与规格组（列表页不携带，JSON non_null 省略） */
+    private ProductVO withSkuDetail(ProductVO vo, Long productId) {
+        vo.setSkus(skuService.listByProduct(productId));
+        vo.setSpecGroups(skuService.listSpecGroups(productId));
+        return vo;
     }
 
     /** 规格选项：对象 → JSON 字符串（null 保持 null） */
@@ -207,6 +248,7 @@ public class PrdProductService {
         vo.setImageUrl(entity.getImageUrl());
         vo.setSpecOptions(readJson(entity.getSpecOptions()));
         vo.setIsAvailable(entity.getIsAvailable());
+        vo.setProductStatus(entity.getProductStatus());
         vo.setStock(entity.getStock());
         vo.setSortOrder(entity.getSortOrder());
         vo.setCreatedAt(TimeUtil.toEpochMillis(entity.getCreatedAt()));

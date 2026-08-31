@@ -16,6 +16,9 @@ public class OrderItemReq {
     @NotNull(message = "商品不能为空")
     private Long productId;
 
+    /** SKU ID（1.3；可选，缺省取该商品默认 SKU） */
+    private Long skuId;
+
     @NotNull(message = "数量不能为空")
     @Min(value = 1, message = "数量至少 1")
     @Max(value = 99, message = "单商品最多 99 份")

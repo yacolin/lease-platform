@@ -79,13 +79,18 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 |---|---|---|
 | POST | `/api/v1/auth/login` | 后台管理员登录 `{username, password}`（bcrypt 校验 usr_admins；初始化账号 admin/123456，见迁移 V2 与 db/seed.py；签发 user_type=1 的 token） |
 | POST | `/api/v1/auth/logout` | 登出 `{refreshToken}`（作废 Redis 会话，管理端/小程序共用） |
-| POST | `/api/v1/categories` | 创建分类 |
+| POST | `/api/v1/categories` | 创建分类（1.3：parentId 二级分类 / iconUrl / isShow） |
 | GET | `/api/v1/categories` | 分类分页列表 |
 | GET/PUT/DELETE | `/api/v1/categories/{id}` | 分类详情 / 更新 / 删除 |
-| POST | `/api/v1/products` | 创建商品 |
-| GET | `/api/v1/products` | 商品分页列表（分类/类型/上下架/关键词筛选） |
-| GET/PUT/DELETE | `/api/v1/products/{id}` | 商品详情 / 更新 / 删除 |
-| PUT | `/api/v1/products/{id}/status` | 商品上下架 |
+| POST | `/api/v1/products` | 创建商品（SPU，自动生成默认 SKU） |
+| GET | `/api/v1/products` | 商品分页列表（分类/类型/上下架/状态/关键词筛选） |
+| GET/PUT/DELETE | `/api/v1/products/{id}` | 商品详情（含 SKU + 规格组）/ 更新 / 删除（级联删 SKU） |
+| PUT | `/api/v1/products/{id}/status` | 商品上下架 / 状态生命周期（0-草稿, 1-待审核, 2-上架, 3-下架, 4-停售） |
+| GET/POST | `/api/v1/products/{id}/skus` | SKU 列表 / 创建（specValueIds 空 → 默认 SKU） |
+| PUT/DELETE | `/api/v1/products/{id}/skus/{skuId}` | 更新 / 删除 SKU（被订单引用时拒绝） |
+| PUT | `/api/v1/products/{id}/skus/{skuId}/status` | SKU 上下架（0-停售, 1-可售） |
+| GET/POST | `/api/v1/products/{id}/spec-groups` | 规格组列表（含规格值）/ 创建（可携带 values） |
+| PUT/DELETE | `/api/v1/products/{id}/spec-groups/{groupId}` | 更新（values 全量替换）/ 删除（已被 SKU 引用时拒绝） |
 | POST | `/api/v1/menus` | 创建菜单项 |
 | GET | `/api/v1/menus` | 菜单分页列表 |
 | GET/PUT/DELETE | `/api/v1/menus/{id}` | 菜单项详情 / 更新 / 删除 |
@@ -104,9 +109,9 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/v1/public/categories` | 商品分类列表（仅启用） |
+| GET | `/api/v1/public/categories` | 商品分类列表（仅启用且展示） |
 | GET | `/api/v1/public/products` | 商品分页（仅上架；`categoryId`/`productType` 筛选） |
-| GET | `/api/v1/public/products/{id}` | 商品详情（下架视为 404） |
+| GET | `/api/v1/public/products/{id}` | 商品详情（下架视为 404；含 SKU 列表 + 规格组） |
 | GET | `/api/v1/public/menus?date=` | 每日菜单（缺省今天，含套餐名） |
 | GET | `/api/v1/public/member-levels` | 会员等级列表（仅启用） |
 | GET | `/api/v1/public/recharge-tiers` | 充值档位列表（仅启用） |
@@ -287,6 +292,7 @@ make test     # 294 例：service 单元（Mockito）+ controller Web（@WebMvcT
 - [x] P5 会议室：public+admin 管理 / 预约冲突校验 / 会员免费时长抵扣+超时计费 / 状态流转（待确认→已确认→完成/取消/过期）
 - [x] P6 系统域与工程化：通知中心 / 操作日志（AOP）/ dev-prod 环境分离 / Flyway 自动迁移 / Docker 部署
 - [x] 1.2 交易可靠性：支付单 / 退款单（全额/部分/多次+幂等）/ 订单状态历史 / 幂等记录（V6 迁移 + 四表 + 充值/咖啡/正餐/会员购买全链路接入 + 我的交易/管理端查询接口）
+- [x] 1.3 商品中心 SKU 化：prd_skus / prd_spec_groups / prd_spec_values（V7 迁移 + 种子笛卡尔积 150 SKU）/ 商品状态生命周期 / 分类二级化 / 订单 SKU 快照（咖啡下单指定 skuId 或默认 SKU）
 
 ## 部署（Docker）
 

@@ -36,6 +36,9 @@ DROP TABLE IF EXISTS ord_meal_reservation_items;   -- 订单域，依赖 ord_mea
 DROP TABLE IF EXISTS ord_meal_reservations;        -- 订单域，依赖 usr_users / usr_enterprises / ord_orders / prd_products
 DROP TABLE IF EXISTS ord_order_items;              -- 订单域，依赖 ord_orders / prd_products
 DROP TABLE IF EXISTS ord_orders;                   -- 订单域，依赖 usr_users / usr_enterprises / prd_products
+DROP TABLE IF EXISTS prd_skus;                     -- 商品域，1.3 SKU，依赖 prd_products
+DROP TABLE IF EXISTS prd_spec_values;              -- 商品域，1.3 规格值，依赖 prd_spec_groups
+DROP TABLE IF EXISTS prd_spec_groups;              -- 商品域，1.3 规格组，依赖 prd_products
 DROP TABLE IF EXISTS prd_daily_menus;              -- 商品域，依赖 prd_products
 DROP TABLE IF EXISTS prd_products;                 -- 商品域，依赖 prd_categories
 DROP TABLE IF EXISTS prd_categories;               -- 商品域，无依赖

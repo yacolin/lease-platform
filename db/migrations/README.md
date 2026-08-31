@@ -4,7 +4,7 @@
 
 - `db/*.sql`：开发期 `reset_db.sh` 全量重建用（可重复执行）；
 - `db/migrations/`：增量演进基线（开发期由 `reset_db.sh` 末尾的 `schema_migrations` 标记已应用）；
-- `src/main/resources/db/migration/`：**Flyway 迁移脚本（V1~V6）**，生产 profile
+- `src/main/resources/db/migration/`：**Flyway 迁移脚本（V1~V7）**，生产 profile
   （`SPRING_PROFILES_ACTIVE=prod`）启动时由 `FlywayMigrationRunner` 自动执行。
   注意：Spring Boot 4 已移除 Flyway 自动配置，本仓库用 Flyway Java API 驱动；
   复制到 Flyway 目录时需去掉 `-- +migrate Down` 回滚段（Flyway 整文件执行）。
@@ -38,6 +38,7 @@ DROP TABLE ...
 | 004 | 交易域：trd_recharge_records 补充 paid_at 支付时间列（1.0 设计遗漏） |
 | 005 | 会议室定价模型（1.1）：mtg_rooms 删除 hourly_fee、新增 mtg_room_level_prices、mtg_reservations 增加价格快照（overtime_unit_price / free_hours_deducted） |
 | 006 | 交易可靠性（1.2）：新增 trd_payments 支付单 / trd_refunds 退款单 / ord_order_status_history 订单状态历史 / sys_idempotency 幂等记录（roadmap 1.2，编号/外部交易号/幂等键唯一） |
+| 007 | 商品中心 SKU 化（1.3）：新增 prd_skus / prd_spec_groups / prd_spec_values；prd_products 增 product_status 状态生命周期；prd_categories 增 parent_id / icon_url / is_show；ord_order_items 增 SKU 快照四字段（roadmap 1.3） |
 
 ## 开发流程
 
@@ -45,4 +46,4 @@ DROP TABLE ...
 - 已有数据的环境（含测试环境）接入迁移工具后一律增量升级，**禁止**改 `db/*.sql` 后重跑重建；
 - **Flyway（已接入）**：改表时同步 `src/main/resources/db/migration/`（Flyway 命名
   `Vx__desc.sql`，去掉 `+migrate Down` 段），生产启动自动迁移；已验证全新库
-  V1~V6 建 26 表 + 种子数据。
+  V1~V7 建 29 表 + 种子数据。

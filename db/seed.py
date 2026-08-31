@@ -21,6 +21,8 @@ import os
 import subprocess
 import sys
 import tempfile
+import itertools
+import json
 from datetime import date, timedelta
 
 ADMIN_BCRYPT = "$2a$10$ZUXdPnydoz4kKJQYT7aRw.rT9dhuPOgr6GySeCmwolTGl1r1LvdMO"  # admin / 123456
@@ -137,6 +139,50 @@ def esc(v):
     return str(v).replace("'", "''")
 
 
+def build_product_skus(products):
+    """由商品规格生成 规格组/规格值/SKU（1.3）：
+    - 有规格（spec_options JSON：{规格组: [规格值...]}）→ 规格组/值入库，SKU = 各规格值笛卡尔积，
+      价格沿用商品价；spec_value_ids / spec_snapshot 存 JSON；
+    - 无规格 → 生成 1 条默认 SKU（规格为空）。
+    SKU id 雪花位（显式 10001+），sku_code = SKU{商品id:04d}{序号:02d}。
+    """
+    group_rows, value_rows, sku_rows = [], [], []
+    gid = 1  # prd_spec_groups 自增（种子重置后从 1 开始）
+    vid = 1  # prd_spec_values 自增
+    sku_id = 10001
+    value_names = {}  # vid -> value_name（构造规格快照用）
+    for pid, _cid, _name, _ptype, price, _desc, spec in products:
+        groups = None
+        if spec:
+            try:
+                groups = json.loads(spec)
+            except Exception:
+                groups = None
+        if groups:
+            group_defs = []  # [(group_name, [value_id...])]
+            for gidx, (gname, values) in enumerate(groups.items(), start=1):
+                group_rows.append((pid, gname, gidx))
+                vids = []
+                for vidx, vname in enumerate(values, start=1):
+                    value_rows.append((gid, vname, vidx))
+                    value_names[vid] = vname
+                    vids.append(vid)
+                    vid += 1
+                group_defs.append((gname, vids))
+                gid += 1
+            combos = itertools.product(*[vids for _, vids in group_defs])
+            for idx, combo in enumerate(combos, start=1):
+                snapshot = {gname: value_names[v] for (gname, _), v in zip(group_defs, combo)}
+                sku_rows.append((
+                    sku_id, f"SKU{pid:04d}{idx:02d}", pid,
+                    json.dumps(list(combo)), json.dumps(snapshot, ensure_ascii=False), price))
+                sku_id += 1
+        else:
+            sku_rows.append((sku_id, f"SKU{pid:04d}00", pid, "NULL", "NULL", price))
+            sku_id += 1
+    return group_rows, value_rows, sku_rows
+
+
 def build_sql():
     sql = []
     # ---------- 清空全部业务表（幂等；含测试/手动操作产生的残留，保证种子后为全新一致状态） ----------
@@ -146,7 +192,8 @@ def build_sql():
         # 订单域
         "ord_meal_reservation_items", "ord_meal_reservations", "ord_order_items", "ord_orders",
         # 商品域
-        "prd_daily_menus", "prd_products", "prd_categories",
+        "prd_skus", "prd_spec_values", "prd_spec_groups", "prd_daily_menus",
+        "prd_products", "prd_categories",
         # 会议室域
         "mtg_reservations", "mtg_room_level_prices", "mtg_rooms",
         # 交易域
@@ -158,6 +205,8 @@ def build_sql():
     for t in tables:
         sql.append(f"DELETE FROM `{t}`;")
     sql.append("ALTER TABLE `prd_categories` AUTO_INCREMENT = 1;")
+    sql.append("ALTER TABLE `prd_spec_groups` AUTO_INCREMENT = 1;")
+    sql.append("ALTER TABLE `prd_spec_values` AUTO_INCREMENT = 1;")
     sql.append("ALTER TABLE `mtg_rooms` AUTO_INCREMENT = 1;")
     sql.append("ALTER TABLE `mtg_room_level_prices` AUTO_INCREMENT = 1;")
     sql.append("ALTER TABLE `trd_recharge_tiers` AUTO_INCREMENT = 1;")
@@ -178,6 +227,28 @@ def build_sql():
     )
     sql.append("INSERT INTO `prd_products` (`id`, `category_id`, `product_name`, `product_type`, "
                f"`price`, `description`, `spec_options`) VALUES {rows};")
+
+    # ---------- 商品规格组 / 规格值 / SKU（1.3：规格组合 → SKU；无规格商品生成默认 SKU） ----------
+    group_rows, value_rows, sku_rows = build_product_skus(products)
+    if group_rows:
+        rows = ", ".join(f"({pid}, '{esc(gname)}', {so})" for pid, gname, so in group_rows)
+        sql.append("INSERT INTO `prd_spec_groups` (`product_id`, `group_name`, `sort_order`) "
+                   f"VALUES {rows};")
+    if value_rows:
+        rows = ", ".join(f"({gid}, '{esc(vname)}', {so})" for gid, vname, so in value_rows)
+        sql.append("INSERT INTO `prd_spec_values` (`group_id`, `value_name`, `sort_order`) "
+                   f"VALUES {rows};")
+    if sku_rows:
+        def sku_json(v):
+            # JSON 列值：'NULL' 保持 NULL，其余加单引号（MySQL JSON 字面量需引号）
+            return "NULL" if v == "NULL" else "'" + esc(v) + "'"
+        rows = ", ".join(
+            "({sid}, '{code}', {pid}, {sv}, {ss}, {price})".format(
+                sid=sid, code=code, pid=pid, sv=sku_json(svids),
+                ss=sku_json(ssnap), price=price)
+            for sid, code, pid, svids, ssnap, price in sku_rows)
+        sql.append("INSERT INTO `prd_skus` (`id`, `sku_code`, `product_id`, `spec_value_ids`, "
+                   f"`spec_snapshot`, `price`) VALUES {rows};")
 
     # ---------- 每日菜单：核心 2026-08-30（11 条，测试断言）+ 扩充未来 3 天 ----------
     menu_rows = []
@@ -271,6 +342,9 @@ def main():
                       "SELECT CONCAT(table_name,'=',cnt) FROM ("
                       "SELECT 'prd_categories' table_name, COUNT(*) cnt FROM prd_categories UNION ALL "
                       "SELECT 'prd_products', COUNT(*) FROM prd_products UNION ALL "
+                      "SELECT 'prd_spec_groups', COUNT(*) FROM prd_spec_groups UNION ALL "
+                      "SELECT 'prd_spec_values', COUNT(*) FROM prd_spec_values UNION ALL "
+                      "SELECT 'prd_skus', COUNT(*) FROM prd_skus UNION ALL "
                       "SELECT 'prd_daily_menus', COUNT(*) FROM prd_daily_menus UNION ALL "
                       "SELECT 'mtg_rooms', COUNT(*) FROM mtg_rooms UNION ALL "
                       "SELECT 'mtg_room_level_prices', COUNT(*) FROM mtg_room_level_prices UNION ALL "

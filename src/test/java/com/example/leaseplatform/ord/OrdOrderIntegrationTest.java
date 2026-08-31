@@ -212,4 +212,19 @@ class OrdOrderIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.orderStatus").value(0));
     }
+
+    @Test
+    void coffeeOrder_withSku_shouldSnapshotSkuFields() throws Exception {
+        // 1.3：指定 SKU 下单 → 明细携带 SKU 快照（sku_id/编码/单价/规格快照）
+        String token = wxAccessToken();
+        mockMvc.perform(post("/api/v1/me/orders")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"items\":[{\"productId\":1,\"skuId\":10001,\"quantity\":1}]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].skuId").value(10001))
+                .andExpect(jsonPath("$.data.items[0].skuNameSnapshot").value("SKU000101"))
+                .andExpect(jsonPath("$.data.items[0].skuPriceSnapshot").value(1200))
+                .andExpect(jsonPath("$.data.items[0].specificationSnapshot.cup_size").value("大杯"));
+    }
 }

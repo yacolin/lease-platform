@@ -5,9 +5,12 @@ import com.example.leaseplatform.config.SecurityConfig;
 import com.example.leaseplatform.config.SecurityProperties;
 import com.example.leaseplatform.prd.dto.CategoryVO;
 import com.example.leaseplatform.prd.dto.ProductVO;
+import com.example.leaseplatform.prd.dto.SkuVO;
+import com.example.leaseplatform.prd.dto.SpecGroupVO;
 import com.example.leaseplatform.prd.service.PrdCategoryService;
 import com.example.leaseplatform.prd.service.PrdDailyMenuService;
 import com.example.leaseplatform.prd.service.PrdProductService;
+import com.example.leaseplatform.prd.service.PrdSkuService;
 import com.example.leaseplatform.security.JwtTokenProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +56,8 @@ class PrdAdminControllerTest {
     private PrdCategoryService categoryService;
     @MockitoBean
     private PrdProductService productService;
+    @MockitoBean
+    private PrdSkuService skuService;
     @MockitoBean
     private PrdDailyMenuService menuService;
     /** SecurityConfig 装配 JWT 过滤器需要；本测试用 @WithMockUser，过滤器不参与认证 */
@@ -185,5 +190,99 @@ class PrdAdminControllerTest {
                                 {"menuDate":"2026-08-30","productId":4,"dishName":"红烧肉","dishType":1}"""))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.dishName").value("红烧肉"));
+    }
+
+    // ==================== 1.3 SKU / 规格组 ====================
+
+    @Test
+    void listSkus_shouldReturnVoList() throws Exception {
+        SkuVO vo = new SkuVO();
+        vo.setId(5L);
+        vo.setSkuCode("SKU000101");
+        when(skuService.listByProduct(1L)).thenReturn(List.of(vo));
+
+        mockMvc.perform(get("/api/v1/products/1/skus"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].skuCode").value("SKU000101"));
+    }
+
+    @Test
+    void createSku_shouldReturnVo() throws Exception {
+        SkuVO vo = new SkuVO();
+        vo.setId(6L);
+        vo.setPrice(1500L);
+        when(skuService.create(eq(1L), any())).thenReturn(vo);
+
+        mockMvc.perform(post("/api/v1/products/1/skus")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"price\":1500,\"specValueIds\":[1,2]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.price").value(1500));
+    }
+
+    @Test
+    void createSku_invalidPrice_shouldReturn422() throws Exception {
+        mockMvc.perform(post("/api/v1/products/1/skus")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void deleteSku_shouldSucceed() throws Exception {
+        doNothing().when(skuService).delete(1L, 5L);
+
+        mockMvc.perform(delete("/api/v1/products/1/skus/5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+    }
+
+    @Test
+    void updateSkuStatus_shouldReturnVo() throws Exception {
+        SkuVO vo = new SkuVO();
+        vo.setId(5L);
+        vo.setStatus(0);
+        when(skuService.updateStatus(eq(1L), eq(5L), eq(0))).thenReturn(vo);
+
+        mockMvc.perform(put("/api/v1/products/1/skus/5/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":0}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value(0));
+    }
+
+    @Test
+    void listSpecGroups_shouldReturnVoList() throws Exception {
+        SpecGroupVO vo = new SpecGroupVO();
+        vo.setId(10L);
+        vo.setGroupName("杯型");
+        when(skuService.listSpecGroups(1L)).thenReturn(List.of(vo));
+
+        mockMvc.perform(get("/api/v1/products/1/spec-groups"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].groupName").value("杯型"));
+    }
+
+    @Test
+    void createSpecGroup_shouldReturnVo() throws Exception {
+        SpecGroupVO vo = new SpecGroupVO();
+        vo.setId(10L);
+        vo.setGroupName("杯型");
+        when(skuService.createSpecGroup(eq(1L), any())).thenReturn(vo);
+
+        mockMvc.perform(post("/api/v1/products/1/spec-groups")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"groupName\":\"杯型\",\"values\":[\"大杯\",\"中杯\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.groupName").value("杯型"));
+    }
+
+    @Test
+    void deleteSpecGroup_shouldSucceed() throws Exception {
+        doNothing().when(skuService).deleteSpecGroup(1L, 10L);
+
+        mockMvc.perform(delete("/api/v1/products/1/spec-groups/10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
     }
 }

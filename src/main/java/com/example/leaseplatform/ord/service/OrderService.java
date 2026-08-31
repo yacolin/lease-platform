@@ -16,7 +16,9 @@ import com.example.leaseplatform.ord.entity.OrdOrderItem;
 import com.example.leaseplatform.ord.mapper.OrdOrderItemMapper;
 import com.example.leaseplatform.ord.mapper.OrdOrderMapper;
 import com.example.leaseplatform.prd.entity.PrdProduct;
+import com.example.leaseplatform.prd.entity.PrdSku;
 import com.example.leaseplatform.prd.mapper.PrdProductMapper;
+import com.example.leaseplatform.prd.service.PrdSkuService;
 import com.example.leaseplatform.trd.entity.TrdPayment;
 import com.example.leaseplatform.trd.service.BalanceService;
 import com.example.leaseplatform.trd.service.PaymentService;
@@ -75,6 +77,7 @@ public class OrderService {
     private final PaymentService paymentService;
     private final RefundService refundService;
     private final OrderStatusHistoryService statusHistoryService;
+    private final PrdSkuService skuService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -93,16 +96,23 @@ public class OrderService {
         long total = 0;
         for (OrderItemReq itemReq : req.getItems()) {
             PrdProduct product = productMapper.selectById(itemReq.getProductId());
-            if (product == null || product.getIsAvailable() == null || product.getIsAvailable() != 1) {
+            if (product == null || product.getIsAvailable() == null || product.getIsAvailable() != 1
+                    || (product.getProductStatus() != null && product.getProductStatus() != 2)) {
                 throw BizException.badRequest("商品已下架或不存在：" + itemReq.getProductId());
             }
-            long price = product.getPrice();
+            // 1.3：SKU 解析（指定 SKU 必须属于该商品且可售；未指定取默认 SKU，无 SKU 回落 SPU 价格）
+            PrdSku sku = skuService.resolveForOrder(product.getId(), itemReq.getSkuId());
+            long price = sku != null ? sku.getPrice() : product.getPrice();
             int qty = itemReq.getQuantity() == null ? 1 : itemReq.getQuantity();
             long subtotal = price * qty;
             // 折后单价（分，HALF_UP 舍入到分）
             long discountedPrice = roundCents(BigDecimal.valueOf(price).multiply(memberRate).multiply(rechargeRate));
             OrdOrderItem item = new OrdOrderItem();
             item.setProductId(product.getId());
+            item.setSkuId(sku != null ? sku.getId() : null);
+            item.setSkuNameSnapshot(sku != null ? sku.getSkuCode() : null);
+            item.setSkuPriceSnapshot(sku != null ? sku.getPrice() : null);
+            item.setSpecificationSnapshot(sku != null ? sku.getSpecSnapshot() : null);
             item.setProductName(product.getProductName());
             item.setProductPrice(price);
             item.setSpecification(toJson(itemReq.getSpec()));
@@ -456,6 +466,10 @@ public class OrderService {
     private OrderItemVO toItemVO(OrdOrderItem item) {
         OrderItemVO vo = new OrderItemVO();
         vo.setProductId(item.getProductId());
+        vo.setSkuId(item.getSkuId());
+        vo.setSkuNameSnapshot(item.getSkuNameSnapshot());
+        vo.setSkuPriceSnapshot(item.getSkuPriceSnapshot());
+        vo.setSpecificationSnapshot(parseJson(item.getSpecificationSnapshot()));
         vo.setProductName(item.getProductName());
         vo.setProductPrice(item.getProductPrice());
         vo.setSpecification(parseJson(item.getSpecification()));

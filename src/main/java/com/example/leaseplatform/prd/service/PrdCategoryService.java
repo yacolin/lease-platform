@@ -19,6 +19,7 @@ import java.util.List;
 
 /**
  * 商品分类服务（管理端 CRUD + 小程序公开列表）。
+ * 1.3 起支持二级分类（parent_id）/ 图标（icon_url）/ 展示状态（is_show）。
  */
 @Service
 @RequiredArgsConstructor
@@ -46,19 +47,21 @@ public class PrdCategoryService {
 
     public CategoryVO create(CategoryCreateReq req) {
         PrdCategory entity = new PrdCategory();
-        apply(entity, req.getCategoryName(), req.getCategoryType(), req.getSortOrder(), req.getStatus());
+        apply(entity, req.getCategoryName(), req.getCategoryType(), req.getParentId(),
+                req.getSortOrder(), req.getStatus(), req.getIconUrl(), req.getIsShow());
         categoryMapper.insert(entity);
         return toVO(entity);
     }
 
     public CategoryVO update(Long id, CategoryUpdateReq req) {
         PrdCategory entity = require(id);
-        apply(entity, req.getCategoryName(), req.getCategoryType(), req.getSortOrder(), req.getStatus());
+        apply(entity, req.getCategoryName(), req.getCategoryType(), req.getParentId(),
+                req.getSortOrder(), req.getStatus(), req.getIconUrl(), req.getIsShow());
         categoryMapper.updateById(entity);
         return toVO(entity);
     }
 
-    /** 删除分类：分类下存在未删除商品时拒绝（409） */
+    /** 删除分类：分类下存在未删除商品或子分类时拒绝（409） */
     public void delete(Long id) {
         require(id);
         Long count = productMapper.selectCount(new LambdaQueryWrapper<PrdProduct>()
@@ -66,13 +69,19 @@ public class PrdCategoryService {
         if (count != null && count > 0) {
             throw BizException.conflict("该分类下存在商品，无法删除");
         }
+        Long children = categoryMapper.selectCount(new LambdaQueryWrapper<PrdCategory>()
+                .eq(PrdCategory::getParentId, id));
+        if (children != null && children > 0) {
+            throw BizException.conflict("该分类下存在子分类，无法删除");
+        }
         categoryMapper.deleteById(id);
     }
 
-    /** 小程序公开列表：仅启用，按 sort_order 升序 */
+    /** 小程序公开列表：仅启用且展示，按 sort_order 升序 */
     public List<CategoryVO> publicList() {
         return categoryMapper.selectList(new LambdaQueryWrapper<PrdCategory>()
                         .eq(PrdCategory::getStatus, 1)
+                        .eq(PrdCategory::getIsShow, 1)
                         .orderByAsc(PrdCategory::getSortOrder)
                         .orderByAsc(PrdCategory::getId))
                 .stream().map(this::toVO).toList();
@@ -86,11 +95,15 @@ public class PrdCategoryService {
         return entity;
     }
 
-    private void apply(PrdCategory entity, String name, Integer type, Integer sortOrder, Integer status) {
+    private void apply(PrdCategory entity, String name, Integer type, Long parentId,
+                       Integer sortOrder, Integer status, String iconUrl, Integer isShow) {
         entity.setCategoryName(name);
         entity.setCategoryType(type);
+        entity.setParentId(parentId == null ? 0L : parentId);
         entity.setSortOrder(sortOrder == null ? 0 : sortOrder);
         entity.setStatus(status == null ? 1 : status);
+        entity.setIconUrl(iconUrl);
+        entity.setIsShow(isShow == null ? 1 : isShow);
     }
 
     private CategoryVO toVO(PrdCategory entity) {
@@ -98,8 +111,11 @@ public class PrdCategoryService {
         vo.setId(entity.getId());
         vo.setCategoryName(entity.getCategoryName());
         vo.setCategoryType(entity.getCategoryType());
+        vo.setParentId(entity.getParentId());
         vo.setSortOrder(entity.getSortOrder());
         vo.setStatus(entity.getStatus());
+        vo.setIconUrl(entity.getIconUrl());
+        vo.setIsShow(entity.getIsShow());
         vo.setCreatedAt(TimeUtil.toEpochMillis(entity.getCreatedAt()));
         vo.setUpdatedAt(TimeUtil.toEpochMillis(entity.getUpdatedAt()));
         return vo;

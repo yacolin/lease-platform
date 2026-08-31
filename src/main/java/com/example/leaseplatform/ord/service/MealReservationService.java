@@ -89,7 +89,8 @@ public class MealReservationService {
         validateBookingWindow(req.getMenuDate());
         UsrUser user = requireUser(userId);
         PrdProduct product = productMapper.selectById(req.getProductId());
-        if (product == null || product.getIsAvailable() == null || product.getIsAvailable() != 1) {
+        if (product == null || product.getIsAvailable() == null || product.getIsAvailable() != 1
+                || (product.getProductStatus() != null && product.getProductStatus() != 2)) {
             throw BizException.badRequest("套餐商品已下架或不存在");
         }
         // 该日期有该套餐菜单（供应中）

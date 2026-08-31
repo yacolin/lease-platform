@@ -14,6 +14,7 @@ import com.example.leaseplatform.ord.entity.OrdOrderItem;
 import com.example.leaseplatform.ord.mapper.OrdOrderItemMapper;
 import com.example.leaseplatform.ord.mapper.OrdOrderMapper;
 import com.example.leaseplatform.prd.entity.PrdProduct;
+import com.example.leaseplatform.prd.entity.PrdSku;
 import com.example.leaseplatform.prd.mapper.PrdProductMapper;
 import com.example.leaseplatform.trd.entity.TrdPayment;
 import com.example.leaseplatform.trd.entity.TrdRefund;
@@ -68,6 +69,8 @@ class OrderServiceTest {
     private com.example.leaseplatform.trd.service.RefundService refundService;
     @Mock
     private OrderStatusHistoryService statusHistoryService;
+    @Mock
+    private com.example.leaseplatform.prd.service.PrdSkuService skuService;
 
     private OrderService service;
 
@@ -86,7 +89,8 @@ class OrderServiceTest {
     void setUp() {
         // 须在 @Mock 注入后构造（字段初始化器在注入前执行会拿到 null mock）
         service = new OrderService(orderMapper, itemMapper, productMapper, userMapper,
-                discountCalculator, balanceService, paymentService, refundService, statusHistoryService);
+                discountCalculator, balanceService, paymentService, refundService, statusHistoryService,
+                skuService);
     }
 
     private UsrUser user(int memberLevel, Long enterpriseId) {
@@ -142,6 +146,41 @@ class OrderServiceTest {
         ArgumentCaptor<OrdOrderItem> captor = ArgumentCaptor.forClass(OrdOrderItem.class);
         verify(itemMapper).insert(captor.capture());
         assertThat(captor.getValue().getSpecification()).contains("大杯");
+    }
+
+    @Test
+    void create_withSku_shouldUseSkuPriceAndSnapshot() {
+        // 1.3：指定 SKU 下单 → 明细使用 SKU 价格 + SKU 快照（sku_id / 编码 / 单价 / 规格快照）
+        when(userMapper.selectById(1L)).thenReturn(user(0, null));
+        when(productMapper.selectById(1L)).thenReturn(product(1L, "美式", 1200L));
+        when(discountCalculator.memberDiscountRate(any())).thenReturn(BigDecimal.ONE);
+        when(discountCalculator.rechargeDiscountRate(1L)).thenReturn(BigDecimal.ONE);
+        PrdSku sku = new PrdSku();
+        sku.setId(5L);
+        sku.setProductId(1L);
+        sku.setSkuCode("SKU000101");
+        sku.setPrice(1500L);
+        sku.setSpecSnapshot("{\"杯型\":\"大杯\"}");
+        when(skuService.resolveForOrder(1L, 5L)).thenReturn(sku);
+        when(orderMapper.insert(any(OrdOrder.class))).thenAnswer(inv -> {
+            ((OrdOrder) inv.getArgument(0)).setId(100L);
+            return 1;
+        });
+        when(itemMapper.insert(any(OrdOrderItem.class))).thenReturn(1);
+
+        OrderCreateReq req = req(1L, 1, null);
+        req.getItems().get(0).setSkuId(5L);
+        OrderVO vo = service.create(1L, req);
+
+        ArgumentCaptor<OrdOrderItem> captor = ArgumentCaptor.forClass(OrdOrderItem.class);
+        verify(itemMapper).insert(captor.capture());
+        assertThat(captor.getValue().getSkuId()).isEqualTo(5L);
+        assertThat(captor.getValue().getSkuNameSnapshot()).isEqualTo("SKU000101");
+        assertThat(captor.getValue().getSkuPriceSnapshot()).isEqualTo(1500L);
+        assertThat(captor.getValue().getSpecificationSnapshot()).contains("大杯");
+        // 明细原价/应付按 SKU 价格快照（1500）
+        assertThat(vo.getPayableAmount()).isEqualTo(1500L);
+        assertThat(vo.getItems().get(0).getSkuPriceSnapshot()).isEqualTo(1500L);
     }
 
     @Test

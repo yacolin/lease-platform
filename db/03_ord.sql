@@ -57,11 +57,15 @@ CREATE TABLE `ord_orders` (
   KEY `idx_enterprise_id` (`enterprise_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='订单表';
 
--- 订单明细表：订单中每个商品的详细信息（含规格快照）
+-- 订单明细表：订单中每个商品的详细信息（含规格快照；1.3 起含 SKU 快照）
 CREATE TABLE `ord_order_items` (
   `id` BIGINT UNSIGNED NOT NULL COMMENT '明细ID（雪花）',
   `order_id` BIGINT UNSIGNED NOT NULL COMMENT '订单ID',
   `product_id` BIGINT UNSIGNED NOT NULL COMMENT '商品ID',
+  `sku_id` BIGINT UNSIGNED DEFAULT NULL COMMENT 'SKU ID（1.3）',
+  `sku_name_snapshot` VARCHAR(100) DEFAULT NULL COMMENT 'SKU 名称快照（编码）',
+  `sku_price_snapshot` BIGINT DEFAULT NULL COMMENT 'SKU 单价快照（分）',
+  `specification_snapshot` JSON DEFAULT NULL COMMENT '规格快照（SKU 解析后，如 {"杯型":"大杯"}）',
   `product_name` VARCHAR(100) NOT NULL COMMENT '商品名称（快照）',
   `product_price` BIGINT NOT NULL COMMENT '商品原价（分，快照）',
   `specification` JSON DEFAULT NULL COMMENT '规格选项JSON（如大杯/热/无糖）',
@@ -72,7 +76,8 @@ CREATE TABLE `ord_order_items` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`),
   KEY `idx_order_id` (`order_id`),
-  KEY `idx_product_id` (`product_id`)
+  KEY `idx_product_id` (`product_id`),
+  KEY `idx_sku_id` (`sku_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='订单明细表';
 
 -- 正餐预订表：正餐预订与普通咖啡点单分开管理

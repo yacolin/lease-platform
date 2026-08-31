@@ -32,8 +32,11 @@ public class ProductVO {
     /** 规格选项 JSON 对象 */
     private Object specOptions;
 
-    @Schema(description = "上下架状态：0-下架, 1-上架")
+    @Schema(description = "上下架状态：0-下架, 1-上架（与 product_status 联动）")
     private Integer isAvailable;
+
+    @Schema(description = "商品状态：0-草稿, 1-待审核, 2-上架, 3-下架, 4-停售")
+    private Integer productStatus;
 
     private Integer stock;
 
@@ -44,4 +47,10 @@ public class ProductVO {
 
     /** 更新时间（epoch 毫秒时间戳） */
     private Long updatedAt;
+
+    /** SKU 列表（详情返回；列表页为 null） */
+    private java.util.List<com.example.leaseplatform.prd.dto.SkuVO> skus;
+
+    /** 规格组列表（详情返回；列表页为 null） */
+    private java.util.List<com.example.leaseplatform.prd.dto.SpecGroupVO> specGroups;
 }

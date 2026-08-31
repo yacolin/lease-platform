@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 
 /**
  * 订单明细（ord_order_items）：每个商品的详细信息（含规格快照）。
+ * 1.3 起含 SKU 快照（sku_id / sku_name_snapshot / sku_price_snapshot / specification_snapshot），
+ * 历史 product_id/product_price/specification 保留（快照原则）。
  * 纯流水表，只保留 created_at。
  */
 @Data
@@ -22,8 +24,20 @@ public class OrdOrderItem {
     /** 订单 ID */
     private Long orderId;
 
-    /** 商品 ID */
+    /** 商品 ID（SPU） */
     private Long productId;
+
+    /** SKU ID（1.3；无 SKU 的历史单为 NULL） */
+    private Long skuId;
+
+    /** SKU 名称快照（编码） */
+    private String skuNameSnapshot;
+
+    /** SKU 单价快照（分） */
+    private Long skuPriceSnapshot;
+
+    /** 规格快照 JSON（SKU 解析后，如 {"杯型":"大杯"}） */
+    private String specificationSnapshot;
 
     /** 商品名称（快照） */
     private String productName;
