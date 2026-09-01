@@ -52,4 +52,8 @@ public class MealReservationCreateReq {
 
     @Size(max = 255, message = "备注最多 255 个字符")
     private String remark;
+
+    /** 使用的优惠券（我的优惠券 ID，1.6；可选） */
+    @Schema(description = "使用的优惠券（我的优惠券 ID，可选）")
+    private Long couponId;
 }

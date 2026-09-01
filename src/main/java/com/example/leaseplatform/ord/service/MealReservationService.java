@@ -15,6 +15,7 @@ import com.example.leaseplatform.ord.entity.OrdOrder;
 import com.example.leaseplatform.ord.mapper.OrdMealReservationItemMapper;
 import com.example.leaseplatform.ord.mapper.OrdMealReservationMapper;
 import com.example.leaseplatform.ord.mapper.OrdOrderMapper;
+import com.example.leaseplatform.mkt.service.MktUserCouponService;
 import com.example.leaseplatform.prd.entity.PrdDailyMenu;
 import com.example.leaseplatform.prd.entity.PrdProduct;
 import com.example.leaseplatform.prd.mapper.PrdDailyMenuMapper;
@@ -78,6 +79,7 @@ public class MealReservationService {
     private final PaymentService paymentService;
     private final RefundService refundService;
     private final OrderStatusHistoryService statusHistoryService;
+    private final MktUserCouponService couponService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -117,6 +119,20 @@ public class MealReservationService {
         long memberDiscount = total - afterMember;
         long rechargeDiscount = total - memberDiscount - discountedSubtotal;
         long deliveryFee = deliveryFee(req.getDeliveryType());
+        // 1.6 优惠券：在套餐折后金额（会员×充值后）上再抵扣；配送费不参与优惠
+        long couponDiscount = 0;
+        Long couponId = null;
+        String couponNameSnapshot = null;
+        if (req.getCouponId() != null) {
+            MktUserCouponService.CouponApplyResult coupon = couponService.apply(
+                    userId, req.getCouponId(), MktUserCouponService.BIZ_MEAL, discountedSubtotal,
+                    List.of(product.getId()),
+                    product.getCategoryId() == null ? List.of() : List.of(product.getCategoryId()));
+            couponDiscount = coupon.discount();
+            couponId = coupon.userCoupon().getId();
+            couponNameSnapshot = coupon.userCoupon().getCouponName();
+        }
+        long payable = discountedSubtotal + deliveryFee - couponDiscount;
 
         // 关联订单（order_type=2 正餐）
         OrdOrder order = new OrdOrder();
@@ -126,10 +142,13 @@ public class MealReservationService {
         order.setOrderType(2);
         order.setOrderStatus(STATUS_PENDING);
         order.setTotalAmount(total);
-        order.setDiscountAmount(total - discountedSubtotal);
+        order.setDiscountAmount(total - discountedSubtotal + couponDiscount);
         order.setMemberDiscount(memberDiscount);
         order.setRechargeDiscount(rechargeDiscount);
-        order.setPayableAmount(discountedSubtotal + deliveryFee);
+        order.setCouponId(couponId);
+        order.setCouponNameSnapshot(couponNameSnapshot);
+        order.setCouponDiscount(couponDiscount);
+        order.setPayableAmount(payable);
         order.setPaymentMethod(1);
         order.setDeliveryType(req.getDeliveryType());
         order.setDeliveryFee(deliveryFee);
@@ -155,8 +174,8 @@ public class MealReservationService {
         reservation.setDeliveryFee(deliveryFee);
         reservation.setDeliveryAddress(req.getDeliveryAddress());
         reservation.setTotalAmount(total);
-        reservation.setDiscountAmount(total - discountedSubtotal);
-        reservation.setPayableAmount(discountedSubtotal + deliveryFee);
+        reservation.setDiscountAmount(total - discountedSubtotal + couponDiscount);
+        reservation.setPayableAmount(payable);
         reservation.setPaymentMethod(1);
         reservation.setOutTradeNo(order.getOutTradeNo());
         reservation.setStatus(STATUS_PENDING);
@@ -175,6 +194,10 @@ public class MealReservationService {
         item.setDishDetails(menuSnapshotJson(req.getMenuDate(), req.getProductId()));
         itemMapper.insert(item);
 
+        // 1.6 标记优惠券已使用（乐观 0→1；并发重复使用仅一次成功，失败整体回滚）
+        if (couponId != null && !couponService.use(couponId, order.getId())) {
+            throw BizException.conflict("优惠券已使用");
+        }
         // 1.2：初始状态留痕（待支付）
         statusHistoryService.record(OrderStatusHistoryService.BIZ_MEAL_RESERVATION,
                 reservation.getId(), null, STATUS_PENDING, userId,

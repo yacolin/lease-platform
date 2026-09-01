@@ -52,7 +52,7 @@ make db-reset        # 开发环境一步到位：建库 lease_db（不存在时
 make db-init         # 仅初始化数据库结构（建表），不灌种子；生产环境用这个，谨慎执行
 make db-seed         # 仅重灌开发种子数据（db/seed.py，幂等；生产切勿执行）
 make run             # 启动项目（前台，端口 8080）
-make test            # 运行 294 例测试（集成测试需先 make db-reset）
+make test            # 运行 397 例测试（集成测试需先 make db-reset）
 make help            # 全部命令：run/stop/compile/test/build/run-jar/db-reset/db-init/db-seed
 ```
 
@@ -168,11 +168,20 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 
 **微信支付回调（`POST /api/v1/wx/payments/notify`，白名单，微信服务器调用）**：V3 回调解密入账（sys_idempotency 幂等去重，重复通知不重复入账）；开发环境未配置微信支付时返回失败，走 mock-pay 直充。
 
+**我的优惠券（1.6，`/api/v1/me/coupons/**`，需登录）**
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/v1/me/coupons/{id}/claim` | 领取优惠券（重复领取 409；有效期=领取+有效天数） |
+| GET | `/api/v1/me/coupons` | 我的优惠券（分页，状态：0-未使用, 1-已使用, 2-已过期） |
+
+**优惠券（公开/管理端，1.6）**：`GET /api/v1/public/coupons` 可领取列表（白名单）；管理端 `/api/v1/coupons` CRUD（满减/折扣，可指定业务/商品/分类）。咖啡下单/正餐预订可带 `couponId`：应付 = 原价 × 会员折扣率 × 充值折扣率 − 优惠券（满减或折扣按折后金额计算，订单落券名/券金额快照）。
+
 **我的订单（咖啡点单，`/api/v1/me/orders/**`，需登录）**
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/v1/me/orders` | 咖啡下单 `{items:[{productId, quantity, spec}]}`（折扣叠加后待支付） |
+| POST | `/api/v1/me/orders` | 咖啡下单 `{items:[{productId, quantity, spec}], couponId?}`（会员×充值×优惠券叠加后待支付） |
 | POST | `/api/v1/me/orders/{id}/pay` | 余额支付（赠送余额优先扣；生成取餐码 → 待取餐） |
 | POST | `/api/v1/me/orders/{id}/cancel` | 取消订单（待取餐取消原路退款） |
 | GET | `/api/v1/me/orders` | 我的订单分页（状态筛选） |
@@ -202,7 +211,7 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/v1/me/meal-reservations` | 预订 `{productId, menuDate, timeSlot, quantity, deliveryType}`（规则：提前 1 天/晚 8 点截止/可订未来 3 天；套餐+菜品快照；关联订单） |
+| POST | `/api/v1/me/meal-reservations` | 预订 `{productId, menuDate, timeSlot, quantity, deliveryType, couponId?}`（规则：提前 1 天/晚 8 点截止/可订未来 3 天；套餐+菜品快照；关联订单；可叠加优惠券） |
 | POST | `/api/v1/me/meal-reservations/{id}/pay` | 余额支付（赠送余额优先扣 → 待备餐） |
 | POST | `/api/v1/me/meal-reservations/{id}/cancel` | 取消（已支付原路退款） |
 | GET | `/api/v1/me/meal-reservations` | 我的预订分页 |
@@ -275,7 +284,7 @@ springdoc 按端输出独立 OpenAPI JSON（`/v3/api-docs/{group}`，Security �
 ## 测试
 
 ```bash
-make test     # 294 例：service 单元（Mockito）+ controller Web（@WebMvcTest + 真实 Security 链）+ 集成（真实 MySQL + Redis）
+make test     # 397 例：service 单元（Mockito）+ controller Web（@WebMvcTest + 真实 Security 链）+ 集成（真实 MySQL + Redis）
 ```
 
 集成测试基于 `db/seed.py` 的核心种子数据断言（4 分类 / 8 商品 / 2026-08-30 菜单 11 条）与 admin 初始化账号（admin/123456），运行前需 `make db-reset`（= 建表 + 种子，种子数据由 `db/seed.py` 生成，与建表 SQL 分离）。
@@ -293,11 +302,12 @@ make test     # 294 例：service 单元（Mockito）+ controller Web（@WebMvcT
 - [x] P4 正餐预订：菜单整单配置/复制 / 按日期+时段预订（规则校验+菜品快照）/ 备餐流转 / 折扣复用 DiscountCalculator
 - [x] P5 会议室：public+admin 管理 / 预约冲突校验 / 会员免费时长抵扣+超时计费 / 状态流转（待确认→已确认→完成/取消/过期）
 - [x] P6 系统域与工程化：通知中心 / 操作日志（AOP）/ dev-prod 环境分离 / Flyway 自动迁移 / Docker 部署
-- [x] 1.5 账户/钱包：acct_accounts 账户表（V9，余额从 usr_users 剥离 + 存量回填）/ AccountService（行锁 + 冻结/解冻 + 赠送优先混合扣款）/ 会议室预授权冻结
+- [x] 1.1 会议室定价模型：mtg_room_level_prices 等级定价表（会议室 × 会员等级 超出费用覆盖价）/ 预约价格快照（overtime_unit_price / free_hours_deducted，规则可改快照不变）/ 计费解析重写（覆盖价 → 等级默认价，V5 迁移）
 - [x] 1.2 交易可靠性：支付单 / 退款单（全额/部分/多次+幂等）/ 订单状态历史 / 幂等记录（V6 迁移 + 四表 + 充值/咖啡/正餐/会员购买全链路接入 + 我的交易/管理端查询接口）
 - [x] 1.3 商品中心 SKU 化：prd_skus / prd_spec_groups / prd_spec_values（V7 迁移 + 种子笛卡尔积 150 SKU）/ 商品状态生命周期 / 分类二级化 / 订单 SKU 快照（咖啡下单指定 skuId 或默认 SKU）
 - [x] 1.4 会议室资源化：mtg_bookings 占用表（V8 + 行锁串行化并发预约）/ 预约订单化（order_id + trd_payments biz_type=5）/ 生命周期补使用中 / 改期
-- [x] 1.5 账户/钱包：acct_accounts 账户表（V9，余额从 usr_users 剥离）/ 冻结解冻（会议室预授权冻结）/ Account-Ledger 分离 / 余额行锁
+- [x] 1.5 账户/钱包：acct_accounts 账户表（V9，余额从 usr_users 剥离 + 存量回填）/ AccountService（行锁 + 冻结/解冻 + 赠送优先混合扣款）/ 会议室预授权冻结 / Account-Ledger 分离
+- [x] 1.6 运营/营销：mkt_coupons / mkt_user_coupons（V10，满减/折扣/指定业务商品分类）/ 咖啡·正餐下单用券（折扣叠加 + 订单券快照）
 
 ## 部署（Docker）
 

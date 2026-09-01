@@ -140,6 +140,7 @@ springdoc:
         - /api/v1/room-level-prices/**
         - /api/v1/meeting-reservations/**
         - /api/v1/operation-logs/**
+        - /api/v1/coupons/**
         - /api/v1/payments
         - /api/v1/refunds
         - /api/v1/status-history
@@ -164,6 +165,7 @@ lease:
       - /api/v1/public/member-levels/**
       - /api/v1/public/recharge-tiers/**
       - /api/v1/public/rooms/**
+      - /api/v1/public/coupons
       - /api/v1/wx/payments/notify
       - /v3/api-docs/**
       - /swagger-ui/**
@@ -184,6 +186,7 @@ lease:
       - /api/v1/room-level-prices/**
       - /api/v1/meeting-reservations/**
       - /api/v1/operation-logs/**
+      - /api/v1/coupons/**
       - /api/v1/payments
       - /api/v1/refunds
       - /api/v1/status-history

@@ -51,6 +51,8 @@ DROP TABLE IF EXISTS trd_refunds;                  -- 交易域，1.2 退款单�
 DROP TABLE IF EXISTS trd_payments;                 -- 交易域，1.2 支付单，依赖 usr_users
 DROP TABLE IF EXISTS trd_recharge_records;         -- 交易域，依赖 usr_users / trd_recharge_tiers
 DROP TABLE IF EXISTS trd_recharge_tiers;           -- 交易域，无依赖
+DROP TABLE IF EXISTS mkt_user_coupons;             -- 营销域，1.6 用户券，依赖 usr_users / mkt_coupons
+DROP TABLE IF EXISTS mkt_coupons;                    -- 营销域，1.6 券模板（无依赖）
 DROP TABLE IF EXISTS usr_member_purchases;         -- 用户域，依赖 usr_enterprises / usr_member_levels
 DROP TABLE IF EXISTS usr_enterprise_members;       -- 用户域，依赖 usr_enterprises / usr_users
 DROP TABLE IF EXISTS usr_member_levels;            -- 用户域，无依赖

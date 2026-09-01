@@ -18,6 +18,7 @@ import com.example.leaseplatform.ord.mapper.OrdOrderMapper;
 import com.example.leaseplatform.prd.entity.PrdProduct;
 import com.example.leaseplatform.prd.entity.PrdSku;
 import com.example.leaseplatform.prd.mapper.PrdProductMapper;
+import com.example.leaseplatform.mkt.service.MktUserCouponService;
 import com.example.leaseplatform.prd.service.PrdSkuService;
 import com.example.leaseplatform.trd.entity.TrdPayment;
 import com.example.leaseplatform.trd.service.AccountService;
@@ -78,6 +79,7 @@ public class OrderService {
     private final RefundService refundService;
     private final OrderStatusHistoryService statusHistoryService;
     private final PrdSkuService skuService;
+    private final MktUserCouponService couponService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -124,11 +126,27 @@ public class OrderService {
             total += subtotal;
         }
 
-        // 折扣金额拆分（保证 payable = total - memberDiscount - rechargeDiscount 恒等）
+        // 折扣金额拆分（应付 = 原价 − 会员折扣 − 充值折扣 − 优惠券，1.6）
         long afterMember = roundCents(BigDecimal.valueOf(total).multiply(memberRate));
         long memberDiscount = total - afterMember;
-        long payable = items.stream().mapToLong(OrdOrderItem::getDiscountedSubtotal).sum();
-        long rechargeDiscount = total - memberDiscount - payable;
+        long payableBeforeCoupon = items.stream().mapToLong(OrdOrderItem::getDiscountedSubtotal).sum();
+        long rechargeDiscount = total - memberDiscount - payableBeforeCoupon;
+        // 1.6 优惠券：在会员×充值折后金额上再抵扣（校验业务/门槛/指定商品与分类）
+        long couponDiscount = 0;
+        Long couponId = null;
+        String couponNameSnapshot = null;
+        if (req.getCouponId() != null) {
+            List<Long> productIds = items.stream().map(OrdOrderItem::getProductId).toList();
+            List<Long> categoryIds = productMapper.selectBatchIds(productIds).stream()
+                    .map(PrdProduct::getCategoryId).distinct().toList();
+            MktUserCouponService.CouponApplyResult coupon = couponService.apply(
+                    userId, req.getCouponId(), MktUserCouponService.BIZ_COFFEE, payableBeforeCoupon,
+                    productIds, categoryIds);
+            couponDiscount = coupon.discount();
+            couponId = coupon.userCoupon().getId();
+            couponNameSnapshot = coupon.userCoupon().getCouponName();
+        }
+        long payable = payableBeforeCoupon - couponDiscount;
 
         OrdOrder order = new OrdOrder();
         order.setOrderNo(generateNo("CO"));
@@ -140,6 +158,9 @@ public class OrderService {
         order.setDiscountAmount(total - payable);
         order.setMemberDiscount(memberDiscount);
         order.setRechargeDiscount(rechargeDiscount);
+        order.setCouponId(couponId);
+        order.setCouponNameSnapshot(couponNameSnapshot);
+        order.setCouponDiscount(couponDiscount);
         order.setPayableAmount(payable);
         order.setPaymentMethod(req.getPaymentMethod() == null ? 1 : req.getPaymentMethod());
         order.setRemark(req.getRemark());
@@ -148,6 +169,10 @@ public class OrderService {
         for (OrdOrderItem item : items) {
             item.setOrderId(order.getId());
             itemMapper.insert(item);
+        }
+        // 1.6 标记优惠券已使用（乐观 0→1；并发重复使用仅一次成功，失败整体回滚）
+        if (couponId != null && !couponService.use(couponId, order.getId())) {
+            throw BizException.conflict("优惠券已使用");
         }
         // 1.2：初始状态留痕（待支付）
         statusHistoryService.record(OrderStatusHistoryService.BIZ_COFFEE_ORDER, order.getId(),
@@ -450,6 +475,9 @@ public class OrderService {
         vo.setDiscountAmount(o.getDiscountAmount());
         vo.setMemberDiscount(o.getMemberDiscount());
         vo.setRechargeDiscount(o.getRechargeDiscount());
+        vo.setCouponId(o.getCouponId());
+        vo.setCouponNameSnapshot(o.getCouponNameSnapshot());
+        vo.setCouponDiscount(o.getCouponDiscount());
         vo.setPayableAmount(o.getPayableAmount());
         vo.setPaymentMethod(o.getPaymentMethod());
         vo.setPickupCode(o.getPickupCode());

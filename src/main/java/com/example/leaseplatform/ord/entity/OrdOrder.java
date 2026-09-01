@@ -48,6 +48,15 @@ public class OrdOrder {
     /** 充值赠送折扣金额（分） */
     private Long rechargeDiscount;
 
+    /** 优惠券 ID（1.6） */
+    private Long couponId;
+
+    /** 优惠券名称（快照） */
+    private String couponNameSnapshot;
+
+    /** 优惠券抵扣金额（分） */
+    private Long couponDiscount;
+
     /** 应付金额（分，折后） */
     private Long payableAmount;
 

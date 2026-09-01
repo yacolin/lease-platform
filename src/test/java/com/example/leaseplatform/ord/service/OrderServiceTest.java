@@ -12,6 +12,7 @@ import com.example.leaseplatform.ord.dto.OrderVO;
 import com.example.leaseplatform.ord.entity.OrdOrder;
 import com.example.leaseplatform.ord.entity.OrdOrderItem;
 import com.example.leaseplatform.ord.mapper.OrdOrderItemMapper;
+import com.example.leaseplatform.mkt.service.MktUserCouponService;
 import com.example.leaseplatform.ord.mapper.OrdOrderMapper;
 import com.example.leaseplatform.prd.entity.PrdProduct;
 import com.example.leaseplatform.prd.entity.PrdSku;
@@ -71,6 +72,8 @@ class OrderServiceTest {
     private OrderStatusHistoryService statusHistoryService;
     @Mock
     private com.example.leaseplatform.prd.service.PrdSkuService skuService;
+    @Mock
+    private com.example.leaseplatform.mkt.service.MktUserCouponService couponService;
 
     private OrderService service;
 
@@ -90,7 +93,7 @@ class OrderServiceTest {
         // 须在 @Mock 注入后构造（字段初始化器在注入前执行会拿到 null mock）
         service = new OrderService(orderMapper, itemMapper, productMapper, userMapper,
                 discountCalculator, accountService, paymentService, refundService, statusHistoryService,
-                skuService);
+                skuService, couponService);
     }
 
     private UsrUser user(int memberLevel, Long enterpriseId) {
@@ -181,6 +184,38 @@ class OrderServiceTest {
         // 明细原价/应付按 SKU 价格快照（1500）
         assertThat(vo.getPayableAmount()).isEqualTo(1500L);
         assertThat(vo.getItems().get(0).getSkuPriceSnapshot()).isEqualTo(1500L);
+    }
+
+    @Test
+    void create_withCoupon_shouldStackOnDiscountedAmount() {
+        // 1.6：原价 2400（无会员/充值折扣）→ 满减券 500 → 应付 1900，订单落券快照
+        when(userMapper.selectById(1L)).thenReturn(user(0, null));
+        when(productMapper.selectById(1L)).thenReturn(product(1L, "美式", 1200L));
+        when(discountCalculator.memberDiscountRate(any())).thenReturn(BigDecimal.ONE);
+        when(discountCalculator.rechargeDiscountRate(1L)).thenReturn(BigDecimal.ONE);
+        when(productMapper.selectBatchIds(any())).thenReturn(List.of(product(1L, "美式", 1200L)));
+        com.example.leaseplatform.mkt.entity.MktUserCoupon uc = new com.example.leaseplatform.mkt.entity.MktUserCoupon();
+        uc.setId(10L);
+        uc.setCouponName("满30减5");
+        when(couponService.apply(eq(1L), eq(10L), eq(MktUserCouponService.BIZ_COFFEE),
+                eq(2400L), any(), any()))
+                .thenReturn(new MktUserCouponService.CouponApplyResult(uc, 500L));
+        when(orderMapper.insert(any(OrdOrder.class))).thenAnswer(inv -> {
+            ((OrdOrder) inv.getArgument(0)).setId(100L);
+            return 1;
+        });
+        when(itemMapper.insert(any(OrdOrderItem.class))).thenReturn(1);
+        when(couponService.use(10L, 100L)).thenReturn(true);
+
+        OrderCreateReq req = req(1L, 2, null);
+        req.setCouponId(10L);
+        OrderVO vo = service.create(1L, req);
+
+        assertThat(vo.getPayableAmount()).isEqualTo(1900L);
+        assertThat(vo.getCouponDiscount()).isEqualTo(500L);
+        assertThat(vo.getCouponNameSnapshot()).isEqualTo("满30减5");
+        assertThat(vo.getDiscountAmount()).isEqualTo(500L);
+        verify(couponService).use(10L, 100L);
     }
 
     @Test

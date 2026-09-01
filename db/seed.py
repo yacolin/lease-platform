@@ -198,6 +198,8 @@ def build_sql():
         "mtg_reservations", "mtg_room_level_prices", "mtg_rooms",
         # 交易域
         "trd_balance_transactions", "acct_accounts", "trd_recharge_records", "trd_recharge_tiers",
+        # 营销域（1.6）
+        "mkt_user_coupons", "mkt_coupons",
         # 用户域
         "usr_member_purchases", "usr_enterprise_members", "usr_member_levels",
         "usr_enterprises", "usr_users", "usr_admins",
@@ -311,6 +313,13 @@ def build_sql():
                "(2, 'mock_demo_employee', '演示员工', 2, 1, 0, 0, 1), "
                "(3, 'mock_demo_walker', '演示路人', 3, NULL, 0, 0, 1);")
 
+    # ---------- 优惠券模板（1.6：满减/折扣/指定业务/指定商品/指定分类） ----------
+    sql.append("INSERT INTO `mkt_coupons` (`id`, `coupon_name`, `coupon_type`, `discount_amount`, "
+               "`discount_rate`, `threshold_amount`, `biz_type`, `validity_days`, `status`, `sort_order`) VALUES "
+               "(1, '满30减5咖啡券', 1, 500, NULL, 3000, 1, 30, 1, 1), "
+               "(2, '正餐9折券', 2, NULL, 0.90, 0, 2, 30, 1, 2), "
+               "(3, '无门槛5元券', 1, 500, NULL, 0, NULL, 15, 1, 3);")
+
     # ---------- 用户账户（1.5：余额唯一事实源 acct_accounts，演示余额与 1.0 种子一致） ----------
     sql.append("INSERT INTO `acct_accounts` (`id`, `user_id`, `available_balance`, `gift_balance`, `status`) VALUES "
                "(1, 1, 200000, 50000, 1), "
@@ -359,7 +368,9 @@ def main():
                       "SELECT 'usr_admins', COUNT(*) FROM usr_admins UNION ALL "
                       "SELECT 'usr_users', COUNT(*) FROM usr_users UNION ALL "
                       "SELECT 'usr_enterprises', COUNT(*) FROM usr_enterprises UNION ALL "
-                      "SELECT 'acct_accounts', COUNT(*) FROM acct_accounts) t ORDER BY 1;"],
+                      "SELECT 'acct_accounts', COUNT(*) FROM acct_accounts UNION ALL "
+                      "SELECT 'mkt_coupons', COUNT(*) FROM mkt_coupons UNION ALL "
+                      "SELECT 'mkt_user_coupons', COUNT(*) FROM mkt_user_coupons) t ORDER BY 1;"],
         capture_output=True, text=True, check=True)
     print("==> 种子数据统计：")
     for line in counts.stdout.strip().splitlines():

@@ -13,6 +13,7 @@ import com.example.leaseplatform.ord.entity.OrdMealReservationItem;
 import com.example.leaseplatform.ord.entity.OrdOrder;
 import com.example.leaseplatform.ord.mapper.OrdMealReservationItemMapper;
 import com.example.leaseplatform.ord.mapper.OrdMealReservationMapper;
+import com.example.leaseplatform.mkt.service.MktUserCouponService;
 import com.example.leaseplatform.ord.mapper.OrdOrderMapper;
 import com.example.leaseplatform.prd.entity.PrdDailyMenu;
 import com.example.leaseplatform.prd.entity.PrdProduct;
@@ -74,6 +75,8 @@ class MealReservationServiceTest {
     private com.example.leaseplatform.trd.service.RefundService refundService;
     @Mock
     private OrderStatusHistoryService statusHistoryService;
+    @Mock
+    private com.example.leaseplatform.mkt.service.MktUserCouponService couponService;
 
     private MealReservationService service;
 
@@ -93,7 +96,7 @@ class MealReservationServiceTest {
     void setUp() {
         service = new MealReservationService(reservationMapper, itemMapper, orderMapper,
                 productMapper, menuMapper, userMapper, discountCalculator, accountService,
-                paymentService, refundService, statusHistoryService);
+                paymentService, refundService, statusHistoryService, couponService);
     }
 
     private UsrUser user() {
@@ -106,6 +109,7 @@ class MealReservationServiceTest {
     private PrdProduct product() {
         PrdProduct p = new PrdProduct();
         p.setId(4L);
+        p.setCategoryId(2L);
         p.setProductName("3荤1素套餐");
         p.setPrice(2000L);
         p.setIsAvailable(1);
@@ -164,6 +168,39 @@ class MealReservationServiceTest {
         assertThat(orderCaptor.getValue().getOrderType()).isEqualTo(2);
         assertThat(orderCaptor.getValue().getPayableAmount()).isEqualTo(3560L);
         assertThat(orderCaptor.getValue().getReservationDate()).isEqualTo(LocalDate.now().plusDays(3));
+    }
+
+    @Test
+    void create_withCoupon_shouldApply() {
+        // 1.6：套餐折后 3560（会员1×充值0.89）→ 9折券 → 优惠 356 → 应付 3204（自取配送费 0）
+        when(userMapper.selectById(1L)).thenReturn(user());
+        when(productMapper.selectById(4L)).thenReturn(product());
+        when(menuMapper.selectCount(any(Wrapper.class))).thenReturn(1L);
+        when(discountCalculator.memberDiscountRate(any())).thenReturn(BigDecimal.ONE);
+        when(discountCalculator.rechargeDiscountRate(1L)).thenReturn(new BigDecimal("0.89"));
+        when(orderMapper.insert(any(OrdOrder.class))).thenAnswer(inv -> {
+            ((OrdOrder) inv.getArgument(0)).setId(200L);
+            return 1;
+        });
+        when(reservationMapper.insert(any(OrdMealReservation.class))).thenAnswer(inv -> {
+            ((OrdMealReservation) inv.getArgument(0)).setId(300L);
+            return 1;
+        });
+        when(itemMapper.insert(any(OrdMealReservationItem.class))).thenReturn(1);
+        com.example.leaseplatform.mkt.entity.MktUserCoupon uc = new com.example.leaseplatform.mkt.entity.MktUserCoupon();
+        uc.setId(10L);
+        uc.setCouponName("正餐9折券");
+        when(couponService.apply(eq(1L), eq(10L), eq(MktUserCouponService.BIZ_MEAL),
+                eq(3560L), any(), any()))
+                .thenReturn(new MktUserCouponService.CouponApplyResult(uc, 356L));
+        when(couponService.use(10L, 200L)).thenReturn(true);
+
+        MealReservationCreateReq req = req(LocalDate.now().plusDays(3));
+        req.setCouponId(10L);
+        MealReservationVO vo = service.create(1L, req);
+
+        assertThat(vo.getPayableAmount()).isEqualTo(3204L); // 3560 - 356
+        verify(couponService).use(10L, 200L);
     }
 
     @Test
