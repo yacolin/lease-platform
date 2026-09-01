@@ -21,7 +21,7 @@ import com.example.leaseplatform.ord.service.OrderService;
 import com.example.leaseplatform.ord.service.OrderStatusHistoryService;
 import com.example.leaseplatform.trd.entity.TrdPayment;
 import com.example.leaseplatform.trd.entity.TrdRefund;
-import com.example.leaseplatform.trd.service.BalanceService;
+import com.example.leaseplatform.trd.service.AccountService;
 import com.example.leaseplatform.trd.service.PaymentService;
 import com.example.leaseplatform.trd.service.RefundService;
 import com.example.leaseplatform.usr.entity.UsrEnterprise;
@@ -78,7 +78,7 @@ class MeetingReservationServiceTest {
     @Mock
     private UsrMemberLevelMapper memberLevelMapper;
     @Mock
-    private BalanceService balanceService;
+    private AccountService accountService;
     @Mock
     private PaymentService paymentService;
     @Mock
@@ -108,7 +108,7 @@ class MeetingReservationServiceTest {
     @BeforeEach
     void setUp() {
         service = new MeetingReservationService(reservationMapper, roomMapper, roomLevelPriceMapper,
-                bookingMapper, userMapper, enterpriseMapper, memberLevelMapper, balanceService,
+                bookingMapper, userMapper, enterpriseMapper, memberLevelMapper, accountService,
                 paymentService, refundService, orderMapper, statusHistoryService);
     }
 
@@ -215,11 +215,13 @@ class MeetingReservationServiceTest {
         assertThat(vo.getIsFree()).isZero();
         assertThat(vo.getStatus()).isZero();
         // 1.4：创建时不扣款；占用记录 + 关联订单 + 支付单
-        verify(balanceService, never()).debit(any(), anyLong(), any(), any());
+        verify(accountService, never()).debit(any(), anyLong(), any(), any());
         verify(bookingMapper).insert(any(MtgBooking.class));
         verify(orderMapper).insert(any(OrdOrder.class));
         verify(paymentService).create(eq(1L), eq(PaymentService.BIZ_MEETING), eq(100L),
                 eq(16000L), eq(PaymentService.METHOD_BALANCE), eq(PaymentService.CHANNEL_BALANCE), any());
+        // 1.5.3 预授权：创建时冻结费用
+        verify(accountService).freeze(eq(1L), eq(16000L), any(), eq("会议室预约预授权"));
         verify(statusHistoryService).record(eq(OrderStatusHistoryService.BIZ_MEETING_ORDER),
                 any(), eq(null), eq(OrderService.STATUS_PENDING), eq(1L), anyInt(), any());
     }
@@ -237,7 +239,7 @@ class MeetingReservationServiceTest {
         assertThat(vo.getIsFree()).isEqualTo(1);
         assertThat(vo.getStatus()).isEqualTo(1); // 免费直接已确认
         assertThat(vo.getFreeHoursDeducted()).isEqualByComparingTo("2.0");
-        verify(balanceService, never()).debit(any(), anyLong(), any(), any());
+        verify(accountService, never()).debit(any(), anyLong(), any(), any());
         verify(orderMapper, never()).insert(any(OrdOrder.class)); // 免费无交易
         verify(paymentService, never()).create(any(), anyInt(), any(), anyLong(), anyInt(), anyInt(), any());
     }
@@ -317,7 +319,8 @@ class MeetingReservationServiceTest {
 
         MeetingReservationVO vo = service.pay(1L, 100L);
 
-        verify(balanceService).debit(1L, 16000L, 200L, "会议室预约");
+        verify(accountService).unfreeze(1L, 16000L, 200L, "会议室预约支付解冻");
+        verify(accountService).debit(1L, 16000L, 200L, "会议室预约");
         verify(paymentService).settle(900L, null);
         verify(statusHistoryService).record(eq(OrderStatusHistoryService.BIZ_MEETING_ORDER),
                 eq(200L), eq(OrderService.STATUS_PENDING), eq(OrderService.STATUS_PICKUP), eq(1L), anyInt(), any());
@@ -329,7 +332,7 @@ class MeetingReservationServiceTest {
         MtgReservation r = reservation(100L, 0, 16000L, 200L);
         when(reservationMapper.selectById(100L)).thenReturn(r);
         org.mockito.Mockito.doThrow(BizException.conflict("余额不足"))
-                .when(balanceService).debit(any(), anyLong(), any(), any());
+                .when(accountService).debit(any(), anyLong(), any(), any());
 
         assertThatThrownBy(() -> service.pay(1L, 100L))
                 .isInstanceOf(BizException.class)
@@ -345,7 +348,7 @@ class MeetingReservationServiceTest {
         assertThatThrownBy(() -> service.pay(1L, 100L))
                 .isInstanceOf(BizException.class)
                 .hasMessage("预约已处理");
-        verify(balanceService, never()).debit(any(), anyLong(), any(), any());
+        verify(accountService, never()).debit(any(), anyLong(), any(), any());
     }
 
     @Test
@@ -370,6 +373,22 @@ class MeetingReservationServiceTest {
     }
 
     @Test
+    void cancel_pending_shouldUnfreezeWithoutRefund() {
+        // 1.5.3 预授权：待确认取消 → 解冻，未扣款不退款
+        MtgReservation r = reservation(100L, 0, 16000L, 200L);
+        when(reservationMapper.selectById(100L)).thenReturn(r);
+        when(roomMapper.selectById(1L)).thenReturn(room());
+
+        MeetingReservationVO vo = service.cancel(1L, 100L, "改期");
+
+        verify(accountService).unfreeze(1L, 16000L, 200L, "会议室预约取消解冻");
+        verify(refundService, never()).refundToBalance(any(), any(), anyLong(), any(), any(), any());
+        verify(orderMapper).update(any(), any(Wrapper.class)); // 关联订单取消
+        verify(bookingMapper).update(any(), any(Wrapper.class)); // 释放占用
+        assertThat(vo.getStatus()).isEqualTo(4);
+    }
+
+    @Test
     void cancel_free_shouldNotRefund() {
         MtgReservation r = reservation(100L, 1, 0L, null);
         when(reservationMapper.selectById(100L)).thenReturn(r);
@@ -378,7 +397,7 @@ class MeetingReservationServiceTest {
         service.cancel(1L, 100L, null);
 
         verify(refundService, never()).refundToBalance(any(), any(), anyLong(), any(), any(), any());
-        verify(balanceService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
+        verify(accountService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
         verify(bookingMapper).update(any(), any(Wrapper.class));
     }
 

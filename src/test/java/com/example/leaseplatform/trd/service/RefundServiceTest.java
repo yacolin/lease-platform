@@ -41,7 +41,7 @@ class RefundServiceTest {
     @Mock
     private TrdPaymentMapper paymentMapper;
     @Mock
-    private BalanceService balanceService;
+    private AccountService accountService;
 
     private RefundService service;
 
@@ -57,7 +57,7 @@ class RefundServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new RefundService(refundMapper, paymentMapper, balanceService);
+        service = new RefundService(refundMapper, paymentMapper, accountService);
     }
 
     private TrdPayment paidPayment(Long id, long amount) {
@@ -84,7 +84,7 @@ class RefundServiceTest {
         assertThat(refund.getRefundAmount()).isEqualTo(1000L);
         assertThat(refund.getStatus()).isEqualTo(RefundService.STATUS_SUCCESS);
         assertThat(refund.getRefundNo()).startsWith("RF");
-        verify(balanceService).credit(1L, 1000L, 0L, BalanceService.TX_REFUND, 100L, null, "部分退款");
+        verify(accountService).credit(1L, 1000L, 0L, AccountService.TX_REFUND, 100L, null, "部分退款");
         assertPaymentStatus(3); // 部分退款
     }
 
@@ -113,7 +113,7 @@ class RefundServiceTest {
         assertThatThrownBy(() -> service.refundToBalance(1L, 900L, 1000L, "超额", null, null))
                 .isInstanceOf(BizException.class)
                 .hasMessageContaining("退款金额超出可退金额");
-        verify(balanceService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
+        verify(accountService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
     }
 
     @Test
@@ -147,7 +147,7 @@ class RefundServiceTest {
         TrdRefund result = service.refundToBalance(1L, 900L, 1000L, "重复", "ORDER_CANCEL_REFUND:100", 100L);
 
         assertThat(result.getId()).isEqualTo(50L);
-        verify(balanceService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
+        verify(accountService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
         verify(refundMapper, never()).insert(any(TrdRefund.class));
     }
 

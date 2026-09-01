@@ -12,7 +12,7 @@ public class BalanceTransactionVO {
     private Long id;
 
     /** 类型：1-充值, 2-消费, 3-退款, 4-赠送, 5-调整 */
-    @Schema(description = "类型：1-充值, 2-消费, 3-退款, 4-赠送, 5-调整")
+    @Schema(description = "类型：1-充值, 2-消费, 3-退款, 4-赠送, 5-调整, 6-冻结, 7-解冻")
     private Integer transactionType;
 
     /** 变动金额（分，正数增加，负数减少） */
@@ -29,6 +29,12 @@ public class BalanceTransactionVO {
 
     /** 变动后赠送余额（分） */
     private Long giftBalanceAfter;
+
+    /** 变动前冻结余额（分，1.5） */
+    private Long frozenBalanceBefore;
+
+    /** 变动后冻结余额（分，1.5） */
+    private Long frozenBalanceAfter;
 
     /** 关联订单 ID */
     private Long relatedOrderId;

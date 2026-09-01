@@ -51,7 +51,7 @@ public class RechargeService {
     private final TrdRechargeRecordMapper recordMapper;
     private final TrdRechargeTierMapper tierMapper;
     private final UsrUserMapper userMapper;
-    private final BalanceService balanceService;
+    private final AccountService accountService;
     private final PaymentService paymentService;
     private final SysIdempotencyService idempotencyService;
     private final WechatPayClient wechatPayClient;
@@ -196,8 +196,8 @@ public class RechargeService {
         // 1.2：同步结算支付单（幂等；历史无支付单的数据跳过）
         paymentService.settleByOutTradeNo(record.getOutTradeNo(), transactionId);
         // 余额 + 赠送余额入账 + 流水（同事务）
-        balanceService.credit(record.getUserId(), record.getRechargeAmount(), record.getBonusAmount(),
-                BalanceService.TX_RECHARGE, null, record.getId(), "余额充值");
+        accountService.credit(record.getUserId(), record.getRechargeAmount(), record.getBonusAmount(),
+                AccountService.TX_RECHARGE, null, record.getId(), "余额充值");
         return toVO(record);
     }
 

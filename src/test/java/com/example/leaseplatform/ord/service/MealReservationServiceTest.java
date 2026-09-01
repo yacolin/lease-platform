@@ -19,7 +19,7 @@ import com.example.leaseplatform.prd.entity.PrdProduct;
 import com.example.leaseplatform.prd.mapper.PrdDailyMenuMapper;
 import com.example.leaseplatform.prd.mapper.PrdProductMapper;
 import com.example.leaseplatform.trd.entity.TrdPayment;
-import com.example.leaseplatform.trd.service.BalanceService;
+import com.example.leaseplatform.trd.service.AccountService;
 import com.example.leaseplatform.trd.service.PaymentService;
 import com.example.leaseplatform.usr.entity.UsrUser;
 import com.example.leaseplatform.usr.mapper.UsrUserMapper;
@@ -67,7 +67,7 @@ class MealReservationServiceTest {
     @Mock
     private DiscountCalculator discountCalculator;
     @Mock
-    private BalanceService balanceService;
+    private AccountService accountService;
     @Mock
     private PaymentService paymentService;
     @Mock
@@ -92,7 +92,7 @@ class MealReservationServiceTest {
     @BeforeEach
     void setUp() {
         service = new MealReservationService(reservationMapper, itemMapper, orderMapper,
-                productMapper, menuMapper, userMapper, discountCalculator, balanceService,
+                productMapper, menuMapper, userMapper, discountCalculator, accountService,
                 paymentService, refundService, statusHistoryService);
     }
 
@@ -215,7 +215,7 @@ class MealReservationServiceTest {
 
         MealReservationVO vo = service.pay(1L, 300L);
 
-        verify(balanceService).debit(1L, 3560L, 200L, "正餐预订");
+        verify(accountService).debit(1L, 3560L, 200L, "正餐预订");
         // 1.2：创建并结算支付单 + 状态历史
         verify(paymentService).create(eq(1L), eq(PaymentService.BIZ_MEAL_RESERVATION), eq(300L),
                 eq(3560L), eq(PaymentService.METHOD_BALANCE), eq(PaymentService.CHANNEL_BALANCE), any());
@@ -236,7 +236,7 @@ class MealReservationServiceTest {
         assertThatThrownBy(() -> service.pay(1L, 300L))
                 .isInstanceOf(BizException.class)
                 .hasMessage("预订已处理");
-        verify(balanceService).debit(1L, 3560L, 200L, "正餐预订");
+        verify(accountService).debit(1L, 3560L, 200L, "正餐预订");
         verify(paymentService, never()).settle(any(), any());
     }
 
@@ -251,8 +251,8 @@ class MealReservationServiceTest {
 
         MealReservationVO vo = service.cancel(1L, 300L, "行程变化");
 
-        verify(balanceService).credit(1L, 3560L, 0L,
-                BalanceService.TX_REFUND, 200L, null, "预订取消退款");
+        verify(accountService).credit(1L, 3560L, 0L,
+                AccountService.TX_REFUND, 200L, null, "预订取消退款");
         assertThat(vo.getStatus()).isEqualTo(4);
         assertThat(vo.getCancelReason()).isEqualTo("行程变化");
     }
@@ -273,7 +273,7 @@ class MealReservationServiceTest {
 
         verify(refundService).refundToBalance(1L, 900L, 3560L, "预订取消退款",
                 "MEAL_CANCEL_REFUND:300", 200L);
-        verify(balanceService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
+        verify(accountService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
         assertThat(vo.getStatus()).isEqualTo(4);
     }
 
@@ -313,7 +313,7 @@ class MealReservationServiceTest {
         MealReservationVO vo = service.adminUpdateStatus(300L, 5, 9L);
 
         assertThat(vo.getStatus()).isEqualTo(5);
-        verify(balanceService).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
+        verify(accountService).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
     }
 
     @Test

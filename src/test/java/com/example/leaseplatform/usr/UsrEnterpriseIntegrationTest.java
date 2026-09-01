@@ -98,8 +98,6 @@ class UsrEnterpriseIntegrationTest {
         u.setUserType(3);
         u.setMemberLevel(0);
         u.setIsEnterpriseAdmin(0);
-        u.setBalance(0L);
-        u.setGiftBalance(0L);
         u.setStatus(1);
         userMapper.insert(u);
         return u;

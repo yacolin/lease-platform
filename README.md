@@ -128,7 +128,7 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/v1/me` | 我的资料（昵称/头像/手机号 + 余额 + 会员等级） |
+| GET | `/api/v1/me` | 我的资料（昵称/头像/手机号 + 余额/赠送余额/冻结余额（1.5，来自 acct_accounts）+ 会员等级） |
 | PUT | `/api/v1/me` | 更新资料（昵称/头像/手机号） |
 
 **我的企业（`/api/v1/me/enterprise/**`，需登录；员工管理/购买需企业管理员）**
@@ -156,7 +156,7 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 | POST | `/api/v1/me/recharge/{id}/mock-pay` | 开发 mock 直充（立即入账；幂等） |
 | POST | `/api/v1/me/recharge/{id}/query` | 主动查单兜底（已配置微信支付时同步微信侧状态） |
 | GET | `/api/v1/me/recharge/records` | 我的充值记录 |
-| GET | `/api/v1/me/balance-transactions` | 我的余额流水（充值/消费/退款，含赠送余额） |
+| GET | `/api/v1/me/balance-transactions` | 我的余额流水（充值/消费/退款/冻结/解冻，含赠送与冻结余额） |
 
 **我的交易（1.2，`/api/v1/me/**`，需登录）**
 
@@ -226,7 +226,7 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 | GET | `/api/v1/meeting-reservations/**` | 预约管理（管理端：分页/详情） |
 | PUT | `/api/v1/meeting-reservations/{id}/status` | 状态推进（1.4：已确认→使用中→已完成，body `{orderStatus:2|3}`） |
 
-**会议室计费规则（P5 + 1.1 定价模型 + 1.4 资源化）**：可预约最早明天、最远 7 天、时段 08:00~22:00；时间冲突校验基于 **mtg_bookings 占用表**（每次预约一条占用记录，取消/完成/过期释放）+ mtg_rooms 行锁串行化并发预约（1.4）。企业会员免费时长（`usr_member_levels.monthly_meeting_hours`，VIP 4h/月、SVIP 8h/月）按**预约月**统计已用并优先抵扣；超出部分 × **超时单价**（分/小时）计费（余额支付，赠送余额优先扣）。超时单价解析：`mtg_room_level_prices` 会议室覆盖价 → 无则回落 `usr_member_levels.meeting_overtime_fee` 等级默认价（非会员按 BASIC 兜底）；下单时把「单价 + 抵扣免费时长」写入预约表快照（`overtime_unit_price` / `free_hours_deducted`），规则可改、快照不变。状态：待确认 → 已确认 → 使用中 → 已完成 / 已取消（退款）/ 已过期（惰性，查询时置过期且不退）。付费预约**订单化**（1.4.5）：关联 ord_orders（order_type=4 会议室）+ trd_payments（biz_type=5 会议室订单），创建不扣款、pay() 时扣款，退款走 1.2 退款单。
+**会议室计费规则（P5 + 1.1 定价模型 + 1.4 资源化）**：可预约最早明天、最远 7 天、时段 08:00~22:00；时间冲突校验基于 **mtg_bookings 占用表**（每次预约一条占用记录，取消/完成/过期释放）+ mtg_rooms 行锁串行化并发预约（1.4）。企业会员免费时长（`usr_member_levels.monthly_meeting_hours`，VIP 4h/月、SVIP 8h/月）按**预约月**统计已用并优先抵扣；超出部分 × **超时单价**（分/小时）计费（余额支付，赠送余额优先扣）。超时单价解析：`mtg_room_level_prices` 会议室覆盖价 → 无则回落 `usr_member_levels.meeting_overtime_fee` 等级默认价（非会员按 BASIC 兜底）；下单时把「单价 + 抵扣免费时长」写入预约表快照（`overtime_unit_price` / `free_hours_deducted`），规则可改、快照不变。状态：待确认 → 已确认 → 使用中 → 已完成 / 已取消（退款）/ 已过期（惰性，查询时置过期且不退）。付费预约**订单化**（1.4.5）：关联 ord_orders（order_type=4 会议室）+ trd_payments（biz_type=5 会议室订单），创建时**预授权冻结**（1.5：可用→冻结）、pay() 解冻再扣款，取消/过期解冻，退款走 1.2 退款单。
 
 ### 接口分组与前端请求文件生成
 
@@ -293,9 +293,11 @@ make test     # 294 例：service 单元（Mockito）+ controller Web（@WebMvcT
 - [x] P4 正餐预订：菜单整单配置/复制 / 按日期+时段预订（规则校验+菜品快照）/ 备餐流转 / 折扣复用 DiscountCalculator
 - [x] P5 会议室：public+admin 管理 / 预约冲突校验 / 会员免费时长抵扣+超时计费 / 状态流转（待确认→已确认→完成/取消/过期）
 - [x] P6 系统域与工程化：通知中心 / 操作日志（AOP）/ dev-prod 环境分离 / Flyway 自动迁移 / Docker 部署
+- [x] 1.5 账户/钱包：acct_accounts 账户表（V9，余额从 usr_users 剥离 + 存量回填）/ AccountService（行锁 + 冻结/解冻 + 赠送优先混合扣款）/ 会议室预授权冻结
 - [x] 1.2 交易可靠性：支付单 / 退款单（全额/部分/多次+幂等）/ 订单状态历史 / 幂等记录（V6 迁移 + 四表 + 充值/咖啡/正餐/会员购买全链路接入 + 我的交易/管理端查询接口）
 - [x] 1.3 商品中心 SKU 化：prd_skus / prd_spec_groups / prd_spec_values（V7 迁移 + 种子笛卡尔积 150 SKU）/ 商品状态生命周期 / 分类二级化 / 订单 SKU 快照（咖啡下单指定 skuId 或默认 SKU）
 - [x] 1.4 会议室资源化：mtg_bookings 占用表（V8 + 行锁串行化并发预约）/ 预约订单化（order_id + trd_payments biz_type=5）/ 生命周期补使用中 / 改期
+- [x] 1.5 账户/钱包：acct_accounts 账户表（V9，余额从 usr_users 剥离）/ 冻结解冻（会议室预授权冻结）/ Account-Ledger 分离 / 余额行锁
 
 ## 部署（Docker）
 

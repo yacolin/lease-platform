@@ -7,7 +7,7 @@ import com.example.leaseplatform.security.JwtTokenProvider;
 import com.example.leaseplatform.trd.dto.BalanceTransactionVO;
 import com.example.leaseplatform.trd.dto.RechargeCreateResultVO;
 import com.example.leaseplatform.trd.dto.RechargeRecordVO;
-import com.example.leaseplatform.trd.service.BalanceService;
+import com.example.leaseplatform.trd.service.AccountService;
 import com.example.leaseplatform.trd.service.RechargeService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +47,7 @@ class MeRechargeControllerTest {
     @MockitoBean
     private RechargeService rechargeService;
     @MockitoBean
-    private BalanceService balanceService;
+    private AccountService accountService;
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
 
@@ -132,7 +132,7 @@ class MeRechargeControllerTest {
         tx.setId(1L);
         tx.setTransactionType(1);
         tx.setAmount(22000L);
-        when(balanceService.myTransactions(any(), eq(1), eq(10))).thenReturn(PageResult.of(1, List.of(tx)));
+        when(accountService.myTransactions(any(), eq(1), eq(10))).thenReturn(PageResult.of(1, List.of(tx)));
 
         mockMvc.perform(get("/api/v1/me/balance-transactions"))
                 .andExpect(status().isOk())

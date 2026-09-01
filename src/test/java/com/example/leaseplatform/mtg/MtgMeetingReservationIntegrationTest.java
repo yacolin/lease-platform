@@ -125,7 +125,15 @@ class MtgMeetingReservationIntegrationTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("该时段已被预约"));
 
-        // 4. 支付 → 已确认（debit 赠送优先：赠送 60 + 余额 100 → 余额 500-100=400）
+        // 3.5 1.5 预授权冻结：创建后可用 500-160=340（冻结 160，赠送不动），资料含 frozenBalance
+        mockMvc.perform(get("/api/v1/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.balance").value(34000))
+                .andExpect(jsonPath("$.data.giftBalance").value(6000))
+                .andExpect(jsonPath("$.data.frozenBalance").value(16000));
+
+        // 4. 支付 → 解冻再扣款 → 已确认（debit 赠送优先：赠送 60 + 余额 100 → 余额 500-100=400）
         mockMvc.perform(post("/api/v1/me/meeting-reservations/" + reservationId + "/pay")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())

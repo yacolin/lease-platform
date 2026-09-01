@@ -3,6 +3,8 @@ package com.example.leaseplatform.usr.service;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.TimeUtil;
 import com.example.leaseplatform.security.UserContext;
+import com.example.leaseplatform.trd.entity.AcctAccount;
+import com.example.leaseplatform.trd.service.AccountService;
 import com.example.leaseplatform.usr.dto.MeUpdateReq;
 import com.example.leaseplatform.usr.dto.MeVO;
 import com.example.leaseplatform.usr.entity.UsrUser;
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Service;
 public class UsrUserService {
 
     private final UsrUserMapper userMapper;
+    private final AccountService accountService;
 
     /** 我的资料 */
     public MeVO me() {
@@ -58,8 +61,11 @@ public class UsrUserService {
         vo.setEnterpriseId(user.getEnterpriseId());
         vo.setMemberLevel(user.getMemberLevel());
         vo.setIsEnterpriseAdmin(user.getIsEnterpriseAdmin());
-        vo.setBalance(user.getBalance());
-        vo.setGiftBalance(user.getGiftBalance());
+        // 1.5：余额来自账户（acct_accounts 唯一事实源）；基础资料不再持有余额
+        AcctAccount account = accountService.getOrCreate(user.getId());
+        vo.setBalance(account.getAvailableBalance());
+        vo.setGiftBalance(account.getGiftBalance());
+        vo.setFrozenBalance(account.getFrozenBalance());
         vo.setStatus(user.getStatus());
         vo.setLastLoginAt(TimeUtil.toEpochMillis(user.getLastLoginAt()));
         vo.setCreatedAt(TimeUtil.toEpochMillis(user.getCreatedAt()));

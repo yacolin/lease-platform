@@ -18,7 +18,7 @@ import com.example.leaseplatform.prd.entity.PrdSku;
 import com.example.leaseplatform.prd.mapper.PrdProductMapper;
 import com.example.leaseplatform.trd.entity.TrdPayment;
 import com.example.leaseplatform.trd.entity.TrdRefund;
-import com.example.leaseplatform.trd.service.BalanceService;
+import com.example.leaseplatform.trd.service.AccountService;
 import com.example.leaseplatform.trd.service.PaymentService;
 import com.example.leaseplatform.usr.entity.UsrUser;
 import com.example.leaseplatform.usr.mapper.UsrUserMapper;
@@ -62,7 +62,7 @@ class OrderServiceTest {
     @Mock
     private DiscountCalculator discountCalculator;
     @Mock
-    private BalanceService balanceService;
+    private AccountService accountService;
     @Mock
     private com.example.leaseplatform.trd.service.PaymentService paymentService;
     @Mock
@@ -89,7 +89,7 @@ class OrderServiceTest {
     void setUp() {
         // 须在 @Mock 注入后构造（字段初始化器在注入前执行会拿到 null mock）
         service = new OrderService(orderMapper, itemMapper, productMapper, userMapper,
-                discountCalculator, balanceService, paymentService, refundService, statusHistoryService,
+                discountCalculator, accountService, paymentService, refundService, statusHistoryService,
                 skuService);
     }
 
@@ -233,7 +233,7 @@ class OrderServiceTest {
 
         OrderVO vo = service.pay(1L, 100L);
 
-        verify(balanceService).debit(1L, 2400L, 100L, "咖啡订单");
+        verify(accountService).debit(1L, 2400L, 100L, "咖啡订单");
         // 1.2：创建并结算支付单
         verify(paymentService).create(eq(1L), eq(PaymentService.BIZ_ORDER), eq(100L),
                 eq(2400L), eq(PaymentService.METHOD_BALANCE), eq(PaymentService.CHANNEL_BALANCE), any());
@@ -253,7 +253,7 @@ class OrderServiceTest {
         assertThatThrownBy(() -> service.pay(1L, 100L))
                 .isInstanceOf(BizException.class)
                 .hasMessage("订单已处理");
-        verify(balanceService).debit(1L, 2400L, 100L, "咖啡订单");
+        verify(accountService).debit(1L, 2400L, 100L, "咖啡订单");
         verify(paymentService, never()).settle(any(), any());
         verify(paymentService, never()).create(any(), anyInt(), any(), anyLong(), anyInt(), anyInt(), any());
     }
@@ -265,7 +265,7 @@ class OrderServiceTest {
         assertThatThrownBy(() -> service.pay(1L, 100L))
                 .isInstanceOf(BizException.class)
                 .hasMessage("订单已处理");
-        verify(balanceService, never()).debit(any(), anyLong(), any(), any());
+        verify(accountService, never()).debit(any(), anyLong(), any(), any());
     }
 
     @Test
@@ -278,8 +278,8 @@ class OrderServiceTest {
 
         OrderVO vo = service.cancel(1L, 100L, "不要了");
 
-        verify(balanceService).credit(1L, 2400L, 0L,
-                BalanceService.TX_REFUND, 100L, null, "订单取消退款");
+        verify(accountService).credit(1L, 2400L, 0L,
+                AccountService.TX_REFUND, 100L, null, "订单取消退款");
         assertThat(vo.getOrderStatus()).isEqualTo(OrderService.STATUS_CANCELLED);
         assertThat(vo.getCancelReason()).isEqualTo("不要了");
     }
@@ -300,7 +300,7 @@ class OrderServiceTest {
 
         verify(refundService).refundToBalance(1L, 900L, 2400L, "订单取消退款",
                 "ORDER_CANCEL_REFUND:100", 100L);
-        verify(balanceService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
+        verify(accountService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
         assertThat(vo.getOrderStatus()).isEqualTo(OrderService.STATUS_CANCELLED);
     }
 
@@ -311,7 +311,7 @@ class OrderServiceTest {
         assertThatThrownBy(() -> service.cancel(1L, 100L, null))
                 .isInstanceOf(BizException.class)
                 .hasMessage("订单制作中，暂不可取消");
-        verify(balanceService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
+        verify(accountService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
     }
 
     @Test
@@ -352,8 +352,8 @@ class OrderServiceTest {
         OrderVO vo = service.adminUpdateStatus(100L, OrderService.STATUS_REFUNDED, 9L);
 
         assertThat(vo.getOrderStatus()).isEqualTo(OrderService.STATUS_REFUNDED);
-        verify(balanceService).credit(1L, 2400L, 0L,
-                BalanceService.TX_REFUND, 100L, null, "商家退款");
+        verify(accountService).credit(1L, 2400L, 0L,
+                AccountService.TX_REFUND, 100L, null, "商家退款");
     }
 
     @Test

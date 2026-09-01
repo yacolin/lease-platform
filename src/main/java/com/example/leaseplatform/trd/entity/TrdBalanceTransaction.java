@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 
 /**
  * 余额流水（trd_balance_transactions）：所有余额变动明细（充值/消费/退款/赠送/调整）。
- * transaction_type：1-充值, 2-消费, 3-退款, 4-赠送, 5-调整。
+ * transaction_type：1-充值, 2-消费, 3-退款, 4-赠送, 5-调整, 6-冻结, 7-解冻。
  * 纯流水表，只保留 created_at。
  */
 @Data
@@ -40,6 +40,12 @@ public class TrdBalanceTransaction {
 
     /** 变动后赠送余额（分） */
     private Long giftBalanceAfter;
+
+    /** 变动前冻结余额（分，1.5） */
+    private Long frozenBalanceBefore;
+
+    /** 变动后冻结余额（分，1.5） */
+    private Long frozenBalanceAfter;
 
     /** 关联订单 ID（订单表） */
     private Long relatedOrderId;

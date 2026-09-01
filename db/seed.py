@@ -197,7 +197,7 @@ def build_sql():
         # 会议室域
         "mtg_reservations", "mtg_room_level_prices", "mtg_rooms",
         # 交易域
-        "trd_balance_transactions", "trd_recharge_records", "trd_recharge_tiers",
+        "trd_balance_transactions", "acct_accounts", "trd_recharge_records", "trd_recharge_tiers",
         # 用户域
         "usr_member_purchases", "usr_enterprise_members", "usr_member_levels",
         "usr_enterprises", "usr_users", "usr_admins",
@@ -306,10 +306,16 @@ def build_sql():
 
     # ---------- 演示用户 + 企业（仅开发，openid 避开测试用的 mock_dev_user） ----------
     sql.append("INSERT INTO `usr_users` (`id`, `openid`, `nickname`, `user_type`, `enterprise_id`, "
-               "`member_level`, `is_enterprise_admin`, `balance`, `gift_balance`, `status`) VALUES "
-               "(1, 'mock_demo_admin', '演示企业主', 2, 1, 2, 1, 200000, 50000, 1), "
-               "(2, 'mock_demo_employee', '演示员工', 2, 1, 0, 0, 15000, 0, 1), "
-               "(3, 'mock_demo_walker', '演示路人', 3, NULL, 0, 0, 3000, 0, 1);")
+               "`member_level`, `is_enterprise_admin`, `status`) VALUES "
+               "(1, 'mock_demo_admin', '演示企业主', 2, 1, 2, 1, 1), "
+               "(2, 'mock_demo_employee', '演示员工', 2, 1, 0, 0, 1), "
+               "(3, 'mock_demo_walker', '演示路人', 3, NULL, 0, 0, 1);")
+
+    # ---------- 用户账户（1.5：余额唯一事实源 acct_accounts，演示余额与 1.0 种子一致） ----------
+    sql.append("INSERT INTO `acct_accounts` (`id`, `user_id`, `available_balance`, `gift_balance`, `status`) VALUES "
+               "(1, 1, 200000, 50000, 1), "
+               "(2, 2, 15000, 0, 1), "
+               "(3, 3, 3000, 0, 1);")
     sql.append("INSERT INTO `usr_enterprises` (`id`, `enterprise_name`, `unified_social_credit_code`, "
                "`business_license_url`, `legal_person_name`, `legal_person_id_card_front`, "
                "`legal_person_id_card_back`, `contact_name`, `contact_phone`, `enterprise_type`, "
@@ -352,7 +358,8 @@ def main():
                       "SELECT 'usr_member_levels', COUNT(*) FROM usr_member_levels UNION ALL "
                       "SELECT 'usr_admins', COUNT(*) FROM usr_admins UNION ALL "
                       "SELECT 'usr_users', COUNT(*) FROM usr_users UNION ALL "
-                      "SELECT 'usr_enterprises', COUNT(*) FROM usr_enterprises) t ORDER BY 1;"],
+                      "SELECT 'usr_enterprises', COUNT(*) FROM usr_enterprises UNION ALL "
+                      "SELECT 'acct_accounts', COUNT(*) FROM acct_accounts) t ORDER BY 1;"],
         capture_output=True, text=True, check=True)
     print("==> 种子数据统计：")
     for line in counts.stdout.strip().splitlines():

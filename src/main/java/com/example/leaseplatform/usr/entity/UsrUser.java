@@ -49,12 +49,6 @@ public class UsrUser {
     /** 是否企业管理员：0-否, 1-是 */
     private Integer isEnterpriseAdmin;
 
-    /** 余额（分） */
-    private Long balance;
-
-    /** 赠送余额（分） */
-    private Long giftBalance;
-
     /** 状态：0-禁用, 1-正常 */
     private Integer status;
 

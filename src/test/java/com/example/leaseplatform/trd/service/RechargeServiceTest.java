@@ -58,7 +58,7 @@ class RechargeServiceTest {
     @Mock
     private UsrUserMapper userMapper;
     @Mock
-    private BalanceService balanceService;
+    private AccountService accountService;
     @Mock
     private com.example.leaseplatform.trd.service.PaymentService paymentService;
     @Mock
@@ -71,7 +71,7 @@ class RechargeServiceTest {
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
         // 注意：须在 @Mock 注入后构造服务（字段初始化器在注入前执行会拿到 null mock）
-        service = new RechargeService(recordMapper, tierMapper, userMapper, balanceService,
+        service = new RechargeService(recordMapper, tierMapper, userMapper, accountService,
                 paymentService, idempotencyService, wechatPayClient);
     }
 
@@ -170,8 +170,8 @@ class RechargeServiceTest {
         RechargeRecordVO vo = service.mockPay(1L, 100L);
 
         assertThat(vo.getPaymentStatus()).isEqualTo(1);
-        verify(balanceService).credit(1L, 20000L, 2000L,
-                BalanceService.TX_RECHARGE, null, 100L, "余额充值");
+        verify(accountService).credit(1L, 20000L, 2000L,
+                AccountService.TX_RECHARGE, null, 100L, "余额充值");
     }
 
     @Test
@@ -182,7 +182,7 @@ class RechargeServiceTest {
         RechargeRecordVO vo = service.mockPay(1L, 100L);
 
         assertThat(vo.getPaymentStatus()).isEqualTo(1);
-        verify(balanceService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
+        verify(accountService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
     }
 
     @Test
@@ -194,7 +194,7 @@ class RechargeServiceTest {
         RechargeRecordVO vo = service.mockPay(1L, 100L);
 
         assertThat(vo.getPaymentStatus()).isEqualTo(1);
-        verify(balanceService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
+        verify(accountService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
     }
 
     @Test
@@ -225,7 +225,7 @@ class RechargeServiceTest {
                  "resource":{"ciphertext":"x","nonce":"n","associated_data":"a"}}""";
         service.handleNotify(body);
 
-        verify(balanceService).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
+        verify(accountService).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
         // 1.2：回调幂等键落库 + 支付单结算
         verify(idempotencyService).acquire(eq("WX_NOTIFY:RC123"), eq("RECHARGE_NOTIFY"),
                 eq(100L), any(), any());
@@ -246,7 +246,7 @@ class RechargeServiceTest {
                 {"event_type":"TRANSACTION.SUCCESS",
                  "resource":{"ciphertext":"x","nonce":"n","associated_data":"a"}}""");
 
-        verify(balanceService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
+        verify(accountService, never()).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
         verify(paymentService, never()).settleByOutTradeNo(any(), any());
     }
 
@@ -291,6 +291,6 @@ class RechargeServiceTest {
         RechargeRecordVO vo = service.query(1L, 100L);
 
         assertThat(vo.getPaymentStatus()).isEqualTo(1);
-        verify(balanceService).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
+        verify(accountService).credit(any(), anyLong(), anyLong(), anyInt(), any(), any(), any());
     }
 }

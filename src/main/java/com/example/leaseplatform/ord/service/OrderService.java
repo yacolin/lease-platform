@@ -20,7 +20,7 @@ import com.example.leaseplatform.prd.entity.PrdSku;
 import com.example.leaseplatform.prd.mapper.PrdProductMapper;
 import com.example.leaseplatform.prd.service.PrdSkuService;
 import com.example.leaseplatform.trd.entity.TrdPayment;
-import com.example.leaseplatform.trd.service.BalanceService;
+import com.example.leaseplatform.trd.service.AccountService;
 import com.example.leaseplatform.trd.service.PaymentService;
 import com.example.leaseplatform.trd.service.RefundService;
 import com.example.leaseplatform.usr.entity.UsrUser;
@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
  * - 折扣叠加：应付 = 原价 × 会员折扣率 × 充值赠送折扣率
  *   （member_discount：按 usr_member_levels.discount_rate；
  *    recharge_discount：按用户最近一次成功充值档位的 equivalent_discount，未充值不打折）；
- * - 余额支付：BalanceService.debit（赠送余额优先扣）→ 待取餐 + 生成取餐码；
+ * - 余额支付：AccountService.debit（赠送余额优先扣）→ 待取餐 + 生成取餐码；
  * - 状态流转：待支付→待取餐→制作中→完成；取消（退款）/ 商家退款；取餐码核销；
  * - 查询：我的订单 / 商家后台分页筛选 + 统计。
  */
@@ -73,7 +73,7 @@ public class OrderService {
     private final PrdProductMapper productMapper;
     private final UsrUserMapper userMapper;
     private final DiscountCalculator discountCalculator;
-    private final BalanceService balanceService;
+    private final AccountService accountService;
     private final PaymentService paymentService;
     private final RefundService refundService;
     private final OrderStatusHistoryService statusHistoryService;
@@ -171,7 +171,7 @@ public class OrderService {
             throw BizException.badRequest("当前仅支持余额支付");
         }
         // 1. 余额扣款（余额不足时抛异常，此时未产生任何写操作，订单保持待支付可重试）
-        balanceService.debit(userId, order.getPayableAmount(), orderId, "咖啡订单");
+        accountService.debit(userId, order.getPayableAmount(), orderId, "咖啡订单");
         // 2. 乐观锁定订单 0→1（并发重复支付只有一个成功；锁定失败抛异常，本事务回滚扣款）
         LocalDateTime paidAt = LocalDateTime.now();
         String pickupCode = generatePickupCode();
@@ -234,8 +234,8 @@ public class OrderService {
     private void refundOrderPayment(OrdOrder order, String reason, String idempotencyKey) {
         TrdPayment payment = paymentService.getByBiz(PaymentService.BIZ_ORDER, order.getId());
         if (payment == null) {
-            balanceService.credit(order.getUserId(), order.getPayableAmount(), 0L,
-                    BalanceService.TX_REFUND, order.getId(), null, reason);
+            accountService.credit(order.getUserId(), order.getPayableAmount(), 0L,
+                    AccountService.TX_REFUND, order.getId(), null, reason);
             return;
         }
         refundService.refundToBalance(order.getUserId(), payment.getId(), order.getPayableAmount(),

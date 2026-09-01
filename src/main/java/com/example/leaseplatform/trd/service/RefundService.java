@@ -48,7 +48,7 @@ public class RefundService {
 
     private final TrdRefundMapper refundMapper;
     private final TrdPaymentMapper paymentMapper;
-    private final BalanceService balanceService;
+    private final AccountService accountService;
 
     /**
      * 原路余额退款（同步）：创建退款单 → 校验 → 余额入账 → 标记成功 → 更新支付单状态。
@@ -112,7 +112,7 @@ public class RefundService {
             throw e;
         }
         // 余额原路退回 + 流水（同事务；1.5 账户模型前赠送余额不回补，保持 1.1 行为）
-        balanceService.credit(userId, amount, 0L, BalanceService.TX_REFUND,
+        accountService.credit(userId, amount, 0L, AccountService.TX_REFUND,
                 relatedOrderId != null ? relatedOrderId : payment.getBizId(), null, reason);
         // 更新支付单状态：累计退款 ≥ 支付金额 → 已退款；否则 → 部分退款
         long totalRefunded = refunded + amount;

@@ -45,6 +45,7 @@ DROP TABLE IF EXISTS prd_categories;               -- 商品域，无依赖
 DROP TABLE IF EXISTS mtg_bookings;                  -- 会议室域，1.4 占用表，依赖 mtg_reservations
 DROP TABLE IF EXISTS mtg_reservations;             -- 会议室域，依赖 mtg_rooms / usr_users / usr_enterprises
 DROP TABLE IF EXISTS mtg_rooms;                    -- 会议室域，无依赖
+DROP TABLE IF EXISTS acct_accounts;                -- 交易域，1.5 账户（= 用户ID），依赖 usr_users
 DROP TABLE IF EXISTS trd_balance_transactions;     -- 交易域，依赖 usr_users / ord_orders
 DROP TABLE IF EXISTS trd_refunds;                  -- 交易域，1.2 退款单，依赖 trd_payments
 DROP TABLE IF EXISTS trd_payments;                 -- 交易域，1.2 支付单，依赖 usr_users

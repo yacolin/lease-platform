@@ -7,7 +7,7 @@ import com.example.leaseplatform.trd.dto.BalanceTransactionVO;
 import com.example.leaseplatform.trd.dto.RechargeCreateResultVO;
 import com.example.leaseplatform.trd.dto.RechargeRecordVO;
 import com.example.leaseplatform.trd.dto.RechargeReq;
-import com.example.leaseplatform.trd.service.BalanceService;
+import com.example.leaseplatform.trd.service.AccountService;
 import com.example.leaseplatform.trd.service.RechargeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class MeRechargeController {
 
     private final RechargeService rechargeService;
-    private final BalanceService balanceService;
+    private final AccountService accountService;
 
     @Operation(operationId = "createRecharge", summary = "充值下单（微信支付未配置时走 mock-pay）")
     @PostMapping("/recharge")
@@ -64,6 +64,6 @@ public class MeRechargeController {
     public ApiResponse<PageResult<BalanceTransactionVO>> transactions(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return ApiResponse.ok(balanceService.myTransactions(UserContext.getUserId(), page, size));
+        return ApiResponse.ok(accountService.myTransactions(UserContext.getUserId(), page, size));
     }
 }

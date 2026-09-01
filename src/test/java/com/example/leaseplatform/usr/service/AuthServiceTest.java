@@ -174,7 +174,7 @@ class AuthServiceTest {
         assertThat(created.getNickname()).isEqualTo("微信用户");
         assertThat(created.getUserType()).isEqualTo(3);
         assertThat(created.getStatus()).isEqualTo(1);
-        assertThat(created.getBalance()).isEqualTo(0L);
+        // 1.5：余额不再存在于用户表，账户由 AccountService 懒创建（0 余额）
 
         verify(valueOps).set(RT_WX, "rt", Duration.ofSeconds(604800));
         verify(userMapper).updateById(any(UsrUser.class));

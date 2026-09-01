@@ -159,8 +159,6 @@ public class AuthService {
         user.setUserType(3);          // 路人用户
         user.setMemberLevel(0);
         user.setIsEnterpriseAdmin(0);
-        user.setBalance(0L);
-        user.setGiftBalance(0L);
         user.setStatus(1);
         userMapper.insert(user);
         return user;

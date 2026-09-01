@@ -30,8 +30,6 @@ CREATE TABLE `usr_users` (
   `enterprise_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '所属企业ID（路人用户为空）',
   `member_level` TINYINT NOT NULL DEFAULT 0 COMMENT '会员等级：0-非会员, 1-基础版, 2-VIP版, 3-SVIP版',
   `is_enterprise_admin` TINYINT NOT NULL DEFAULT 0 COMMENT '是否企业管理员：0-否, 1-是',
-  `balance` BIGINT NOT NULL DEFAULT 0 COMMENT '余额（分）',
-  `gift_balance` BIGINT NOT NULL DEFAULT 0 COMMENT '赠送余额（分）',
   `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0-禁用, 1-正常',
   `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0-未删除, 1-已删除',
   `last_login_at` DATETIME DEFAULT NULL COMMENT '最后登录时间',

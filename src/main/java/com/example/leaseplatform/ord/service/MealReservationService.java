@@ -20,7 +20,7 @@ import com.example.leaseplatform.prd.entity.PrdProduct;
 import com.example.leaseplatform.prd.mapper.PrdDailyMenuMapper;
 import com.example.leaseplatform.prd.mapper.PrdProductMapper;
 import com.example.leaseplatform.trd.entity.TrdPayment;
-import com.example.leaseplatform.trd.service.BalanceService;
+import com.example.leaseplatform.trd.service.AccountService;
 import com.example.leaseplatform.trd.service.PaymentService;
 import com.example.leaseplatform.trd.service.RefundService;
 import com.example.leaseplatform.usr.entity.UsrUser;
@@ -74,7 +74,7 @@ public class MealReservationService {
     private final PrdDailyMenuMapper menuMapper;
     private final UsrUserMapper userMapper;
     private final DiscountCalculator discountCalculator;
-    private final BalanceService balanceService;
+    private final AccountService accountService;
     private final PaymentService paymentService;
     private final RefundService refundService;
     private final OrderStatusHistoryService statusHistoryService;
@@ -194,7 +194,7 @@ public class MealReservationService {
             throw BizException.conflict("预订已处理");
         }
         // 1. 余额扣款（余额不足时抛异常，此时未产生任何写操作，预订保持待支付可重试）
-        balanceService.debit(userId, reservation.getPayableAmount(), reservation.getOrderId(), "正餐预订");
+        accountService.debit(userId, reservation.getPayableAmount(), reservation.getOrderId(), "正餐预订");
         // 2. 乐观锁定预订 0→1（并发重复支付只有一个成功；锁定失败抛异常，本事务回滚扣款）
         LocalDateTime paidAt = LocalDateTime.now();
         String outTradeNo = generateNo("PO");
@@ -301,8 +301,8 @@ public class MealReservationService {
         TrdPayment payment = paymentService.getByBiz(PaymentService.BIZ_MEAL_RESERVATION,
                 reservation.getId());
         if (payment == null) {
-            balanceService.credit(reservation.getUserId(), reservation.getPayableAmount(), 0L,
-                    BalanceService.TX_REFUND, reservation.getOrderId(), null, reason);
+            accountService.credit(reservation.getUserId(), reservation.getPayableAmount(), 0L,
+                    AccountService.TX_REFUND, reservation.getOrderId(), null, reason);
             return;
         }
         refundService.refundToBalance(reservation.getUserId(), payment.getId(),

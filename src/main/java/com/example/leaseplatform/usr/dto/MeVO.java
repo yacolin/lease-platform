@@ -38,6 +38,9 @@ public class MeVO {
     /** 赠送余额（分） */
     private Long giftBalance;
 
+    /** 冻结余额（分，1.5） */
+    private Long frozenBalance;
+
     /** 状态：0-禁用, 1-正常 */
     @Schema(description = "状态：0-禁用, 1-正常")
     private Integer status;

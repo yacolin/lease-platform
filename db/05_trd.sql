@@ -1,7 +1,7 @@
 -- ============================ 交易域 (trd_) ============================
 -- trd_recharge_tiers 充值档位 / trd_recharge_records 充值记录 /
 -- trd_balance_transactions 余额流水 / trd_payments 支付单（1.2）/
--- trd_refunds 退款单（1.2）
+-- trd_refunds 退款单（1.2）/ acct_accounts 用户账户（1.5）
 -- 本文件可重复执行（先 DROP 再 CREATE）；删除或调整本域表时直接修改本文件
 --
 -- 表结构遵照 1.0 版本共享对话的 MySQL 设计（数据库 lease_db）；
@@ -10,10 +10,12 @@
 -- 充值档位配置 trd_recharge_tiers 自增）；金额 BIGINT（分，最小单位整数，
 -- 全链路统一以「分」为单位，与微信支付对齐；折扣率 equivalent_discount 仍为 DECIMAL）；
 -- 纯流水表（trd_balance_transactions）只保留 created_at；
--- 支付单/退款单（1.2）：编号与外部交易号唯一索引，幂等键唯一（防重复退款）。
+-- 支付单/退款单（1.2）：编号与外部交易号唯一索引，幂等键唯一（防重复退款）；
+-- 账户（1.5）：acct_accounts 为余额唯一事实源（可用/赠送/冻结），usr_users 不再持有余额。
 
--- 反向依赖顺序删除（trd_balance_transactions → trd_refunds → trd_payments →
+-- 反向依赖顺序删除（acct_accounts → trd_balance_transactions → trd_refunds → trd_payments →
 -- trd_recharge_records → trd_recharge_tiers）
+DROP TABLE IF EXISTS `acct_accounts`;
 DROP TABLE IF EXISTS `trd_balance_transactions`;
 DROP TABLE IF EXISTS `trd_refunds`;
 DROP TABLE IF EXISTS `trd_payments`;
@@ -69,6 +71,8 @@ CREATE TABLE `trd_balance_transactions` (
   `balance_after` BIGINT NOT NULL COMMENT '变动后余额（分）',
   `gift_balance_before` BIGINT NOT NULL DEFAULT 0 COMMENT '变动前赠送余额（分）',
   `gift_balance_after` BIGINT NOT NULL DEFAULT 0 COMMENT '变动后赠送余额（分）',
+  `frozen_balance_before` BIGINT NOT NULL DEFAULT 0 COMMENT '变动前冻结余额（分，1.5）',
+  `frozen_balance_after` BIGINT NOT NULL DEFAULT 0 COMMENT '变动后冻结余额（分，1.5）',
   `related_order_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '关联订单ID（订单表）',
   `related_recharge_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '关联充值记录ID',
   `remark` VARCHAR(255) DEFAULT NULL COMMENT '备注说明',
@@ -129,3 +133,18 @@ CREATE TABLE `trd_refunds` (
   KEY `idx_biz` (`biz_type`, `biz_id`),
   KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='退款单表';
+
+-- 用户账户表（1.5 账户/钱包）：余额从 usr_users 剥离，账户=当前状态（流水=历史事实）
+-- 主键 = 用户 ID（1:1 账户，无自增）
+CREATE TABLE `acct_accounts` (
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '账户ID（= 用户ID，1:1 账户无自增）',
+  `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
+  `available_balance` BIGINT NOT NULL DEFAULT 0 COMMENT '可用余额（分）',
+  `gift_balance` BIGINT NOT NULL DEFAULT 0 COMMENT '赠送余额（分）',
+  `frozen_balance` BIGINT NOT NULL DEFAULT 0 COMMENT '冻结余额（分，押金/预授权/待结算/退款处理中）',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0-冻结, 1-正常',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户账户表';

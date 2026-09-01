@@ -1,6 +1,7 @@
 package com.example.leaseplatform.trd;
 
 import com.example.leaseplatform.usr.entity.UsrUser;
+import com.example.leaseplatform.trd.mapper.AcctAccountMapper;
 import com.example.leaseplatform.usr.mapper.UsrUserMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,8 @@ class TrdRechargeIntegrationTest {
     private MockMvc mockMvc;
     @Autowired
     private UsrUserMapper userMapper;
+    @Autowired
+    private AcctAccountMapper acctAccountMapper;
     @Autowired
     private StringRedisTemplate redisTemplate;
 
@@ -126,11 +129,14 @@ class TrdRechargeIntegrationTest {
                 .andExpect(jsonPath("$.data.balance").value(50000))
                 .andExpect(jsonPath("$.data.giftBalance").value(6000));
 
-        // 8. DB 校验
+        // 8. DB 校验（1.5：余额在 acct_accounts 账户表）
         UsrUser user = userMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UsrUser>()
                 .eq(UsrUser::getOpenid, "mock_dev_user"));
-        assertThat(user.getBalance()).isEqualTo(50000L);
-        assertThat(user.getGiftBalance()).isEqualTo(6000L);
+        com.example.leaseplatform.trd.entity.AcctAccount account = acctAccountMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<com.example.leaseplatform.trd.entity.AcctAccount>()
+                        .eq(com.example.leaseplatform.trd.entity.AcctAccount::getUserId, user.getId()));
+        assertThat(account.getAvailableBalance()).isEqualTo(50000L);
+        assertThat(account.getGiftBalance()).isEqualTo(6000L);
     }
 
     @Test

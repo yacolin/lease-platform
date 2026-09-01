@@ -23,7 +23,7 @@ import com.example.leaseplatform.ord.mapper.OrdOrderMapper;
 import com.example.leaseplatform.ord.service.OrderService;
 import com.example.leaseplatform.ord.service.OrderStatusHistoryService;
 import com.example.leaseplatform.trd.entity.TrdPayment;
-import com.example.leaseplatform.trd.service.BalanceService;
+import com.example.leaseplatform.trd.service.AccountService;
 import com.example.leaseplatform.trd.service.PaymentService;
 import com.example.leaseplatform.trd.service.RefundService;
 import com.example.leaseplatform.usr.entity.UsrEnterprise;
@@ -92,7 +92,7 @@ public class MeetingReservationService {
     private final UsrUserMapper userMapper;
     private final UsrEnterpriseMapper enterpriseMapper;
     private final UsrMemberLevelMapper memberLevelMapper;
-    private final BalanceService balanceService;
+    private final AccountService accountService;
     private final PaymentService paymentService;
     private final RefundService refundService;
     private final OrdOrderMapper orderMapper;
@@ -138,9 +138,11 @@ public class MeetingReservationService {
         // 资源占用记录（Booking，占用中）
         insertBooking(reservation);
 
-        // 1.4.5 预约订单化：付费预约关联订单 + 支付单（交易事实），免费预约无交易
+        // 1.4.5 预约订单化：付费预约关联订单 + 支付单（交易事实），免费预约无交易；
+        // 1.5.3 预授权：创建时冻结费用（可用 → 冻结），pay() 解冻再扣款，取消/过期解冻
         if (fee > 0) {
             linkOrderAndPayment(reservation, user);
+            accountService.freeze(userId, fee, reservation.getOrderId(), "会议室预约预授权");
         }
         return toVO(reservation, room);
     }
@@ -155,8 +157,9 @@ public class MeetingReservationService {
         if (reservation.getFeeAmount() == null || reservation.getFeeAmount() <= 0) {
             throw BizException.conflict("该预约无需支付");
         }
-        // 1. 余额扣款（余额不足时抛异常，此时无任何写操作，预约保持待支付可重试）
-        balanceService.debit(userId, reservation.getFeeAmount(), reservation.getOrderId(), "会议室预约");
+        // 1. 解冻预授权 + 余额扣款（余额不足时抛异常，此时无任何写操作，预约保持待支付可重试）
+        accountService.unfreeze(userId, reservation.getFeeAmount(), reservation.getOrderId(), "会议室预约支付解冻");
+        accountService.debit(userId, reservation.getFeeAmount(), reservation.getOrderId(), "会议室预约");
         // 2. 乐观锁定预约 0→1 与关联订单 0→1（并发重复支付只有一个成功；失败本事务回滚扣款）
         LocalDateTime now = LocalDateTime.now();
         int updatedRes = reservationMapper.update(null, new LambdaUpdateWrapper<MtgReservation>()
@@ -198,25 +201,32 @@ public class MeetingReservationService {
                 || status == STATUS_CANCELLED || status == STATUS_EXPIRED) {
             throw BizException.conflict("预约已结束");
         }
-        if (reservation.getFeeAmount() != null && reservation.getFeeAmount() > 0) {
-            // 原路退款（1.2 退款单：幂等键防重复退款 + 可退金额校验）
-            TrdPayment payment = paymentService.getByBiz(PaymentService.BIZ_MEETING, reservationId);
-            if (payment != null) {
-                refundService.refundToBalance(userId, payment.getId(), reservation.getFeeAmount(),
-                        "会议室预约取消退款", "MEETING_CANCEL_REFUND:" + reservationId,
-                        reservation.getOrderId());
+        boolean paid = reservation.getFeeAmount() != null && reservation.getFeeAmount() > 0;
+        if (paid) {
+            if (status == STATUS_PENDING) {
+                // 待确认：预授权未扣款 → 解冻（不退款）
+                accountService.unfreeze(userId, reservation.getFeeAmount(),
+                        reservation.getOrderId(), "会议室预约取消解冻");
+            } else {
+                // 已确认：已扣款 → 原路退款（1.2 退款单：幂等键防重复 + 可退金额校验）
+                TrdPayment payment = paymentService.getByBiz(PaymentService.BIZ_MEETING, reservationId);
+                if (payment != null) {
+                    refundService.refundToBalance(userId, payment.getId(), reservation.getFeeAmount(),
+                            "会议室预约取消退款", "MEETING_CANCEL_REFUND:" + reservationId,
+                            reservation.getOrderId());
+                }
             }
-            // 关联订单 → 已取消
-            if (reservation.getOrderId() != null) {
-                orderMapper.update(null, new LambdaUpdateWrapper<OrdOrder>()
-                        .eq(OrdOrder::getId, reservation.getOrderId())
-                        .set(OrdOrder::getOrderStatus, OrderService.STATUS_CANCELLED)
-                        .set(OrdOrder::getCancelledAt, LocalDateTime.now())
-                        .set(OrdOrder::getCancelReason, "会议室预约取消"));
-                statusHistoryService.record(OrderStatusHistoryService.BIZ_MEETING_ORDER,
-                        reservation.getOrderId(), OrderService.STATUS_PICKUP, OrderService.STATUS_CANCELLED,
-                        userId, OrderStatusHistoryService.OPERATOR_USER, "会议室预约取消");
-            }
+        }
+        // 关联订单 → 已取消（付费预约才有订单）
+        if (reservation.getOrderId() != null) {
+            orderMapper.update(null, new LambdaUpdateWrapper<OrdOrder>()
+                    .eq(OrdOrder::getId, reservation.getOrderId())
+                    .set(OrdOrder::getOrderStatus, OrderService.STATUS_CANCELLED)
+                    .set(OrdOrder::getCancelledAt, LocalDateTime.now())
+                    .set(OrdOrder::getCancelReason, "会议室预约取消"));
+            statusHistoryService.record(OrderStatusHistoryService.BIZ_MEETING_ORDER,
+                    reservation.getOrderId(), OrderService.STATUS_PICKUP, OrderService.STATUS_CANCELLED,
+                    userId, OrderStatusHistoryService.OPERATOR_USER, "会议室预约取消");
         }
         reservation.setStatus(STATUS_CANCELLED);
         reservation.setCancelledAt(LocalDateTime.now());
@@ -302,7 +312,7 @@ public class MeetingReservationService {
                 .eq(MtgBooking::getReservationId, reservationId)
                 .set(MtgBooking::getStartAt, LocalDateTime.of(req.getReservationDate(), req.getStartTime()))
                 .set(MtgBooking::getEndAt, LocalDateTime.of(req.getReservationDate(), req.getEndTime())));
-        // 待确认（未支付）→ 同步订单应付与支付单金额
+        // 待确认（未支付）→ 同步订单应付与支付单金额 + 调整预授权冻结
         if (reservation.getOrderId() != null) {
             orderMapper.update(null, new LambdaUpdateWrapper<OrdOrder>()
                     .eq(OrdOrder::getId, reservation.getOrderId())
@@ -311,6 +321,11 @@ public class MeetingReservationService {
             TrdPayment payment = paymentService.getByBiz(PaymentService.BIZ_MEETING, reservationId);
             if (payment != null) {
                 paymentService.updateAmount(payment.getId(), fee);
+            }
+            long oldFee = reservation.getFeeAmount() == null ? 0L : reservation.getFeeAmount();
+            if (oldFee != fee) {
+                accountService.unfreeze(userId, oldFee, reservation.getOrderId(), "会议室预约改期解冻");
+                accountService.freeze(userId, fee, reservation.getOrderId(), "会议室预约改期冻结");
             }
         }
         return toVO(reservation, roomMapper.selectById(reservation.getRoomId()));
@@ -570,6 +585,10 @@ public class MeetingReservationService {
             releaseBooking(id);
         }
         for (MtgReservation r : expired) {
+            // 待确认（预授权冻结）→ 解冻（过期不退款，但冻结必须释放）
+            if (r.getStatus() == STATUS_PENDING && r.getFeeAmount() != null && r.getFeeAmount() > 0) {
+                accountService.unfreeze(r.getUserId(), r.getFeeAmount(), r.getOrderId(), "会议室预约过期解冻");
+            }
             if (r.getOrderId() != null) {
                 orderMapper.update(null, new LambdaUpdateWrapper<OrdOrder>()
                         .eq(OrdOrder::getId, r.getOrderId())
