@@ -24,6 +24,9 @@ public class MeetingReservationVO {
 
     private Long enterpriseId;
 
+    /** 关联订单 ID（1.4 预约订单化，付费预约才有） */
+    private Long orderId;
+
     /** 预约日期 */
     private LocalDate reservationDate;
 

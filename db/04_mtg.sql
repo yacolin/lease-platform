@@ -1,5 +1,6 @@
 -- ============================ 会议室域 (mtg_) ============================
--- mtg_rooms 会议室 / mtg_room_level_prices 会议室等级定价 / mtg_reservations 会议室预约
+-- mtg_rooms 会议室 / mtg_room_level_prices 会议室等级定价 / mtg_reservations 会议室预约 /
+-- mtg_bookings 资源占用（1.4）
 -- 本文件可重复执行（先 DROP 再 CREATE）；删除或调整本域表时直接修改本文件
 --
 -- 表结构遵照 1.0 版本共享对话的 MySQL 设计（数据库 lease_db），1.1 按
@@ -9,14 +10,19 @@
 --   * 新增 mtg_room_level_prices：某会议室对某会员等级的超出费用覆盖（Override），
 --     无覆盖时回落到 usr_member_levels.meeting_overtime_fee；
 --   * mtg_reservations 新增 overtime_unit_price / free_hours_deducted 价格快照，
---     保证历史单按下单时单价对账（规则可改、快照不变）。
+--     保证历史单按下单时单价对账（规则可改、快照不变）；
+--   * 1.4 会议室资源化：新增 mtg_bookings 资源占用表（Booking），时间冲突校验改查占用表
+--     （配合 mtg_rooms 行锁串行化并发预约）；mtg_reservations 关联 ord_orders（order_id，
+--     预约订单化，order_type=4 会议室 + trd_payments biz_type=5）；状态生命周期补「使用中」：
+--     0-待确认, 1-已确认, 2-使用中, 3-已完成, 4-已取消, 5-已过期。
 -- 表名按 beauty_salon 约定加域前缀 `mtg_`；跨域关系由服务层保证，本库暂不加外键约束。
 -- 约定：业务表主键 BIGINT UNSIGNED（雪花，无自增，见 db/README.md 主键 ID 策略；
 -- 会议室配置 mtg_rooms / 定价配置 mtg_room_level_prices 自增）；金额 BIGINT
 -- （分，最小单位整数，全链路统一以「分」为单位）；时间字段统一 DATETIME
--- （预约日期 DATE + 时段 TIME）。
+-- （预约日期 DATE + 时段 TIME；占用表直接 DATETIME）。
 
--- 反向依赖顺序删除（mtg_reservations → mtg_room_level_prices → mtg_rooms）
+-- 反向依赖顺序删除（mtg_bookings → mtg_reservations → mtg_room_level_prices → mtg_rooms）
+DROP TABLE IF EXISTS `mtg_bookings`;
 DROP TABLE IF EXISTS `mtg_reservations`;
 DROP TABLE IF EXISTS `mtg_room_level_prices`;
 DROP TABLE IF EXISTS `mtg_rooms`;
@@ -52,19 +58,21 @@ CREATE TABLE `mtg_room_level_prices` (
   KEY `idx_level_code` (`level_code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会议室等级定价表';
 
--- 会议室预约表：会议室预约记录（含价格快照，历史单按快照对账）
+-- 会议室预约表：会议室预约记录（业务事实；含价格快照，历史单按快照对账；
+-- 付费预约关联 ord_orders 订单（order_id，1.4 预约订单化））
 CREATE TABLE `mtg_reservations` (
   `id` BIGINT UNSIGNED NOT NULL COMMENT '预约ID（雪花）',
   `reservation_no` VARCHAR(32) NOT NULL COMMENT '预约编号',
   `room_id` BIGINT UNSIGNED NOT NULL COMMENT '会议室ID',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '预约用户ID',
   `enterprise_id` BIGINT UNSIGNED NOT NULL COMMENT '企业ID',
+  `order_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '关联订单ID（1.4 预约订单化，付费预约才有）',
   `reservation_date` DATE NOT NULL COMMENT '预约日期',
   `start_time` TIME NOT NULL COMMENT '开始时间',
   `end_time` TIME NOT NULL COMMENT '结束时间',
   `duration_hours` DECIMAL(4,1) NOT NULL COMMENT '时长（小时）',
   `meeting_topic` VARCHAR(100) NOT NULL COMMENT '会议主题',
-  `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态：0-待确认, 1-已确认, 2-已完成, 3-已取消, 4-已过期',
+  `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态：0-待确认, 1-已确认, 2-使用中, 3-已完成, 4-已取消, 5-已过期',
   `is_free` TINYINT NOT NULL DEFAULT 0 COMMENT '是否免费：0-否（超出免费时长）, 1-是',
   `fee_amount` BIGINT NOT NULL DEFAULT 0 COMMENT '费用（分）',
   `overtime_unit_price` BIGINT NOT NULL DEFAULT 0 COMMENT '价格快照：下单时超时单价（分/小时）',
@@ -78,6 +86,24 @@ CREATE TABLE `mtg_reservations` (
   KEY `idx_room_id` (`room_id`),
   KEY `idx_user_id` (`user_id`),
   KEY `idx_enterprise_id` (`enterprise_id`),
+  KEY `idx_order_id` (`order_id`),
   KEY `idx_reservation_date` (`reservation_date`),
   KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会议室预约表';
+
+-- 会议室资源占用表（1.4 Booking）：每次预约一条占用记录，时间冲突校验查本表
+-- 雪花 ID（业务主表，见 db/README.md 主键 ID 策略）
+CREATE TABLE `mtg_bookings` (
+  `id` BIGINT UNSIGNED NOT NULL COMMENT '占用记录ID（雪花）',
+  `room_id` BIGINT UNSIGNED NOT NULL COMMENT '会议室ID',
+  `reservation_id` BIGINT UNSIGNED NOT NULL COMMENT '预约ID（mtg_reservations.id）',
+  `start_at` DATETIME NOT NULL COMMENT '占用开始时间',
+  `end_at` DATETIME NOT NULL COMMENT '占用结束时间',
+  `status` TINYINT NOT NULL DEFAULT 0 COMMENT '状态：0-占用中, 1-已释放',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_room_time` (`room_id`, `start_at`, `end_at`),
+  KEY `idx_reservation_id` (`reservation_id`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会议室资源占用表（Booking）';

@@ -5,13 +5,16 @@ import com.example.leaseplatform.common.ApiResponse;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.mtg.dto.MeetingReservationVO;
 import com.example.leaseplatform.mtg.service.MeetingReservationService;
+import com.example.leaseplatform.security.UserContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,11 +50,14 @@ public class MeetingReservationAdminController {
         return ApiResponse.ok(reservationService.adminGet(id));
     }
 
-    @Operation(operationId = "completeMeetingReservation", summary = "确认完成（已确认 → 已完成）")
+    @Operation(operationId = "updateMeetingReservationStatus", summary = "状态推进（1.4：已确认→使用中→已完成；2-使用中, 3-已完成）")
 
-    @OperationLog("会议室预约完成")
-    @PutMapping("/{id}/complete")
-    public ApiResponse<MeetingReservationVO> complete(@PathVariable Long id) {
-        return ApiResponse.ok(reservationService.adminComplete(id));
+    @OperationLog("会议室预约状态推进")
+    @PutMapping("/{id}/status")
+    public ApiResponse<MeetingReservationVO> updateStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody com.example.leaseplatform.ord.dto.OrderStatusReq req) {
+        return ApiResponse.ok(reservationService.adminUpdateStatus(id, req.getOrderStatus(),
+                com.example.leaseplatform.security.UserContext.getUserId()));
     }
 }

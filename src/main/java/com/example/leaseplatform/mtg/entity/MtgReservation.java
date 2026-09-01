@@ -11,11 +11,12 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 /**
- * 会议室预约（mtg_reservations）。
- * status：0-待确认, 1-已确认, 2-已完成, 3-已取消, 4-已过期；
+ * 会议室预约（mtg_reservations，业务事实）。
+ * status：0-待确认, 1-已确认, 2-使用中, 3-已完成, 4-已取消, 5-已过期；
  * is_free：0-否（超出免费时长）, 1-是；fee_amount：超时计费金额；
  * overtime_unit_price / free_hours_deducted：价格快照（下单时单价与抵扣时长，
- * 规则可改、快照不变，保证历史单对账）。
+ * 规则可改、快照不变，保证历史单对账）；
+ * order_id：关联 ord_orders 订单（1.4 预约订单化，付费预约才有；交易事实走订单/支付单/退款单）。
  */
 @Data
 @TableName("mtg_reservations")
@@ -37,6 +38,9 @@ public class MtgReservation {
     /** 企业 ID（个人用户为 0） */
     private Long enterpriseId;
 
+    /** 关联订单 ID（1.4 预约订单化，付费预约才有） */
+    private Long orderId;
+
     /** 预约日期 */
     private LocalDate reservationDate;
 
@@ -52,7 +56,7 @@ public class MtgReservation {
     /** 会议主题 */
     private String meetingTopic;
 
-    /** 状态：0-待确认, 1-已确认, 2-已完成, 3-已取消, 4-已过期 */
+    /** 状态：0-待确认, 1-已确认, 2-使用中, 3-已完成, 4-已取消, 5-已过期 */
     private Integer status;
 
     /** 是否免费：0-否（超出免费时长）, 1-是 */

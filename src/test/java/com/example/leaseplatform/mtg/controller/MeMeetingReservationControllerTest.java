@@ -31,6 +31,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -105,6 +106,20 @@ class MeMeetingReservationControllerTest {
         mockMvc.perform(post("/api/v1/me/meeting-reservations/100/pay"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value(1));
+    }
+
+    @Test
+    void reschedule_shouldReturnRescheduled() throws Exception {
+        MeetingReservationVO vo = vo();
+        vo.setStatus(0);
+        when(reservationService.reschedule(eq(1L), eq(100L), any())).thenReturn(vo);
+
+        mockMvc.perform(put("/api/v1/me/meeting-reservations/100/reschedule")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reservationDate":"2030-01-05","startTime":"09:00","endTime":"10:00",
+                                 "meetingTopic":"评审会"}"""))
+                .andExpect(status().isOk());
     }
 
     @Test

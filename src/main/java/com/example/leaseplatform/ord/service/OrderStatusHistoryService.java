@@ -28,6 +28,7 @@ public class OrderStatusHistoryService {
     /** 业务类型 */
     public static final int BIZ_COFFEE_ORDER = 1;       // 咖啡订单
     public static final int BIZ_MEAL_RESERVATION = 2;   // 正餐预订
+    public static final int BIZ_MEETING_ORDER = 3;       // 会议室订单（1.4）
 
     /** 操作人类型 */
     public static final int OPERATOR_USER = 1;          // 用户

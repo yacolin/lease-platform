@@ -6,12 +6,16 @@ import com.example.leaseplatform.config.SecurityProperties;
 import com.example.leaseplatform.mtg.dto.MeetingReservationVO;
 import com.example.leaseplatform.mtg.service.MeetingReservationService;
 import com.example.leaseplatform.security.JwtTokenProvider;
+import com.example.leaseplatform.security.LoginUser;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -31,7 +35,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(MeetingReservationAdminController.class)
 @Import(SecurityConfig.class)
 @EnableConfigurationProperties(SecurityProperties.class)
-@WithMockUser(roles = "ADMIN")
 class MeetingReservationAdminControllerTest {
 
     @Autowired
@@ -41,6 +44,19 @@ class MeetingReservationAdminControllerTest {
     private MeetingReservationService reservationService;
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
+
+    /** 管理员登录态（user_type=1 → ROLE_ADMIN，UserContext 可取到操作人 ID） */
+    @BeforeEach
+    void setUpAuth() {
+        LoginUser admin = LoginUser.of(9L, 1);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(admin, null, admin.getAuthorities()));
+    }
+
+    @AfterEach
+    void clearAuth() {
+        SecurityContextHolder.clearContext();
+    }
 
     @Test
     void page_shouldReturnPaged() throws Exception {
@@ -68,13 +84,15 @@ class MeetingReservationAdminControllerTest {
     }
 
     @Test
-    void complete_shouldReturnCompleted() throws Exception {
+    void updateStatus_shouldReturnVo() throws Exception {
         MeetingReservationVO vo = new MeetingReservationVO();
         vo.setId(100L);
         vo.setStatus(2);
-        when(reservationService.adminComplete(eq(100L))).thenReturn(vo);
+        when(reservationService.adminUpdateStatus(eq(100L), eq(2), eq(9L))).thenReturn(vo);
 
-        mockMvc.perform(put("/api/v1/meeting-reservations/100/complete"))
+        mockMvc.perform(put("/api/v1/meeting-reservations/100/status")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{\"orderStatus\":2}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value(2));
     }

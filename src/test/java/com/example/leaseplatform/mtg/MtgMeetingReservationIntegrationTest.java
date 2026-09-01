@@ -103,7 +103,7 @@ class MtgMeetingReservationIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(8));
 
-        // 2. 个人用户预约 2h（9:00-11:00）→ 无免费时长 → BASIC 兜底价 80 × 2 = 160 元待确认
+        // 2. 个人用户预约 2h（9:00-11:00）→ 无免费时长 → BASIC 兜底价 80 × 2 = 160 元待确认（1.4 创建不扣款）
         String body = mockMvc.perform(post("/api/v1/me/meeting-reservations")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -135,6 +135,14 @@ class MtgMeetingReservationIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.balance").value(40000))
                 .andExpect(jsonPath("$.data.giftBalance").value(0));
+        // 1.4 预约订单化：会议室支付单已生成（biz_type=5）
+        mockMvc.perform(get("/api/v1/me/payments")
+                        .header("Authorization", "Bearer " + token)
+                        .param("bizType", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.list[0].amount").value(16000))
+                .andExpect(jsonPath("$.data.list[0].status").value(1));
 
         // 5. 取消 → 退款入余额（400+160=560）
         mockMvc.perform(post("/api/v1/me/meeting-reservations/" + reservationId + "/cancel")
@@ -142,7 +150,7 @@ class MtgMeetingReservationIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"改期\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value(3));
+                .andExpect(jsonPath("$.data.status").value(4));
         mockMvc.perform(get("/api/v1/me")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
@@ -222,10 +230,19 @@ class MtgMeetingReservationIntegrationTest {
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(3));
-        mockMvc.perform(put("/api/v1/meeting-reservations/" + r1Id + "/complete")
-                        .header("Authorization", "Bearer " + adminToken))
+        // 1.4 生命周期：已确认 → 使用中 → 已完成
+        mockMvc.perform(put("/api/v1/meeting-reservations/" + r1Id + "/status")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderStatus\":2}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value(2));
+        mockMvc.perform(put("/api/v1/meeting-reservations/" + r1Id + "/status")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderStatus\":3}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value(3));
     }
 
     @Test
@@ -254,8 +271,8 @@ class MtgMeetingReservationIntegrationTest {
         mockMvc.perform(get("/api/v1/me/meeting-reservations")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.list[0].status").value(4));
-        assertThat(reservationMapper.selectById(past.getId()).getStatus()).isEqualTo(4);
+                .andExpect(jsonPath("$.data.list[0].status").value(5));
+        assertThat(reservationMapper.selectById(past.getId()).getStatus()).isEqualTo(5);
     }
 
     private String adminAccessToken() throws Exception {

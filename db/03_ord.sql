@@ -22,7 +22,7 @@ CREATE TABLE `ord_orders` (
   `order_no` VARCHAR(32) NOT NULL COMMENT '订单编号',
   `user_id` BIGINT UNSIGNED NOT NULL COMMENT '下单用户ID',
   `enterprise_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '企业ID（若为企业用户）',
-  `order_type` TINYINT NOT NULL COMMENT '订单类型：1-咖啡, 2-正餐, 3-加餐',
+  `order_type` TINYINT NOT NULL COMMENT '订单类型：1-咖啡, 2-正餐, 3-加餐, 4-会议室',
   `order_status` TINYINT NOT NULL DEFAULT 0 COMMENT '订单状态：0-待支付, 1-待取餐/配送, 2-制作中, 3-已完成, 4-已取消, 5-已退款',
   `total_amount` BIGINT NOT NULL COMMENT '商品原价总金额（分）',
   `discount_amount` BIGINT NOT NULL DEFAULT 0 COMMENT '折扣优惠金额（分）',
@@ -140,7 +140,7 @@ CREATE TABLE `ord_meal_reservation_items` (
 CREATE TABLE `ord_order_status_history` (
   `id` BIGINT UNSIGNED NOT NULL COMMENT '记录ID（雪花）',
   `order_id` BIGINT UNSIGNED NOT NULL COMMENT '业务单ID（咖啡订单 ord_orders.id 或 正餐预订 ord_meal_reservations.id）',
-  `biz_type` TINYINT NOT NULL DEFAULT 1 COMMENT '业务类型：1-咖啡订单, 2-正餐预订',
+  `biz_type` TINYINT NOT NULL DEFAULT 1 COMMENT '业务类型：1-咖啡订单, 2-正餐预订, 3-会议室订单',
   `from_status` TINYINT DEFAULT NULL COMMENT '变更前状态（初始状态为 NULL）',
   `to_status` TINYINT NOT NULL COMMENT '变更后状态（与 ord_orders.order_status / ord_meal_reservations.status 对齐）',
   `operator_id` BIGINT UNSIGNED DEFAULT NULL COMMENT '操作人ID（用户或管理员）',

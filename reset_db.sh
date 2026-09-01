@@ -42,6 +42,7 @@ DROP TABLE IF EXISTS prd_spec_groups;              -- 商品域，1.3 规格组�
 DROP TABLE IF EXISTS prd_daily_menus;              -- 商品域，依赖 prd_products
 DROP TABLE IF EXISTS prd_products;                 -- 商品域，依赖 prd_categories
 DROP TABLE IF EXISTS prd_categories;               -- 商品域，无依赖
+DROP TABLE IF EXISTS mtg_bookings;                  -- 会议室域，1.4 占用表，依赖 mtg_reservations
 DROP TABLE IF EXISTS mtg_reservations;             -- 会议室域，依赖 mtg_rooms / usr_users / usr_enterprises
 DROP TABLE IF EXISTS mtg_rooms;                    -- 会议室域，无依赖
 DROP TABLE IF EXISTS trd_balance_transactions;     -- 交易域，依赖 usr_users / ord_orders

@@ -41,6 +41,7 @@ public class PaymentService {
     public static final int BIZ_ORDER = 2;             // 咖啡订单
     public static final int BIZ_MEAL_RESERVATION = 3;  // 正餐预订
     public static final int BIZ_MEMBER_PURCHASE = 4;   // 会员购买
+    public static final int BIZ_MEETING = 5;           // 会议室订单（1.4）
 
     // ---- 支付方式 ----
     public static final int METHOD_BALANCE = 1;        // 余额支付
@@ -91,6 +92,15 @@ public class PaymentService {
                 .set(TrdPayment::getTransactionId, transactionId)
                 .set(TrdPayment::getPaidAt, LocalDateTime.now()));
         return updated > 0;
+    }
+
+    /** 更新支付单金额（改期等场景；仅待支付状态可改，已结算不可改） */
+    @Transactional
+    public boolean updateAmount(Long paymentId, long amount) {
+        return paymentMapper.update(null, new LambdaUpdateWrapper<TrdPayment>()
+                .eq(TrdPayment::getId, paymentId)
+                .eq(TrdPayment::getStatus, STATUS_PENDING)
+                .set(TrdPayment::getAmount, amount)) > 0;
     }
 
     /** 按商户订单号结算（幂等；支付单不存在时返回 false 并告警，兼容历史数据） */
