@@ -2,7 +2,7 @@
 # 常用：make run（启动项目） make build（打包） make db-reset（重置数据库：建表+种子）
 # 全部命令：make help
 
-.PHONY: help run stop compile test build run-jar db-reset db-init db-seed
+.PHONY: help run stop compile test build run-jar db-reset db-init db-seed db-seed-dev db-reset-dev
 
 # Maven 调用：把 Maven 本地仓库重定向到工作区 .m2home（已 gitignore），
 # 受限环境（沙箱等无法写 ~/.m2）与正常开发环境同样适用；
@@ -40,3 +40,11 @@ db-seed: ## 仅灌入开发种子数据（db/seed.py，幂等可重复执行）�
 db-reset: ## 重置数据库（开发环境一步到位）：建表 + 灌入开发种子数据
 	./reset_db.sh
 	python3 db/seed.py
+
+db-seed-dev: ## 给开发登录用户 mock_dev_user 叠加演示数据（须先 db-seed/db-reset；跑集成测试前请勿执行）
+	python3 db/seed_dev_user.py
+
+db-reset-dev: ## 开发环境一步到位（含 mock_dev_user 演示数据）：建表 + 基础种子 + 演示数据
+	./reset_db.sh
+	python3 db/seed.py
+	python3 db/seed_dev_user.py

@@ -38,6 +38,7 @@ lease-platform/
 ├── db/                    # 建表 SQL（按业务域拆分，见 db/README.md）
 │   └── migrations/        # 增量迁移基线（001_init + 002_usr_admins，20 张表 + admin 初始化账号，无演示种子）
 │   └── seed.py            # 开发种子数据生成脚本（仅开发使用，生产勿执行）
+│   └── seed_dev_user.py   # 给开发登录用户 mock_dev_user 叠加演示数据（按需执行；跑集成测试前勿执行）
 ├── src/test/              # 91 例测试：service 单元 + controller Web + 真实 MySQL/Redis 集成
 ├── reset_db.sh            # 初始化数据库结构（建库 → 清空 → 按依赖顺序建表，不含种子；种子见 db/seed.py）
 └── Makefile               # 常用命令入口
@@ -49,11 +50,13 @@ lease-platform/
 
 ```bash
 make db-reset        # 开发环境一步到位：建库 lease_db（不存在时）→ 清空 → 建 21 张表 → 灌入开发种子数据
+make db-reset-dev    # 开发环境一步到位（含 mock_dev_user 演示数据）：建表 + 基础种子 + db/seed_dev_user.py
 make db-init         # 仅初始化数据库结构（建表），不灌种子；生产环境用这个，谨慎执行
 make db-seed         # 仅重灌开发种子数据（db/seed.py，幂等；生产切勿执行）
+make db-seed-dev     # 给开发登录用户 mock_dev_user 叠加演示数据（须先 db-seed/db-reset；跑集成测试前勿执行）
 make run             # 启动项目（前台，端口 8080）
-make test            # 运行 397 例测试（集成测试需先 make db-reset）
-make help            # 全部命令：run/stop/compile/test/build/run-jar/db-reset/db-init/db-seed
+make test            # 运行 397 例测试（集成测试需先 make db-reset，且不要叠加 db-seed-dev）
+make help            # 全部命令：run/stop/compile/test/build/run-jar/db-reset/db-init/db-seed/db-seed-dev/db-reset-dev
 ```
 
 启动后访问：
@@ -61,6 +64,25 @@ make help            # 全部命令：run/stop/compile/test/build/run-jar/db-res
 - **公开接口示例**：`GET /api/v1/public/products`（商品列表）、`GET /api/v1/public/menus?date=2026-08-30`（每日菜单）
 
 > 说明：Maven 本地仓库重定向到工作区 `.m2home/`（已 gitignore），受限环境（无法写 `~/.m2`）与正常开发均适用。
+
+### 开发登录用户演示数据（`mock_dev_user`）
+
+开发环境微信登录固定复用 `wechat.mock-openid`（默认 `mock_dev_user`）。基础种子 `db/seed.py`
+刻意**不**创建该用户——集成测试把它当「干净新用户」断言（昵称=微信用户 / userType=3 / 等级 0 /
+余额 0 / 无企业 / 无券 / 无订单）。若希望登录小程序后各页面都有数据可看，在基础种子之上按需叠加：
+
+```bash
+make db-seed-dev     # 在现有库上叠加（须先 make db-seed / db-reset）
+make db-reset-dev    # 开发一步到位：建表 + 基础种子 + 演示数据
+```
+
+`db/seed_dev_user.py` 会幂等地重建 `mock_dev_user`（企业管理员 + VIP 会员）及其配套数据：
+已审核企业 + 1 名员工、企业 VIP 会员与个人等级、账户余额与 12 条余额流水、2 笔成功充值 +
+1 笔待支付、5 个咖啡订单（覆盖全部状态）、2 笔正餐预订、4 笔会议室预约（含免费时长抵扣/超时计费/
+预授权冻结）、4 张优惠券（未使用/已使用/已过期）、支付单 / 退款单、5 条站内通知。
+
+> ⚠️ 集成测试依赖「基础种子」状态：跑 `make test` 前请先 `make db-reset`（只跑 `db/seed.py`），
+> 不要叠加 `db-seed-dev`；已叠加时重新 `make db-reset` 即可恢复干净状态。
 
 ## 接口一览
 
@@ -287,7 +309,7 @@ springdoc 按端输出独立 OpenAPI JSON（`/v3/api-docs/{group}`，Security �
 make test     # 397 例：service 单元（Mockito）+ controller Web（@WebMvcTest + 真实 Security 链）+ 集成（真实 MySQL + Redis）
 ```
 
-集成测试基于 `db/seed.py` 的核心种子数据断言（4 分类 / 8 商品 / 2026-08-30 菜单 11 条）与 admin 初始化账号（admin/123456），运行前需 `make db-reset`（= 建表 + 种子，种子数据由 `db/seed.py` 生成，与建表 SQL 分离）。
+集成测试基于 `db/seed.py` 的核心种子数据断言（4 分类 / 8 商品 / 2026-08-30 菜单 11 条）与 admin 初始化账号（admin/123456），运行前需 `make db-reset`（= 建表 + 种子，种子数据由 `db/seed.py` 生成，与建表 SQL 分离）。集成测试同时依赖 `mock_dev_user` 为「干净新用户」，因此**不要**在跑测试前执行 `make db-seed-dev`（登录小程序看演示数据用），否则请先 `make db-reset` 恢复。
 
 ## 开发进度
 

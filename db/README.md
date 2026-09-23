@@ -22,8 +22,11 @@
 > （纯流水表如 `trd_balance_transactions` / `ord_order_items` 只保留 `created_at`）。
 > **建表与种子分离**：域文件只含 DDL（无 INSERT）；开发种子数据由 `db/seed.py` 生成
 > （幂等可重跑，含与集成测试断言一致的核心数据 + 扩充演示数据），`make db-seed` 执行；
+> 另外 `db/seed_dev_user.py` 在基础种子之上按需给开发登录用户 `mock_dev_user` 叠加一整套
+> 演示数据（企业管理员 + VIP + 余额/订单/预订/会议室/优惠券/通知等），`make db-seed-dev` 执行，
+> 仅供本地登录小程序查看数据，**跑集成测试前勿执行**（集成测试依赖 `mock_dev_user` 为干净新用户）；
 > 迁移（`migrations/`）仅保留 admin 初始化账号（生产必需），演示种子不进生产，
-> 上生产只跑建表（`make db-init` / `reset_db.sh`），**切勿在生产执行 `db/seed.py`**。
+> 上生产只跑建表（`make db-init` / `reset_db.sh`），**切勿在生产执行 `db/seed.py` / `db/seed_dev_user.py`**。
 
 ## 主键 ID 策略（2.0 共享对话决策 + usr_admins）
 
@@ -67,6 +70,20 @@
 make db-reset        # = ./reset_db.sh（建库/清空/建表） + python3 db/seed.py（灌种子）
 make db-seed         # 仅重灌种子（幂等）；改了 db/seed.py 后重跑即可
 ```
+
+**开发登录用户演示数据**（`mock_dev_user`，叠加在基础种子之上，按需执行）：
+
+```bash
+make db-seed-dev     # = python3 db/seed_dev_user.py（幂等叠加；须先 make db-seed / db-reset）
+make db-reset-dev    # = ./reset_db.sh + db/seed.py + db/seed_dev_user.py（开发一步到位）
+```
+
+> `db/seed_dev_user.py` 会先按 openid / 统一社会信用代码清理 `mock_dev_user` 及其企业相关数据，
+> 再插入固定主键（`990000000000000000 + n`）的演示数据，因此可重复执行且结果一致，也会覆盖
+> 开发登录自动创建的裸用户。数据覆盖：企业/员工、会员、账户余额与流水、充值、咖啡订单、
+> 正餐预订、会议室预约、优惠券、支付单/退款单、站内通知。
+> ⚠️ 集成测试断言 `mock_dev_user` 为「干净新用户」，跑 `make test` 前请用 `make db-reset`
+> 恢复基础种子（只跑 `db/seed.py`），不要叠加本脚本。
 
 **仅初始化数据库结构**（生产环境用这个，**不灌种子**，谨慎执行）：
 
