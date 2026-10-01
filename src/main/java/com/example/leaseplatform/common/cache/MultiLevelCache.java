@@ -102,7 +102,7 @@ public class MultiLevelCache {
                            Duration l2Ttl, Duration nullTtl, Supplier<T> loader) {
         // 必须是 final 才能被下方的 lambda 捕获
         final String l2Key = normalize(rawKey);
-        Cache<String, Object> l1 = l1(cacheName);
+        Cache<String, Object> l1 = l1(cacheName, effectiveL1Ttl(l2Ttl));
         Object hit = l1.getIfPresent(l2Key);
         if (hit != null) {
             return hit == NULL_SENTINEL ? null : cast(hit);
@@ -133,7 +133,7 @@ public class MultiLevelCache {
     private <T> T get(String cacheName, String rawKey, JavaType type,
                       Duration l2Ttl, Supplier<T> loader) {
         final String l2Key = normalize(rawKey);
-        Cache<String, Object> l1 = l1(cacheName);
+        Cache<String, Object> l1 = l1(cacheName, effectiveL1Ttl(l2Ttl));
         Object hit = l1.getIfPresent(l2Key);
         if (hit != null) {
             return cast(hit);
@@ -208,7 +208,11 @@ public class MultiLevelCache {
      */
     public void evict(String cacheName, String rawKey) {
         final String l2Key = normalize(rawKey);
-        l1(cacheName).invalidate(l2Key);
+        // 只清已存在的 L1：不在此处创建，避免用默认 TTL 抢先创建后与读路径的 TTL 不一致
+        Cache<String, Object> existing = l1Caches.get(cacheName);
+        if (existing != null) {
+            existing.invalidate(l2Key);
+        }
         try {
             redisTemplate.delete(l2Key);
             redisTemplate.convertAndSend(EVICT_CHANNEL, l2Key);
@@ -247,19 +251,25 @@ public class MultiLevelCache {
 
     // ── 内部 ─────────────────────────────────────────────────────────────────
 
-    private Cache<String, Object> l1(String cacheName) {
+    /**
+     * 取得（或惰性创建）某个逻辑缓存的 L1 实例。
+     *
+     * <p>TTL 在创建时绑定：同一 cacheName 的 L1 TTL 必须稳定，故调用方一律用
+     * {@link #effectiveL1Ttl(Duration)} 由 L2 TTL 推导，而不是各自传值。
+     */
+    private Cache<String, Object> l1(String cacheName, Duration l1Ttl) {
         return l1Caches.computeIfAbsent(cacheName, n -> Caffeine.newBuilder()
                 .maximumSize(L1_MAX_SIZE)
                 .expireAfter(new Expiry<String, Object>() {
                     @Override
                     public long expireAfterCreate(String key, Object value, long currentTime) {
-                        return jitteredNanos(CacheSpec.L1_TTL);
+                        return jitteredNanos(l1Ttl);
                     }
 
                     @Override
                     public long expireAfterUpdate(String key, Object value, long currentTime,
                                                   long currentDuration) {
-                        return jitteredNanos(CacheSpec.L1_TTL);
+                        return jitteredNanos(l1Ttl);
                     }
 
                     @Override
@@ -269,6 +279,16 @@ public class MultiLevelCache {
                     }
                 })
                 .build());
+    }
+
+    /**
+     * L1 TTL = min(全局 L1 上限, L2 TTL)。
+     *
+     * <p>目的：短 TTL 的缓存（如 30s 的订单统计）不应在进程内活得更久，
+     * 否则「L2 已过期、L1 还留着」会让实际陈旧时间远超预期。
+     */
+    private static Duration effectiveL1Ttl(Duration l2Ttl) {
+        return l2Ttl.compareTo(CacheSpec.L1_TTL) < 0 ? l2Ttl : CacheSpec.L1_TTL;
     }
 
     /** 对应参考实现的 jitteredTTL：base ± 20% */

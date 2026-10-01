@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
+import com.example.leaseplatform.common.cache.MultiLevelCache;
 import com.example.leaseplatform.ord.dto.OrderCreateReq;
 import com.example.leaseplatform.ord.dto.OrderItemReq;
 import com.example.leaseplatform.ord.dto.OrderVO;
@@ -40,6 +41,8 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -90,12 +93,18 @@ class OrderServiceTest {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), clazz);
     }
 
+    @Mock
+    private MultiLevelCache cache;
+
     @BeforeEach
     void setUp() {
         // 须在 @Mock 注入后构造（字段初始化器在注入前执行会拿到 null mock）
-        service = new OrderService(orderMapper, itemMapper, productMapper, userMapper,
+        service = new OrderService(orderMapper, cache, itemMapper, productMapper, userMapper,
                 discountCalculator, accountService, paymentService, refundService, statusHistoryService,
                 skuService, couponService);
+        // 缓存为透传 mock：直接调用 loader，使既有断言仍校验真实查询与映射逻辑
+        lenient().when(cache.get(anyString(), anyString(), any(), any(), any()))
+                .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(4)).get());
     }
 
     private UsrUser user(int memberLevel, Long enterpriseId) {

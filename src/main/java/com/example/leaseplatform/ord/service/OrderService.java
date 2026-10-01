@@ -7,6 +7,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.common.TimeUtil;
+import com.example.leaseplatform.common.cache.CacheSpec;
+import com.example.leaseplatform.common.cache.MultiLevelCache;
 import com.example.leaseplatform.ord.dto.OrderCreateReq;
 import com.example.leaseplatform.ord.dto.OrderItemReq;
 import com.example.leaseplatform.ord.dto.OrderItemVO;
@@ -81,6 +83,7 @@ public class OrderService {
     private static final SecureRandom PICKUP_CODE_RANDOM = new SecureRandom();
 
     private final OrdOrderMapper orderMapper;
+    private final MultiLevelCache cache;
     private final OrdOrderItemMapper itemMapper;
     private final PrdProductMapper productMapper;
     private final UsrUserMapper userMapper;
@@ -407,6 +410,15 @@ public class OrderService {
      * 与「SQL 全部由条件构造器生成」的项目约定一致。
      */
     public OrderStatsVO stats() {
+        // 30s 短 TTL 缓存（L1+L2，只靠 TTL 失效，见 CacheSpec.ORDER_STATS_TTL）：
+        // 仪表盘聚合查询，容忍秒级陈旧；相比每次跑 2 条聚合 SQL（其中队列统计要扫
+        // 6 万+ 覆盖索引项）省下绝大部分开销。
+        return cache.get(CacheSpec.ORDER_STATS, MultiLevelCache.l2Key(CacheSpec.ORDER_STATS),
+                OrderStatsVO.class, CacheSpec.ORDER_STATS_TTL, this::loadStats);
+    }
+
+    /** 实际聚合查询（2 条 SQL，见方法内注释） */
+    private OrderStatsVO loadStats() {
         LocalDateTime start = LocalDate.now().atStartOfDay();
         LocalDateTime end = start.plusDays(1);
         OrderStatsVO vo = new OrderStatsVO();

@@ -31,6 +31,8 @@ public final class CacheSpec {
     public static final String MENU_LIST = "menu:list";
     /** 商品详情（按 ID） */
     public static final String PRODUCT_DETAIL = "product:detail";
+    /** 商家订单统计（聚合结果，单个对象） */
+    public static final String ORDER_STATS = "order:stats";
 
     // ── TTL ──────────────────────────────────────────────────────────────────
 
@@ -46,6 +48,15 @@ public final class CacheSpec {
 
     /** 商品「不可见」空值缓存 TTL：短，给重新上架留出较短的纠错窗口 */
     public static final Duration PRODUCT_NULL_TTL = Duration.ofSeconds(60);
+
+    /**
+     * 订单统计缓存 TTL（30s）。
+     *
+     * <p>刻意<b>只靠 TTL 失效、不做写时失效</b>：该接口是后台仪表盘的聚合查询
+     * （今日订单/金额 + 各状态队列），对秒级陈旧不敏感；而每次下单/支付/改状态都去
+     * 失效一遍，反而把缓存价值抵消掉。30s 后自然重算。
+     */
+    public static final Duration ORDER_STATS_TTL = Duration.ofSeconds(30);
 
     private CacheSpec() {
     }
