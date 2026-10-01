@@ -18,6 +18,7 @@ import com.example.leaseplatform.prd.entity.PrdProduct;
 import com.example.leaseplatform.prd.mapper.PrdCategoryMapper;
 import com.example.leaseplatform.prd.mapper.PrdDailyMenuMapper;
 import com.example.leaseplatform.prd.mapper.PrdProductMapper;
+import tools.jackson.databind.JavaType;
 import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -86,6 +87,7 @@ public class PrdProductService {
         skuService.createDefault(entity.getId(), entity.getPrice());
         // 布隆只增不删：新建即加入，避免本实例把它判为「一定不存在」
         productBloom.add(entity.getId());
+        evictListGeneration();
         return toVO(entity);
     }
 
@@ -97,6 +99,7 @@ public class PrdProductService {
         apply(entity, req);
         productMapper.updateById(entity);
         evictDetail(entity.getId());
+        evictListGeneration();
         return toVO(entity);
     }
 
@@ -116,6 +119,7 @@ public class PrdProductService {
         }
         productMapper.updateById(entity);
         evictDetail(entity.getId());
+        evictListGeneration();
         return toVO(entity);
     }
 
@@ -131,11 +135,37 @@ public class PrdProductService {
         productMapper.deleteById(id);
         skuService.deleteByProduct(id);
         evictDetail(id);
+        evictListGeneration();
     }
 
-    /** 小程序公开分页：仅上架商品 */
+    /**
+     * 小程序公开分页：仅上架商品。
+     *
+     * <p><b>多级缓存 + 缓存代失效</b>（调研见 docs 评估 §4.1）：
+     * 该接口每次请求要打 3 条 SQL，其中 {@code COUNT(*)} 是主要开销 ——
+     * 实测 4027 商品时 COUNT 2.04ms、分页查询仅 0.11ms、分类名批查 0.06ms，
+     * 即 <b>COUNT 占了总 DB 时间的九成以上</b>，且它随商品总量线性增长
+     * （2 万商品时约 10ms）。而这是白名单放行的匿名接口，可被无成本刷量。
+     *
+     * <p>失效方式用「缓存代」而非逐键删除：分页键会随 (筛选, 页码, 页大小) 组合变得很多，
+     * 逐个删需要 {@code KEYS}/{@code SCAN}（生产禁用）。把版本号编进键名后，
+     * 商品任何变更只 {@code INCR} 一个计数器，旧代键不再被请求、随 TTL 过期。
+     */
     public PageResult<ProductVO> publicPage(int page, int size, Long categoryId, Integer productType) {
-        Page<PrdProduct> p = new Page<>(PrdCategoryService.normalizePage(page), Math.min(Math.max(size, 1), 100));
+        int p = PrdCategoryService.normalizePage(page);
+        int s = Math.min(Math.max(size, 1), 100);
+        long gen = cache.currentGeneration(CacheSpec.PRODUCT_LIST_GENERATION);
+        String key = String.format("%s:v%d:c%s:t%s:p%d:s%d",
+                CacheSpec.PRODUCT_PAGE, gen, categoryId, productType, p, s);
+        JavaType type = objectMapper.getTypeFactory()
+                .constructParametricType(PageResult.class, ProductVO.class);
+        return cache.getTyped(CacheSpec.PRODUCT_PAGE, MultiLevelCache.l2Key(key), type,
+                CacheSpec.PRODUCT_PAGE_L2_TTL, () -> loadPublicPage(p, s, categoryId, productType));
+    }
+
+    /** 公开分页回源（缓存未命中时执行） */
+    private PageResult<ProductVO> loadPublicPage(int page, int size, Long categoryId, Integer productType) {
+        Page<PrdProduct> p = new Page<>(page, size);
         LambdaQueryWrapper<PrdProduct> qw = new LambdaQueryWrapper<PrdProduct>()
                 .eq(PrdProduct::getIsAvailable, 1)
                 .and(w -> w.isNull(PrdProduct::getProductStatus).or().eq(PrdProduct::getProductStatus, STATUS_ON_SHELF))
@@ -195,6 +225,16 @@ public class PrdProductService {
     /** 商品变更后失效详情缓存（提交后生效） */
     private void evictDetail(Long id) {
         cache.evictAfterCommit(CacheSpec.PRODUCT_DETAIL, MultiLevelCache.l2Key(detailKey(id)));
+    }
+
+    /**
+     * 商品变更后让公开列表缓存整体失效（提交后生效）。
+     *
+     * <p>只推进一个「缓存代」计数器，不枚举分页键 —— 见 {@link #publicPage} 的说明。
+     * 注意：SKU 变更（{@code PrdSkuService}）不需要推进，因为公开列表只展示 SPU 字段、不含 SKU。
+     */
+    private void evictListGeneration() {
+        cache.bumpGenerationAfterCommit(CacheSpec.PRODUCT_LIST_GENERATION);
     }
 
     private PrdProduct require(Long id) {

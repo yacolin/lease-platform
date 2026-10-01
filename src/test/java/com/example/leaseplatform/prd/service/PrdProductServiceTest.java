@@ -3,6 +3,7 @@ package com.example.leaseplatform.prd.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
+import com.example.leaseplatform.common.cache.CacheSpec;
 import com.example.leaseplatform.common.cache.MultiLevelCache;
 import com.example.leaseplatform.common.cache.ProductBloomRegistry;
 import com.example.leaseplatform.common.PageResult;
@@ -31,6 +32,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
@@ -71,6 +73,9 @@ class PrdProductServiceTest {
                 .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(4)).get());
         lenient().when(cache.getOrNull(anyString(), anyString(), any(), any(), any(), any()))
                 .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(5)).get());
+        // 公开列表走 getTyped(PageResult<ProductVO>)
+        lenient().when(cache.getTyped(anyString(), anyString(), any(), any(), any()))
+                .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(4)).get());
         // 布隆默认放行（mock 的 boolean 默认值是 false，会把所有商品判为不存在）
         lenient().when(productBloom.mayExist(anyLong())).thenReturn(true);
     }
@@ -277,5 +282,40 @@ class PrdProductServiceTest {
 
         assertThat(result.total()).isEqualTo(1);
         assertThat(result.list().get(0).getProductName()).isEqualTo("美式");
+    }
+
+    /**
+     * 回归防护：公开列表必须走多级缓存，且键里带上「缓存代」（否则商品变更无法整体失效）。
+     */
+    @Test
+    void publicPage_shouldGoThroughGenerationAwareCache() {
+        when(cache.currentGeneration(anyString())).thenReturn(7L);
+        when(productMapper.selectPage(any(Page.class), any(LambdaQueryWrapper.class))).thenAnswer(inv -> {
+            Page<PrdProduct> p = inv.getArgument(0);
+            p.setRecords(List.of());
+            p.setTotal(0);
+            return p;
+        });
+
+        service.publicPage(2, 20, 3L, 1);
+
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(cache).getTyped(eq(CacheSpec.PRODUCT_PAGE), keyCaptor.capture(), any(), any(), any());
+        assertThat(keyCaptor.getValue())
+                .as("键应包含缓存代与筛选/分页维度")
+                .contains("v7").contains("c3").contains("t1").contains("p2").contains("s20");
+    }
+
+    @Test
+    void updateStatus_shouldBumpListGeneration_andEvictDetail() {
+        when(productMapper.selectById(1L)).thenReturn(product(1L, 1L, "美式", 1));
+        when(productMapper.updateById(any(PrdProduct.class))).thenReturn(1);
+        ProductStatusReq req = new ProductStatusReq();
+        req.setIsAvailable(0);
+        req.setProductStatus(3);
+
+        service.updateStatus(1L, req);
+
+        verify(cache).bumpGenerationAfterCommit(eq(CacheSpec.PRODUCT_LIST_GENERATION));
     }
 }

@@ -33,6 +33,16 @@ public final class CacheSpec {
     public static final String PRODUCT_DETAIL = "product:detail";
     /** 商家订单统计（聚合结果，单个对象） */
     public static final String ORDER_STATS = "order:stats";
+    /** 公开商品列表（按「筛选 + 分页」切片） */
+    public static final String PRODUCT_PAGE = "product:page";
+    /**
+     * 商品列表的「缓存代」计数器。
+     *
+     * <p>商品任何变更只需 INCR 这一个键，旧代的分页键就再也不会被请求到，
+     * 随 TTL 自然过期 —— 因此<b>无需枚举/删除成百上千个分页键</b>，
+     * 也就不会用到 {@code KEYS}/{@code SCAN}（见 docs 评估 §3.3 的反面做法）。
+     */
+    public static final String PRODUCT_LIST_GENERATION = "product:list:generation";
 
     // ── TTL ──────────────────────────────────────────────────────────────────
 
@@ -48,6 +58,14 @@ public final class CacheSpec {
 
     /** 商品「不可见」空值缓存 TTL：短，给重新上架留出较短的纠错窗口 */
     public static final Duration PRODUCT_NULL_TTL = Duration.ofSeconds(60);
+
+    /**
+     * 公开商品列表 L2 TTL（10 分钟）。
+     *
+     * <p>比商品详情长：列表失效不靠 TTL，而靠「缓存代」—— 商品任何写操作都会
+     * {@code INCR} 一个计数器，旧代的分页键立即不可达；TTL 只作兜底回收。
+     */
+    public static final Duration PRODUCT_PAGE_L2_TTL = Duration.ofMinutes(10);
 
     /**
      * 订单统计缓存 TTL（30s）。

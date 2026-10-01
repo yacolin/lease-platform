@@ -79,13 +79,13 @@ public class MultiLevelCache {
     public <T> List<T> getList(String cacheName, String l2Key, Class<T> elementType,
                                Duration l2Ttl, Supplier<List<T>> loader) {
         JavaType type = objectMapper.getTypeFactory().constructCollectionType(List.class, elementType);
-        return get(cacheName, l2Key, type, l2Ttl, loader);
+        return getByType(cacheName, l2Key, type, l2Ttl, loader);
     }
 
     /** 单值缓存读：见类注释的读路径 */
     public <T> T get(String cacheName, String l2Key, Class<T> type,
                      Duration l2Ttl, Supplier<T> loader) {
-        return get(cacheName, l2Key, objectMapper.getTypeFactory().constructType(type), l2Ttl, loader);
+        return getByType(cacheName, l2Key, objectMapper.getTypeFactory().constructType(type), l2Ttl, loader);
     }
 
     /**
@@ -130,8 +130,20 @@ public class MultiLevelCache {
         return value == NULL_SENTINEL ? null : cast(value);
     }
 
-    private <T> T get(String cacheName, String rawKey, JavaType type,
-                      Duration l2Ttl, Supplier<T> loader) {
+    /**
+     * 泛型读（如 {@code PageResult<ProductVO>}）：由调用方给出 {@link JavaType}。
+     * 见类注释的读路径。
+     *
+     * <p>刻意不叫 {@code get} 重载：与 {@code get(..., Class<T>, ...)} 仅第三参不同，
+     * 保留同名会让所有 {@code any()} 形式的 Mockito 匹配产生歧义（已踩到过）。
+     */
+    public <T> T getTyped(String cacheName, String l2Key, JavaType type,
+                          Duration l2Ttl, Supplier<T> loader) {
+        return getByType(cacheName, l2Key, type, l2Ttl, loader);
+    }
+
+    private <T> T getByType(String cacheName, String rawKey, JavaType type,
+                            Duration l2Ttl, Supplier<T> loader) {
         final String l2Key = normalize(rawKey);
         Cache<String, Object> l1 = l1(cacheName, effectiveL1Ttl(l2Ttl));
         Object hit = l1.getIfPresent(l2Key);
@@ -246,6 +258,52 @@ public class MultiLevelCache {
             });
         } else {
             evict(cacheName, l2Key);
+        }
+    }
+
+    // ── 缓存代（generation）──────────────────────────────────────────────────
+
+    /**
+     * 读取「缓存代」版本号（键不存在视为 0）。
+     *
+     * <p>用途：让<b>一族键</b>整体失效。分页缓存会随 (筛选, 页码, 页大小) 组合产生很多键，
+     * 逐个删除需要 {@code KEYS}/{@code SCAN}（生产禁用）；把版本号编进键名后，
+     * 写入方只需 {@link #bumpGeneration} 一次，旧代的键就永远不再被请求到，
+     * 随各自的 TTL 自然过期。
+     *
+     * <p>每次读多一次 Redis GET（亚毫秒级），相比它省下的分页 COUNT(*) 全表扫是划算的；
+     * Redis 不可用时返回 0，缓存整体降级为直查（不影响正确性）。
+     */
+    public long currentGeneration(String name) {
+        try {
+            String v = redisTemplate.opsForValue().get(KEY_PREFIX + name);
+            return v == null ? 0L : Long.parseLong(v);
+        } catch (Exception e) {
+            log.warn("读取缓存代失败，按 0 处理（缓存降级为直查）: {}", name, e);
+            return 0L;
+        }
+    }
+
+    /** 推进「缓存代」（写入方调用）。语义等同让该族缓存整体失效。 */
+    public void bumpGeneration(String name) {
+        try {
+            redisTemplate.opsForValue().increment(KEY_PREFIX + name);
+        } catch (Exception e) {
+            log.warn("推进缓存代失败（该族缓存最迟 TTL 后自愈）: {}", name, e);
+        }
+    }
+
+    /** 事务提交后再推进「缓存代」；无事务时立即推进 */
+    public void bumpGenerationAfterCommit(String name) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    bumpGeneration(name);
+                }
+            });
+        } else {
+            bumpGeneration(name);
         }
     }
 
