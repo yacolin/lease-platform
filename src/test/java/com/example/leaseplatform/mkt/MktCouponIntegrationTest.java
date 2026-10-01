@@ -114,7 +114,7 @@ class MktCouponIntegrationTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))
-                .andExpect(jsonPath("$.data.list[0].orderId").isNumber());
+                .andExpect(jsonPath("$.data.list[0].orderId").isString()); // 雪花 ID 以字符串下发，防前端精度截断
     }
 
     @Test

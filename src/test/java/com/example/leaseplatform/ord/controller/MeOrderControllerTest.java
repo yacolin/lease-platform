@@ -129,6 +129,6 @@ class MeOrderControllerTest {
 
         mockMvc.perform(get("/api/v1/me/orders/100"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.id").value(100));
+                .andExpect(jsonPath("$.data.id").value("100"));
     }
 }

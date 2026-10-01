@@ -222,7 +222,7 @@ class OrdOrderIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"items\":[{\"productId\":1,\"skuId\":10001,\"quantity\":1}]}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.items[0].skuId").value(10001))
+                .andExpect(jsonPath("$.data.items[0].skuId").value("10001"))
                 .andExpect(jsonPath("$.data.items[0].skuNameSnapshot").value("SKU000101"))
                 .andExpect(jsonPath("$.data.items[0].skuPriceSnapshot").value(1200))
                 .andExpect(jsonPath("$.data.items[0].specificationSnapshot.cup_size").value("大杯"));

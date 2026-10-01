@@ -155,6 +155,6 @@ class SysIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))
                 .andExpect(jsonPath("$.data.list[0].operationType").value("审核企业"))
-                .andExpect(jsonPath("$.data.list[0].operatorId").value(1));
+                .andExpect(jsonPath("$.data.list[0].operatorId").value("1"));
     }
 }

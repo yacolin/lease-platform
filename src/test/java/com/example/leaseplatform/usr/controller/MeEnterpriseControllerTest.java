@@ -104,7 +104,7 @@ class MeEnterpriseControllerTest {
 
         mockMvc.perform(get("/api/v1/me/enterprise/members"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].userId").value(2));
+                .andExpect(jsonPath("$.data[0].userId").value("2"));
     }
 
     @Test
