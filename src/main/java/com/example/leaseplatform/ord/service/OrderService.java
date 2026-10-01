@@ -28,6 +28,7 @@ import com.example.leaseplatform.trd.service.RefundService;
 import com.example.leaseplatform.usr.entity.UsrUser;
 import com.example.leaseplatform.usr.mapper.UsrUserMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
@@ -69,6 +70,15 @@ public class OrderService {
 
     /** 订单类型 */
     public static final int TYPE_COFFEE = 1;
+
+    /** 取餐码随机空间：6 位十进制（000000~999999） */
+    private static final int PICKUP_CODE_SPACE = 1_000_000;
+
+    /** 取餐码撞唯一索引后的最大换码重试次数 */
+    private static final int PICKUP_CODE_MAX_ATTEMPTS = 5;
+
+    /** 取餐码随机源（SecureRandom 线程安全，复用实例避免重复初始化开销） */
+    private static final SecureRandom PICKUP_CODE_RANDOM = new SecureRandom();
 
     private final OrdOrderMapper orderMapper;
     private final OrdOrderItemMapper itemMapper;
@@ -200,15 +210,33 @@ public class OrderService {
         accountService.debit(userId, order.getPayableAmount(), orderId, "咖啡订单");
         // 2. 乐观锁定订单 0→1（并发重复支付只有一个成功；锁定失败抛异常，本事务回滚扣款）
         LocalDateTime paidAt = LocalDateTime.now();
-        String pickupCode = generatePickupCode();
         String outTradeNo = generateNo("PO");
-        int updated = orderMapper.update(null, new LambdaUpdateWrapper<OrdOrder>()
-                .eq(OrdOrder::getId, orderId)
-                .eq(OrdOrder::getOrderStatus, STATUS_PENDING)
-                .set(OrdOrder::getOrderStatus, STATUS_PICKUP)
-                .set(OrdOrder::getPaidAt, paidAt)
-                .set(OrdOrder::getPickupCode, pickupCode)
-                .set(OrdOrder::getOutTradeNo, outTradeNo));
+        // 取餐码不再「先查重再写入」（原实现最多 10 次 SELECT COUNT，且预检本身有 TOCTOU 竞态，
+        // 真正保证唯一的是 uk_pickup_code 唯一索引）。改为直接写入，撞唯一索引时换码重试。
+        int updated = 0;
+        boolean codeCollision = false;
+        String pickupCode = null;
+        for (int attempt = 0; attempt < PICKUP_CODE_MAX_ATTEMPTS; attempt++) {
+            String candidate = randomPickupCode();
+            try {
+                updated = orderMapper.update(null, new LambdaUpdateWrapper<OrdOrder>()
+                        .eq(OrdOrder::getId, orderId)
+                        .eq(OrdOrder::getOrderStatus, STATUS_PENDING)
+                        .set(OrdOrder::getOrderStatus, STATUS_PICKUP)
+                        .set(OrdOrder::getPaidAt, paidAt)
+                        .set(OrdOrder::getPickupCode, candidate)
+                        .set(OrdOrder::getOutTradeNo, outTradeNo));
+                pickupCode = candidate;
+                codeCollision = false;
+                break; // 语句执行成功：0 行表示乐观锁失败（订单已被处理），不再重试
+            } catch (DuplicateKeyException e) {
+                // 仅可能来自 uk_pickup_code（本次 UPDATE 只改了这一个唯一列）→ 换码重试
+                codeCollision = true;
+            }
+        }
+        if (codeCollision) {
+            throw BizException.conflict("取餐码生成失败，请重试");
+        }
         if (updated == 0) {
             throw BizException.conflict("订单已处理");
         }
@@ -423,17 +451,15 @@ public class OrderService {
         return value.setScale(0, RoundingMode.HALF_UP).longValueExact();
     }
 
-    private String generatePickupCode() {
-        SecureRandom random = new SecureRandom();
-        for (int i = 0; i < 10; i++) {
-            String code = String.format("%06d", random.nextInt(1_000_000));
-            Long dup = orderMapper.selectCount(new LambdaQueryWrapper<OrdOrder>()
-                    .eq(OrdOrder::getPickupCode, code));
-            if (dup == null || dup == 0) {
-                return code;
-            }
-        }
-        throw BizException.conflict("取餐码生成失败，请重试");
+    /**
+     * 生成 6 位随机取餐码（不查库）。
+     *
+     * <p>唯一性由 {@code ord_orders.uk_pickup_code} 唯一索引保证：调用方捕获
+     * {@link DuplicateKeyException} 后换码重试。原先「先 SELECT COUNT 查重再写入」的做法
+     * 不仅有 TOCTOU 竞态（预检通过后仍可能被并发插入抢占），还平白多 1~10 次查询。
+     */
+    String randomPickupCode() {
+        return String.format("%06d", PICKUP_CODE_RANDOM.nextInt(PICKUP_CODE_SPACE));
     }
 
     private String generateNo(String prefix) {

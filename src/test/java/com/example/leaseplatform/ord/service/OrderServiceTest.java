@@ -31,6 +31,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -43,6 +44,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -259,7 +261,6 @@ class OrderServiceTest {
         OrdOrder order = order(100L, OrderService.STATUS_PENDING);
         when(orderMapper.selectById(100L)).thenReturn(order);
         when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
-        when(orderMapper.selectCount(any(Wrapper.class))).thenReturn(0L); // 取餐码查重
         when(orderMapper.update(any(), any(Wrapper.class))).thenReturn(1); // 乐观锁定 0→1
         TrdPayment payment = new TrdPayment();
         payment.setId(900L);
@@ -282,7 +283,6 @@ class OrderServiceTest {
         // 并发：先扣款、乐观更新失败 → 抛"订单已处理"，本事务回滚扣款（生产由事务保证）
         OrdOrder order = order(100L, OrderService.STATUS_PENDING);
         when(orderMapper.selectById(100L)).thenReturn(order);
-        when(orderMapper.selectCount(any(Wrapper.class))).thenReturn(0L);
         when(orderMapper.update(any(), any(Wrapper.class))).thenReturn(0); // 并发：乐观更新失败
 
         assertThatThrownBy(() -> service.pay(1L, 100L))
@@ -291,6 +291,40 @@ class OrderServiceTest {
         verify(accountService).debit(1L, 2400L, 100L, "咖啡订单");
         verify(paymentService, never()).settle(any(), any());
         verify(paymentService, never()).create(any(), anyInt(), any(), anyLong(), anyInt(), anyInt(), any());
+    }
+
+    @Test
+    void pay_pickupCodeCollision_shouldRetryWithNewCode() {
+        // 取餐码撞 uk_pickup_code 唯一索引：第一次抛 DuplicateKeyException，换码后成功
+        OrdOrder order = order(100L, OrderService.STATUS_PENDING);
+        when(orderMapper.selectById(100L)).thenReturn(order);
+        when(orderMapper.update(any(), any(Wrapper.class)))
+                .thenThrow(new DuplicateKeyException("uk_pickup_code"))
+                .thenReturn(1);
+        TrdPayment payment = new TrdPayment();
+        payment.setId(900L);
+        when(paymentService.create(any(), anyInt(), any(), anyLong(), anyInt(), anyInt(), any()))
+                .thenReturn(payment);
+
+        OrderVO vo = service.pay(1L, 100L);
+
+        // 撞码后换码重试成功：update 被调用 2 次，最终正常结算
+        verify(orderMapper, times(2)).update(any(), any(Wrapper.class));
+        verify(paymentService).settle(900L, null);
+        assertThat(vo.getOrderStatus()).isEqualTo(OrderService.STATUS_PICKUP);
+    }
+
+    @Test
+    void pay_pickupCodeAlwaysColliding_shouldConflict() {
+        // 连续撞码（远超重试上限）→ 抛"取餐码生成失败"，且不得结算
+        when(orderMapper.selectById(100L)).thenReturn(order(100L, OrderService.STATUS_PENDING));
+        when(orderMapper.update(any(), any(Wrapper.class)))
+                .thenThrow(new DuplicateKeyException("uk_pickup_code"));
+
+        assertThatThrownBy(() -> service.pay(1L, 100L))
+                .isInstanceOf(BizException.class)
+                .hasMessage("取餐码生成失败，请重试");
+        verify(paymentService, never()).settle(any(), any());
     }
 
     @Test
