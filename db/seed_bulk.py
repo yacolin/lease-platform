@@ -47,6 +47,7 @@
 import argparse
 import os
 import random
+import shutil
 import subprocess
 import tempfile
 
@@ -237,6 +238,16 @@ class Gen:
                         rows)
 
     # ---- 商品 / SKU -------------------------------------------------------
+    # 分类 → (类型, 名称词库, 价格区间[分])
+    # 注意：product_type 语义上就对应分类（1-咖啡/2-正餐/3-加饭加菜/4-加汤），
+    # 因此「类型跟随分类」是正确的，不是缺陷。
+    PRODUCT_NAMES = {
+        1: (1, ["美式", "拿铁", "卡布奇诺", "摩卡", "澳白", "冷萃", "浓缩", "焦糖玛奇朵"], (800, 3200)),
+        2: (2, ["卤肉饭", "鸡腿饭", "牛肉面", "番茄意面", "咖喱鸡饭", "照烧鸡排饭", "三明治", "沙拉碗"], (1500, 4800)),
+        3: (3, ["薯条", "鸡翅", "洋葱圈", "蔬菜沙拉", "溏心蛋", "玉米粒", "培根", "芝士条"], (500, 2200)),
+        4: (4, ["例汤", "玉米浓汤", "番茄蛋汤", "紫菜蛋花汤", "罗宋汤", "菌菇汤"], (300, 1500)),
+    }
+
     def products(self):
         n = self.v["products"]
         rows, skus = [], []
@@ -250,17 +261,33 @@ class Gen:
                 status, avail, deleted = 2, 1, 1        # 逻辑删除（行仍在，布隆不得判为不存在）
             else:
                 status, avail, deleted = 2, 1, 0        # 上架
-            ptype = (i % 4) + 1
+
+            # 属性一律用「独立随机」而非 i % k 推导。
+            # 原实现用 i%4 / i%300 / i%1000 派生分类、价格、排序，模数互相关联，
+            # 导致同一 sort_order 槽位恰好 4 个商品、且这些商品在各维度上完全同构
+            # （前端表现为「4 张几乎一样的卡片挤在一起」，价格呈 10.20/20.20/30.20 锯齿）。
+            cat = self.rnd.choices([1, 2, 3, 4], weights=[30, 30, 25, 15])[0]
+            ptype, words, (lo, hi) = self.PRODUCT_NAMES[cat]
+            price = self.rnd.randrange(lo, hi + 1, 10)
+            # 名称：词库 + 序号后缀，既像真实菜单又不会重名
+            name = "%s%03d" % (self.rnd.choice(words), i % 1000)
+            # sort_order 恒为 0，与核心种子保持一致（db/seed.py 里商品的 sort_order 全是 0）。
+            # 小程序查询接口按 (sort_order, id) 排序，全 0 时等价于「按 id 升序」= 入库顺序：
+            # 核心商品在前、批量商品按序在后，顺序稳定可预期。
+            # 不要改回 i % k 之类的推导：那会让同一排序槽位凑出固定个数的商品，
+            # 且这些商品在其它维度上同构（前端表现为「好几张几乎一样的卡片挤在一起」）。
+            sort_order = 0
+            stock = self.rnd.choice([0, 20, 50, 100, 200, 500])
             rows.append((
-                str(pid), str((i % 4) + 1), q("压测商品%06d" % i), str(ptype),
-                str(1000 + (i % 300) * 10), "NULL", "NULL", "NULL",
-                str(avail), str(status), "9999", str(i % 1000), str(deleted),
+                str(pid), str(cat), q(name), str(ptype),
+                str(price), "NULL", "NULL", "NULL",
+                str(avail), str(status), str(stock), str(sort_order), str(deleted),
                 "NOW() - INTERVAL %d DAY" % self.rnd.randint(0, 400),
             ))
             # 注意：prd_skus 是少数没有 is_deleted 的表（见 db/README.md 逻辑删除范围）
             skus.append((
                 str(self.uid(i)), q("BSKU%08d" % i), str(pid),
-                str(1000 + (i % 300) * 10), "9999", "1",
+                str(price), str(stock), "1",
                 "NOW() - INTERVAL %d DAY" % self.rnd.randint(0, 400),
             ))
         c1 = self.add("prd_products",
@@ -509,6 +536,35 @@ class Gen:
                          "invited_at", "accepted_at", "is_deleted"], rows)
 
 
+def flush_app_cache():
+    """清空应用缓存命名空间（cache:*），让正在运行的实例立刻看到新的种子数据。
+
+    必要性：本脚本直接写 MySQL，不经过应用，因此不会触发商品列表的「缓存代」推进；
+    若不清缓存，运行中的实例会继续返回旧数据（分页键 TTL 10 分钟）。
+    清掉 cache:* 会连「缓存代」计数器一起删掉 —— 而缓存代缺失时会用当前时间戳重新初始化，
+    新代一定大于旧代，于是连各实例进程内 L1 里的旧键也一并失效。
+
+    redis-cli 不可用时只提示，不影响灌数据结果（与 reset_db.sh 的处理一致）。
+    """
+    if not shutil.which("redis-cli"):
+        print("==> 提示：未找到 redis-cli，若应用正在运行请重启或手动清理 cache:* 键")
+        return
+    host = os.environ.get("REDIS_HOST", "127.0.0.1")
+    port = os.environ.get("REDIS_PORT", "6379")
+    base = ["redis-cli", "-h", host, "-p", port]
+    if os.environ.get("REDIS_PASSWORD"):
+        base += ["-a", os.environ["REDIS_PASSWORD"], "--no-auth-warning"]
+    try:
+        scan = subprocess.run(base + ["--scan", "--pattern", "cache:*"],
+                              capture_output=True, text=True, timeout=10)
+        keys = [k for k in scan.stdout.split() if k]
+        if keys:
+            subprocess.run(base + ["DEL"] + keys, capture_output=True, timeout=10)
+            print("==> 已清理应用缓存（cache:*，共 %d 个键），运行中的实例将重新加载" % len(keys))
+    except Exception as e:  # noqa: BLE001 - 缓存清理失败不应让灌数据失败
+        print("==> 提示：清理应用缓存失败（%s），若应用正在运行请手动清理 cache:*" % e)
+
+
 def build_purge_sql():
     """只清理叠加数据：显式 id 段精确删除 + 通知表按 title 标记删除"""
     stmts = ["SET FOREIGN_KEY_CHECKS = 0;"]
@@ -549,6 +605,7 @@ def main():
     run_sql(mysql_args, args.db, "\n".join(build_purge_sql()))
 
     if args.purge_only:
+        flush_app_cache()   # 清理同样改变了数据，运行中的实例也必须失效
         print("==> --purge-only：已清理，未灌入新数据")
         return
 
@@ -572,6 +629,8 @@ def main():
     body = "SET autocommit = 0;\n" + "\n".join(gen.sql) + "\nCOMMIT;\n"
     print("==> 灌入 %s（%d 条 INSERT 语句）..." % (args.db, len(gen.sql)))
     run_sql(mysql_args, args.db, body)
+
+    flush_app_cache()
 
     total = sum(counts.values())
     print("==> 完成，共叠加约 %d 行：" % total)
