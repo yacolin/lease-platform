@@ -155,6 +155,17 @@ springdoc:
 
 # ---------- 6. Security（白名单 + CORS） ----------
 lease:
+  # ---------- 6.1 定时任务：会议室预约过期清理 ----------
+  # 原实现挂在 GET /me/meeting-reservations 与 GET /meeting-reservations 上惰性执行
+  # （读接口写库 + 无界扫描 + N+1 且无事务），现改为定时分批处理。
+  # 详见 docs/缓存与查询效率评估.md §2.0。
+  mtg:
+    expiry-job:
+      enabled: true
+      # 启动后首次执行的延迟（毫秒）：避开启动期，也让集成测试窗口内不触发
+      initial-delay-ms: 60000
+      # 两次执行间隔（毫秒）：5 分钟
+      interval-ms: 300000
   security:
     # 无需认证即可访问的路径（登录/注册、公开浏览接口、接口文档、健康检查）
     whitelist:

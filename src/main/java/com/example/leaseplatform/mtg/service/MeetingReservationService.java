@@ -60,7 +60,8 @@ import java.util.stream.Collectors;
  * - 会员免费时长抵扣 + 超时计费（沿用 1.1 定价模型与价格快照）；
  * - 状态生命周期：0-待确认, 1-已确认, 2-使用中, 3-已完成, 4-已取消, 5-已过期；
  * - 改期（1.4）：待确认（未支付）/ 免费已确认可改，付费已确认需先取消重新预约（差额处理留 2.0）；
- * - 过期惰性处理：查询时把已过预约日且未完成的预约置为已过期并释放占用。
+ * - 过期处理：由 {@link MeetingReservationExpiryJob} 定时分批清理（原为挂在查询接口上的惰性清理，
+ *   会在 GET 里写库、无界扫描且无事务，详见 docs/缓存与查询效率评估.md §2.0）。
  */
 @Service
 @RequiredArgsConstructor
@@ -79,6 +80,12 @@ public class MeetingReservationService {
 
     /** 无企业用户的 enterprise_id 占位 */
     private static final long NO_ENTERPRISE = 0L;
+
+    /** 过期清理默认批大小：定时任务逐批排空，避免单次无界扫描历史 */
+    public static final int EXPIRE_DEFAULT_BATCH_SIZE = 500;
+
+    /** 过期清理单批硬上限（防止调用方传入过大值导致单事务过重） */
+    private static final int EXPIRE_MAX_BATCH_SIZE = 5000;
 
     /** 非会员（个人/无等级）超时单价的兜底等级编码 */
     private static final String BASIC_LEVEL_CODE = "BASIC";
@@ -334,7 +341,6 @@ public class MeetingReservationService {
     // ==================== 查询 ====================
 
     public PageResult<MeetingReservationVO> myReservations(Long userId, int page, int size, Integer status) {
-        expirePastReservations();
         Page<MtgReservation> p = new Page<>(Math.max(page, 1), Math.min(Math.max(size, 1), 1000));
         reservationMapper.selectPage(p, new LambdaQueryWrapper<MtgReservation>()
                 .eq(MtgReservation::getUserId, userId)
@@ -349,7 +355,6 @@ public class MeetingReservationService {
     }
 
     public PageResult<MeetingReservationVO> adminPage(int page, int size, LocalDate date, Long roomId, Integer status) {
-        expirePastReservations();
         Page<MtgReservation> p = new Page<>(Math.max(page, 1), Math.min(Math.max(size, 1), 1000));
         reservationMapper.selectPage(p, new LambdaQueryWrapper<MtgReservation>()
                 .eq(date != null, MtgReservation::getReservationDate, date)
@@ -569,13 +574,43 @@ public class MeetingReservationService {
         return user.getEnterpriseId() == null ? NO_ENTERPRISE : user.getEnterpriseId();
     }
 
-    /** 惰性过期：已过预约日且仍待确认/已确认 → 已过期（过期不退款），释放占用并取消关联订单 */
-    private void expirePastReservations() {
+    /**
+     * 过期一批历史预约（供定时任务 {@link MeetingReservationExpiryJob} 调用）。
+     *
+     * <p>已过预约日且仍为「待确认 / 已确认」→ 置为已过期（过期不退款，但预授权冻结必须释放）、
+     * 释放会议室占用、取消关联订单并记录状态历史。
+     *
+     * <p>与原先「挂在 GET 接口上惰性清理」的做法的三点关键差异：
+     * <ol>
+     *   <li><b>有界</b>：单次最多处理 {@code batchSize} 条，不再无界扫描全表历史；</li>
+     *   <li><b>事务</b>：整批在一个事务内完成，避免原先「先批量置过期、再逐条释放占用与解冻」
+     *       中途失败时留下「预约已过期但占用未释放 / 余额仍冻结」的不一致；</li>
+     *   <li><b>可排空</b>：处理过的记录状态变为 {@link #STATUS_EXPIRED}，自动退出
+     *       {@code status IN (0,1)} 过滤条件，因此反复调用即可逐步排空积压，
+     *       无需依赖日期下限。</li>
+     * </ol>
+     *
+     * @param batchSize 本批处理条数上限；{@code <=0} 时使用 {@link #EXPIRE_DEFAULT_BATCH_SIZE}，
+     *                  超过 {@code EXPIRE_MAX_BATCH_SIZE} 时按上限截断
+     * @return 本批实际处理条数；返回 0 表示已无待过期数据
+     */
+    @Transactional
+    public int expirePastReservationsOnce(int batchSize) {
+        int limit = batchSize > 0 ? Math.min(batchSize, EXPIRE_MAX_BATCH_SIZE) : EXPIRE_DEFAULT_BATCH_SIZE;
+        // ⚠️ 此处刻意「不加 ORDER BY」——加排序会让优化器选择先排序再取前 N 条，
+        // 实测（30 万行历史，EXPLAIN ANALYZE）：
+        //   稳态（积压≈0，即每 5 分钟执行的常态）：无序 2.96ms（走 idx_status 仅读 10 行）
+        //                                        ORDER BY id 167ms（主键全表扫 30 万行）
+        //                                        ORDER BY reservation_date 632ms
+        //   积压 10 万：无序 2.97ms（读 500 行即停）/ ORDER BY id 2.05ms
+        // 无序时优化器用 idx_status 范围扫描，取满 LIMIT 即停；有序时反而必须扫全表才能定序。
+        // 批选哪些行不影响正确性：本批处理后状态变为 EXPIRED 退出过滤，反复调用即可排空。
         List<MtgReservation> expired = reservationMapper.selectList(new LambdaQueryWrapper<MtgReservation>()
                 .lt(MtgReservation::getReservationDate, LocalDate.now())
-                .in(MtgReservation::getStatus, List.of(STATUS_PENDING, STATUS_CONFIRMED)));
+                .in(MtgReservation::getStatus, List.of(STATUS_PENDING, STATUS_CONFIRMED))
+                .last("LIMIT " + limit));
         if (expired.isEmpty()) {
-            return;
+            return 0;
         }
         List<Long> ids = expired.stream().map(MtgReservation::getId).toList();
         reservationMapper.update(null, new LambdaUpdateWrapper<MtgReservation>()
@@ -586,6 +621,7 @@ public class MeetingReservationService {
         }
         for (MtgReservation r : expired) {
             // 待确认（预授权冻结）→ 解冻（过期不退款，但冻结必须释放）
+            // 注意：此处依据的是更新前读出的实体状态，语义与原实现一致
             if (r.getStatus() == STATUS_PENDING && r.getFeeAmount() != null && r.getFeeAmount() > 0) {
                 accountService.unfreeze(r.getUserId(), r.getFeeAmount(), r.getOrderId(), "会议室预约过期解冻");
             }
@@ -600,6 +636,7 @@ public class MeetingReservationService {
                         null, OrderStatusHistoryService.OPERATOR_ADMIN, "会议室预约过期");
             }
         }
+        return expired.size();
     }
 
     private MtgRoom requireBookableRoom(Long roomId) {

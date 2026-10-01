@@ -58,7 +58,7 @@ import static org.mockito.Mockito.when;
 /**
  * 会议室预约服务单元测试（1.4 会议室资源化）：
  * 占用冲突（mtg_bookings + 行锁）/ 免费时长与超时计费 / 预约订单化（订单+支付单）/
- * 生命周期（待确认→已确认→使用中→完成 / 取消）/ 改期 / 惰性过期。
+ * 生命周期（待确认→已确认→使用中→完成 / 取消）/ 改期 / 定时过期清理。
  */
 @ExtendWith(MockitoExtension.class)
 class MeetingReservationServiceTest {
@@ -498,18 +498,40 @@ class MeetingReservationServiceTest {
     }
 
     @Test
-    void myReservations_shouldExpirePastAndRelease() {
-        MtgReservation past = reservation(100L, 1, 16000L, 200L);
-        past.setReservationDate(LocalDate.now().minusDays(1));
-        when(reservationMapper.selectList(any(Wrapper.class))).thenReturn(List.of(past));
+    void myReservations_shouldBeReadOnly() {
         when(reservationMapper.selectPage(any(com.baomidou.mybatisplus.extension.plugins.pagination.Page.class),
                 any(Wrapper.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.myReservations(1L, 1, 10, null);
 
+        // 查询接口必须纯读：原实现会在此惰性置过期、释放占用并取消关联订单
+        // （读接口写库 + 无界扫描 + N+1 且无事务，见 docs/缓存与查询效率评估.md §2.0）
+        verify(reservationMapper, never()).update(any(), any(Wrapper.class));
+        verify(bookingMapper, never()).update(any(), any(Wrapper.class));
+        verify(orderMapper, never()).update(any(), any(Wrapper.class));
+    }
+
+    @Test
+    void expirePastReservationsOnce_shouldExpireAndRelease() {
+        MtgReservation past = reservation(100L, 1, 16000L, 200L);
+        past.setReservationDate(LocalDate.now().minusDays(1));
+        when(reservationMapper.selectList(any(Wrapper.class))).thenReturn(List.of(past));
+
+        int handled = service.expirePastReservationsOnce(MeetingReservationService.EXPIRE_DEFAULT_BATCH_SIZE);
+
+        assertThat(handled).isEqualTo(1);
         verify(reservationMapper).update(any(), any(Wrapper.class)); // 置过期
         verify(bookingMapper).update(any(), any(Wrapper.class));     // 释放占用
         verify(orderMapper).update(any(), any(Wrapper.class));       // 关联订单取消
+    }
+
+    @Test
+    void expirePastReservationsOnce_shouldReturnZeroWhenNothingToExpire() {
+        when(reservationMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
+
+        assertThat(service.expirePastReservationsOnce(MeetingReservationService.EXPIRE_DEFAULT_BATCH_SIZE))
+                .isZero();
+        verify(reservationMapper, never()).update(any(), any(Wrapper.class));
     }
 
     @Test

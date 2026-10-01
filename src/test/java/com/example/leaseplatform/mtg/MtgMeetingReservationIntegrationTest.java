@@ -2,6 +2,7 @@ package com.example.leaseplatform.mtg;
 
 import com.example.leaseplatform.mtg.entity.MtgReservation;
 import com.example.leaseplatform.mtg.mapper.MtgReservationMapper;
+import com.example.leaseplatform.mtg.service.MeetingReservationService;
 import com.example.leaseplatform.usr.entity.UsrEnterprise;
 import com.example.leaseplatform.usr.entity.UsrUser;
 import com.example.leaseplatform.usr.mapper.UsrEnterpriseMapper;
@@ -34,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 会议室域端到端集成测试（真实 MySQL + Redis + 完整 Security 链）：
  * 公开会议室 → 付费预约（冲突 409）→ 支付 → 取消退款；
- * 企业会员免费时长抵扣 → 超时计费 → 商家完成 → 惰性过期。
+ * 企业会员免费时长抵扣 → 超时计费 → 商家完成 → 定时过期清理。
  * 依赖：先执行 ./reset_db.sh（mtg_rooms 种子 3 间、usr_member_levels VIP=4h/月）。
  */
 @SpringBootTest
@@ -52,6 +53,8 @@ class MtgMeetingReservationIntegrationTest {
     private UsrEnterpriseMapper enterpriseMapper;
     @Autowired
     private MtgReservationMapper reservationMapper;
+    @Autowired
+    private MeetingReservationService reservationService;
     @Autowired
     private StringRedisTemplate redisTemplate;
 
@@ -254,7 +257,7 @@ class MtgMeetingReservationIntegrationTest {
     }
 
     @Test
-    void pastReservation_shouldExpireOnQuery() throws Exception {
+    void pastReservation_shouldBeExpiredByJobNotByQuery() throws Exception {
         String token = wxAccessToken();
         // 造一条昨天日期的已确认预约
         MtgReservation past = new MtgReservation();
@@ -275,12 +278,31 @@ class MtgMeetingReservationIntegrationTest {
         past.setFreeHoursDeducted(new BigDecimal("1.0"));
         reservationMapper.insert(past);
 
-        // 查询时惰性置为已过期
+        // 1) 查询接口必须是纯读：不再惰性改状态（原实现会在 GET 里写库，见 docs 评估 §2.0）
+        mockMvc.perform(get("/api/v1/me/meeting-reservations")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
+        assertThat(reservationMapper.selectById(past.getId()).getStatus())
+                .as("GET 查询不应再修改预约状态")
+                .isEqualTo(1);
+
+        // 2) 过期清理由定时任务分批执行（这里直接调用其底层方法，避免依赖调度时序）
+        int handled = reservationService.expirePastReservationsOnce(
+                MeetingReservationService.EXPIRE_DEFAULT_BATCH_SIZE);
+        assertThat(handled).as("本轮应至少清理掉刚造的过期预约").isGreaterThanOrEqualTo(1);
+        assertThat(reservationMapper.selectById(past.getId()).getStatus()).isEqualTo(5);
+
+        // 3) 清理后查询能看到「已过期」
         mockMvc.perform(get("/api/v1/me/meeting-reservations")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.list[0].status").value(5));
-        assertThat(reservationMapper.selectById(past.getId()).getStatus()).isEqualTo(5);
+
+        // 4) 自排空性质：已处理记录退出 status IN (0,1) 过滤，再次调用应返回 0
+        assertThat(reservationService.expirePastReservationsOnce(
+                        MeetingReservationService.EXPIRE_DEFAULT_BATCH_SIZE))
+                .as("已排空后不应再重复处理")
+                .isZero();
     }
 
     private String adminAccessToken() throws Exception {
