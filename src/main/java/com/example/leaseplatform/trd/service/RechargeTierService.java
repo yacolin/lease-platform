@@ -12,6 +12,7 @@ import com.example.leaseplatform.trd.entity.TrdRechargeTier;
 import com.example.leaseplatform.trd.mapper.TrdRechargeTierMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -48,6 +49,7 @@ public class RechargeTierService {
         return toVO(require(id));
     }
 
+    @Transactional
     public RechargeTierVO create(RechargeTierReq req) {
         checkDuplicateAmount(req.getRechargeAmount(), null);
         TrdRechargeTier tier = new TrdRechargeTier();
@@ -56,6 +58,7 @@ public class RechargeTierService {
         return toVO(tier);
     }
 
+    @Transactional
     public RechargeTierVO update(Long id, RechargeTierReq req) {
         TrdRechargeTier tier = require(id);
         checkDuplicateAmount(req.getRechargeAmount(), id);
@@ -64,6 +67,7 @@ public class RechargeTierService {
         return toVO(tier);
     }
 
+    @Transactional
     public void delete(Long id) {
         require(id);
         tierMapper.deleteById(id);

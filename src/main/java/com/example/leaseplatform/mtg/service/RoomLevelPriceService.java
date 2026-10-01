@@ -13,6 +13,7 @@ import com.example.leaseplatform.mtg.mapper.MtgRoomLevelPriceMapper;
 import com.example.leaseplatform.mtg.mapper.MtgRoomMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
@@ -54,6 +55,7 @@ public class RoomLevelPriceService {
         return toVO(require(id));
     }
 
+    @Transactional
     public RoomLevelPriceVO create(RoomLevelPriceReq req) {
         requireRoom(req.getRoomId());
         Long exist = priceMapper.selectCount(new LambdaQueryWrapper<MtgRoomLevelPrice>()
@@ -68,6 +70,7 @@ public class RoomLevelPriceService {
         return toVO(price);
     }
 
+    @Transactional
     public RoomLevelPriceVO update(Long id, RoomLevelPriceReq req) {
         MtgRoomLevelPrice price = require(id);
         requireRoom(req.getRoomId());
@@ -84,6 +87,7 @@ public class RoomLevelPriceService {
         return toVO(price);
     }
 
+    @Transactional
     public void delete(Long id) {
         require(id);
         priceMapper.deleteById(id);

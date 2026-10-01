@@ -75,7 +75,14 @@ public class MktUserCouponService {
         return toVO(uc);
     }
 
-    /** 我的优惠券（分页，可选状态筛选；惰性过期） */
+    /**
+     * 我的优惠券（分页，可选状态筛选；惰性过期）。
+     *
+     * <p>本方法会先执行 {@code expireUnused} 写操作（惰性过期），再分页查询，
+     * 因此必须加事务：否则写操作在 autocommit 下单独提交，与随后的查询不构成一致视图
+     * （见 docs/缓存与查询效率评估.md §2.0 同类问题）。
+     */
+    @Transactional
     public PageResult<UserCouponVO> myCoupons(Long userId, int page, int size, Integer status) {
         expireUnused(userId);
         Page<MktUserCoupon> p = new Page<>(Math.max(page, 1), Math.min(Math.max(size, 1), 1000));

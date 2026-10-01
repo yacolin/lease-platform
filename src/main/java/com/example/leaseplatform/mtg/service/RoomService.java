@@ -11,6 +11,7 @@ import com.example.leaseplatform.mtg.entity.MtgRoom;
 import com.example.leaseplatform.mtg.mapper.MtgRoomMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -52,6 +53,7 @@ public class RoomService {
         return toVO(room);
     }
 
+    @Transactional
     public RoomVO update(Long id, RoomReq req) {
         MtgRoom room = require(id);
         apply(room, req);
@@ -59,6 +61,7 @@ public class RoomService {
         return toVO(room);
     }
 
+    @Transactional
     public void delete(Long id) {
         require(id);
         roomMapper.deleteById(id);

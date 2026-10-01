@@ -1,6 +1,7 @@
 package com.example.leaseplatform.common;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
@@ -55,6 +56,23 @@ public class GlobalExceptionHandler {
         ApiResponse<List<FieldErrorVO>> body = ApiResponse.error(ErrorCode.INVALID_PARAMS, "参数校验失败");
         body.setData(errors);
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
+    }
+
+    /**
+     * 唯一键冲突（409）。
+     *
+     * <p>多处「先 selectCount 查重再 insert」的写法，其查重只是<b>启发式</b>：
+     * 并发下两个事务都可能通过预检，最终由唯一索引拦下其中一个（TOCTOU 竞态）。
+     * 这里把唯一索引抛出的冲突兜底为 409，而不是落入 {@link #handleException} 变成 500。
+     *
+     * <p>只处理 {@link DuplicateKeyException}（MySQL 1062），不扩大到父类
+     * {@code DataIntegrityViolationException}，以免把外键/非空等其它完整性问题误报为冲突。
+     */
+    @ExceptionHandler(DuplicateKeyException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDuplicateKey(DuplicateKeyException e) {
+        log.warn("唯一键冲突（并发写入同一唯一值）: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ErrorCode.CONFLICT, "数据已存在或与现有记录冲突"));
     }
 
     @ExceptionHandler(Exception.class)
