@@ -25,8 +25,11 @@
 > 另外 `db/seed_dev_user.py` 在基础种子之上按需给开发登录用户 `mock_dev_user` 叠加一整套
 > 演示数据（企业管理员 + VIP + 余额/订单/预订/会议室/优惠券/通知等），`make db-seed-dev` 执行，
 > 仅供本地登录小程序查看数据，**跑集成测试前勿执行**（集成测试依赖 `mock_dev_user` 为干净新用户）；
+> `db/seed_bulk.py` 再叠加一层**规模数据**（约 130 万行，让索引/多级缓存/布隆过滤器/定时清理
+> 等性能特性可被真实观测），`make db-seed-bulk` 执行，同样**跑集成测试前勿执行**；
 > 迁移（`migrations/`）仅保留 admin 初始化账号（生产必需），演示种子不进生产，
-> 上生产只跑建表（`make db-init` / `reset_db.sh`），**切勿在生产执行 `db/seed.py` / `db/seed_dev_user.py`**。
+> 上生产只跑建表（`make db-init` / `reset_db.sh`），
+> **切勿在生产执行 `db/seed.py` / `db/seed_dev_user.py` / `db/seed_bulk.py`**。
 
 ## 主键 ID 策略（2.0 共享对话决策 + usr_admins）
 
@@ -85,6 +88,42 @@ make db-reset-dev    # = ./reset_db.sh + db/seed.py + db/seed_dev_user.py（开�
 > ⚠️ 集成测试断言 `mock_dev_user` 为「干净新用户」，跑 `make test` 前请用 `make db-reset`
 > 恢复基础种子（只跑 `db/seed.py`），不要叠加本脚本。
 
+**规模数据**（`db/seed_bulk.py`，叠加在基础种子之上，按需执行）：
+
+基础种子是「可断言的最小集」（4 分类 / 27 商品 / 0 订单 / 8 会议室 / 3 用户），
+它的职责是给集成测试稳定的断言依据，**不是**让性能特性可验证。
+而当前技术栈（复合索引 / L1+L2 多级缓存 / 布隆过滤器 / 定时过期清理 / 聚合统计 / 深分页）
+在小数据量下全都看不出差别——优化器在几十行时会直接全表扫、布隆按 10 万量级设计却只装 27 个元素、
+过期清理在 0 条积压时毫无意义。`seed_bulk.py` 用于补齐这一层：
+
+```bash
+make db-seed-bulk                    # 叠加约 130 万行（默认，约 25 秒）
+make db-reset-bulk                   # 重建 + 基础种子 + 规模数据（一步到位）
+make db-purge-bulk                   # 只清理规模数据，保留基础种子
+SEED_ARGS="--scale 0.2" make db-seed-bulk   # 约 26 万行的快速小规模
+SEED_ARGS="--scale 3"   make db-seed-bulk   # 压测用大规模
+python3 db/seed_bulk.py --help       # 完整参数（--scale/--batch/--seed/--purge-only）
+```
+
+默认量级（`--scale 1.0`）：订单 20 万 / 订单明细 20 万 / 通知 30 万 / 会议预约 12 万 /
+资金流水 15 万 / 支付单 8 万 / 餐预约 5 万 / 占用 4 万 / 商品 2 万 + SKU 2 万 / 用户 5000。
+
+数据分布刻意贴近真实查询形态（对应 `docs/缓存与查询效率评估.md` 各条优化）：
+订单 `created_at` 铺满近 365 天且约 1.5% 落在今天（让今日聚合与 GROUP BY 有量）；
+1% 的「重度用户」承接约 1/4 订单（每人约 2000 单，使深分页可测）；
+会议预约约 60% 为过去日期、其中多数早已终态、约 1/8 仍是待确认/已确认
+（i.e. 定时清理任务有约 9000 条真实积压，远超单批 500，可验证分批与自排空）；
+通知约 40% 未读；商品约 8% 下架、2% 逻辑删除。
+
+**幂等与隔离**：叠加数据一律使用保留主键段 `[700000000000000000, 700000001000000000)`，
+每次运行先按该段精确清理自己、再重灌，固定随机种子保证结果一致——
+**绝不触碰基础种子的核心行**。（`sys_notifications` 是自增表，显式写大 id 会把
+`AUTO_INCREMENT` 顶高，故该表不指定 id，改用 `title` 的 `[BULK]` 前缀作清理标记。）
+
+> ⚠️ 与 `db/seed_dev_user.py` 同类，**跑集成测试前请先 `make db-reset`**：
+> 规模数据会让「精确计数」类断言失败（如通知总数、`sys_operation_logs==1` 等）。
+> 只想去掉规模数据而保留基础种子时用 `make db-purge-bulk`。
+
 **仅初始化数据库结构**（生产环境用这个，**不灌种子**，谨慎执行）：
 
 ```bash
@@ -92,6 +131,10 @@ make db-reset-dev    # = ./reset_db.sh + db/seed.py + db/seed_dev_user.py（开�
 DB_NAME=xxx ./reset_db.sh            # 指定其他库
 MYSQL_PASSWORD=xxx ./reset_db.sh     # 连接参数可用 MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD 覆盖
 ```
+
+> `reset_db.sh` 重建数据库后会**一并清理 Redis 中的应用缓存**（`cache:*` 前缀）：
+> 否则运行中的应用会继续返回 L1/L2 里的旧参照数据（最长 30 分钟）。
+> 只删本项目的 `cache:*`，不动 `auth:refresh:*` 等其它键。
 
 > 种子脚本连接参数与 `reset_db.sh` 一致（`DB_NAME` / `MYSQL_HOST` / `MYSQL_PORT` / `MYSQL_USER` / `MYSQL_PASSWORD`），
 > 也可用 `--db/--host/--port/--user/--password` 命令行参数覆盖。

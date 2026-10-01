@@ -2,7 +2,7 @@
 # 常用：make run（启动项目） make build（打包） make db-reset（重置数据库：建表+种子）
 # 全部命令：make help
 
-.PHONY: help run stop compile test build run-jar db-reset db-init db-seed db-seed-dev db-reset-dev
+.PHONY: help run stop compile test build run-jar db-reset db-init db-seed db-seed-dev db-reset-dev db-seed-bulk db-reset-bulk db-purge-bulk
 
 # Maven 调用：把 Maven 本地仓库重定向到工作区 .m2home（已 gitignore），
 # 受限环境（沙箱等无法写 ~/.m2）与正常开发环境同样适用；
@@ -48,3 +48,14 @@ db-reset-dev: ## 开发环境一步到位（含 mock_dev_user 演示数据）：
 	./reset_db.sh
 	python3 db/seed.py
 	python3 db/seed_dev_user.py
+
+db-seed-bulk: ## 叠加「规模」种子（约 130 万行，dev-only；跑集成测试前请先 make db-reset）
+	python3 db/seed_bulk.py $(SEED_ARGS)
+
+db-reset-bulk: ## 开发环境一步到位 + 规模数据：重建 + 基础种子 + 规模叠加（dev-only）
+	./reset_db.sh
+	python3 db/seed.py
+	python3 db/seed_bulk.py $(SEED_ARGS)
+
+db-purge-bulk: ## 只清理规模叠加数据（保留基础种子，不重建库）
+	python3 db/seed_bulk.py --purge-only
