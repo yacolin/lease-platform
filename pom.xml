@@ -98,6 +98,15 @@
             <artifactId>commons-pool2</artifactId>
         </dependency>
 
+        <!-- L1 本地缓存：Caffeine（多级缓存的 L1 层）。
+             版本由 spring-boot-dependencies BOM 管理（无需显式指定）；
+             自带容量上限 + TTL 淘汰 + per-key 加载互斥（等价 Go 侧的 singleflight）。
+             见 docs/缓存与查询效率评估.md §6.1 -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
         <!-- Flyway：数据库自动迁移（生产 profile 启用；迁移脚本 src/main/resources/db/migration，与 db/migrations 双轨同步） -->
         <dependency>
             <groupId>org.flywaydb</groupId>

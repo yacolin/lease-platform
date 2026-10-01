@@ -8,9 +8,11 @@ import com.example.leaseplatform.usr.entity.UsrUser;
 import com.example.leaseplatform.usr.mapper.UsrEnterpriseMapper;
 import com.example.leaseplatform.usr.mapper.UsrUserMapper;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import com.example.leaseplatform.support.CacheTestSupport;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
@@ -94,6 +96,11 @@ class MtgMeetingReservationIntegrationTest {
         return """
                 {"roomId":1,"reservationDate":"%s","startTime":"%s","endTime":"%s","meetingTopic":"周会"}"""
                 .formatted(bookingDate, start, end);
+    }
+
+    @BeforeEach
+    void flushCacheNamespace() {
+        CacheTestSupport.flushCacheNamespace(redisTemplate);
     }
 
     @Test

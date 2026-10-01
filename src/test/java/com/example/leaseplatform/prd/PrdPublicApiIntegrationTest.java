@@ -1,9 +1,12 @@
 package com.example.leaseplatform.prd;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import com.example.leaseplatform.support.CacheTestSupport;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
@@ -25,7 +28,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PrdPublicApiIntegrationTest {
 
     @Autowired
+    private StringRedisTemplate redisTemplate;
+
+    @Autowired
     private MockMvc mockMvc;
+
+    @BeforeEach
+    void flushCacheNamespace() {
+        CacheTestSupport.flushCacheNamespace(redisTemplate);
+    }
 
     @Test
     void publicCategories_shouldReturnSeededCategories() throws Exception {

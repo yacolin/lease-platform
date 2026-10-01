@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
+import com.example.leaseplatform.common.cache.MultiLevelCache;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.mkt.dto.CouponCreateReq;
 import com.example.leaseplatform.mkt.dto.CouponVO;
@@ -27,6 +28,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,6 +47,9 @@ class MktCouponServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Mock
+    private MultiLevelCache cache;
+
     private MktCouponService service;
 
     @BeforeAll
@@ -58,7 +64,12 @@ class MktCouponServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new MktCouponService(couponMapper, userCouponMapper, objectMapper);
+        service = new MktCouponService(couponMapper, cache, userCouponMapper, objectMapper);
+        // MultiLevelCache 为透传 mock：直接调用 loader，使既有断言仍校验真实查询与映射逻辑
+        // 用 lenient：只有部分用例会走到缓存读取路径
+        lenient().when(cache.getList(anyString(), anyString(), any(), any(), any()))
+                .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(4)).get());
+
     }
 
     private MktCoupon coupon(Long id, String name) {

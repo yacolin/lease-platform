@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.common.TimeUtil;
+import com.example.leaseplatform.common.cache.CacheSpec;
+import com.example.leaseplatform.common.cache.MultiLevelCache;
 import com.example.leaseplatform.prd.dto.CategoryCreateReq;
 import com.example.leaseplatform.prd.dto.CategoryUpdateReq;
 import com.example.leaseplatform.prd.dto.CategoryVO;
@@ -27,6 +29,7 @@ public class PrdCategoryService {
 
     private final PrdCategoryMapper categoryMapper;
     private final PrdProductMapper productMapper;
+    private final MultiLevelCache cache;
 
     /** 管理端分页列表 */
     public PageResult<CategoryVO> page(int page, int size, Integer categoryType, Integer status) {
@@ -50,6 +53,7 @@ public class PrdCategoryService {
         apply(entity, req.getCategoryName(), req.getCategoryType(), req.getParentId(),
                 req.getSortOrder(), req.getStatus(), req.getIconUrl(), req.getIsShow());
         categoryMapper.insert(entity);
+        evictPublicList();
         return toVO(entity);
     }
 
@@ -58,6 +62,7 @@ public class PrdCategoryService {
         apply(entity, req.getCategoryName(), req.getCategoryType(), req.getParentId(),
                 req.getSortOrder(), req.getStatus(), req.getIconUrl(), req.getIsShow());
         categoryMapper.updateById(entity);
+        evictPublicList();
         return toVO(entity);
     }
 
@@ -75,16 +80,30 @@ public class PrdCategoryService {
             throw BizException.conflict("该分类下存在子分类，无法删除");
         }
         categoryMapper.deleteById(id);
+        evictPublicList();
     }
 
-    /** 小程序公开列表：仅启用且展示，按 sort_order 升序 */
+    /** 分类变更后失效公开列表缓存（提交后生效） */
+    private void evictPublicList() {
+        cache.evictAfterCommit(CacheSpec.CATEGORY_LIST, MultiLevelCache.l2Key(CacheSpec.CATEGORY_LIST));
+    }
+
+    /**
+     * 小程序公开列表：仅启用且展示，按 sort_order 升序。
+     *
+     * <p>整表缓存（L1 Caffeine + L2 Redis）：分类是典型参照数据，
+     * 整表只有几行、写频率极低，而该接口是白名单放行的匿名接口、可被无成本刷量。
+     * 原实现每次请求都走一次全表扫描 + filesort（见 docs 评估 §2.1.1）。
+     */
     public List<CategoryVO> publicList() {
-        return categoryMapper.selectList(new LambdaQueryWrapper<PrdCategory>()
-                        .eq(PrdCategory::getStatus, 1)
-                        .eq(PrdCategory::getIsShow, 1)
-                        .orderByAsc(PrdCategory::getSortOrder)
-                        .orderByAsc(PrdCategory::getId))
-                .stream().map(this::toVO).toList();
+        return cache.getList(CacheSpec.CATEGORY_LIST, MultiLevelCache.l2Key(CacheSpec.CATEGORY_LIST),
+                CategoryVO.class, CacheSpec.L2_TTL,
+                () -> categoryMapper.selectList(new LambdaQueryWrapper<PrdCategory>()
+                                .eq(PrdCategory::getStatus, 1)
+                                .eq(PrdCategory::getIsShow, 1)
+                                .orderByAsc(PrdCategory::getSortOrder)
+                                .orderByAsc(PrdCategory::getId))
+                        .stream().map(this::toVO).toList());
     }
 
     private PrdCategory require(Long id) {

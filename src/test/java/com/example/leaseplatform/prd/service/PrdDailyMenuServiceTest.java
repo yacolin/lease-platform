@@ -3,6 +3,7 @@ package com.example.leaseplatform.prd.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
+import com.example.leaseplatform.common.cache.MultiLevelCache;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.prd.dto.MenuCreateReq;
 import com.example.leaseplatform.prd.dto.MenuVO;
@@ -22,6 +23,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,11 +40,19 @@ class PrdDailyMenuServiceTest {
     @Mock
     private PrdProductMapper productMapper;
 
+    @Mock
+    private MultiLevelCache cache;
+
     private PrdDailyMenuService service;
 
     @BeforeEach
     void setUp() {
-        service = new PrdDailyMenuService(menuMapper, productMapper);
+        service = new PrdDailyMenuService(menuMapper, cache, productMapper);
+        // MultiLevelCache 为透传 mock：直接调用 loader，使既有断言仍校验真实查询与映射逻辑
+        // 用 lenient：只有部分用例会走到缓存读取路径
+        lenient().when(cache.getList(anyString(), anyString(), any(), any(), any()))
+                .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(4)).get());
+
     }
 
     private PrdDailyMenu menu(Long id, LocalDate date, Long productId, String dishName) {

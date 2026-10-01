@@ -4,9 +4,11 @@ import com.example.leaseplatform.usr.entity.UsrUser;
 import com.example.leaseplatform.trd.mapper.AcctAccountMapper;
 import com.example.leaseplatform.usr.mapper.UsrUserMapper;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import com.example.leaseplatform.support.CacheTestSupport;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
@@ -69,6 +71,11 @@ class TrdRechargeIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(body).path("data").path("accessToken").asText();
+    }
+
+    @BeforeEach
+    void flushCacheNamespace() {
+        CacheTestSupport.flushCacheNamespace(redisTemplate);
     }
 
     @Test

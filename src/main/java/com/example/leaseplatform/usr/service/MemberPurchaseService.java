@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.common.TimeUtil;
+import com.example.leaseplatform.common.cache.CacheSpec;
+import com.example.leaseplatform.common.cache.MultiLevelCache;
 import com.example.leaseplatform.usr.dto.MemberLevelVO;
 import com.example.leaseplatform.usr.dto.MemberPurchaseReq;
 import com.example.leaseplatform.usr.dto.MemberPurchaseVO;
@@ -46,6 +48,7 @@ public class MemberPurchaseService {
     private static final int PAY_SUCCESS = 1;
 
     private final UsrMemberLevelMapper levelMapper;
+    private final MultiLevelCache cache;
     private final UsrMemberPurchaseMapper purchaseMapper;
     private final UsrEnterpriseMapper enterpriseMapper;
     private final UsrEnterpriseMemberMapper memberMapper;
@@ -55,12 +58,22 @@ public class MemberPurchaseService {
 
     // ==================== 公开：等级列表 ====================
 
-    /** 会员等级列表（仅启用） */
+    /**
+     * 会员等级列表（仅启用）。
+     *
+     * <p>整表缓存（L1 + L2），且<b>无需失效</b>：usr_member_levels 在本仓库中没有任何写入点，
+     * 完全是种子配置（无管理端接口）。原实现每次请求都走全表扫描 + filesort。
+     *
+     * <p>该表同时是 §4 所述的「计费规则类参照数据」——预约/下单主链路会反复读取，
+     * 若将来接入等级编辑接口，记得在此处补 evict。
+     */
     public List<MemberLevelVO> publicLevels() {
-        return levelMapper.selectList(new LambdaQueryWrapper<UsrMemberLevel>()
-                        .eq(UsrMemberLevel::getStatus, 1)
-                        .orderByAsc(UsrMemberLevel::getPrice))
-                .stream().map(this::toLevelVO).toList();
+        return cache.getList(CacheSpec.MEMBER_LEVEL_LIST, MultiLevelCache.l2Key(CacheSpec.MEMBER_LEVEL_LIST),
+                MemberLevelVO.class, CacheSpec.L2_TTL,
+                () -> levelMapper.selectList(new LambdaQueryWrapper<UsrMemberLevel>()
+                                .eq(UsrMemberLevel::getStatus, 1)
+                                .orderByAsc(UsrMemberLevel::getPrice))
+                        .stream().map(this::toLevelVO).toList());
     }
 
     // ==================== 小程序端：下单 / mock 支付 / 记录 ====================

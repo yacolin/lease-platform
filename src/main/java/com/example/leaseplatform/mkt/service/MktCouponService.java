@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.common.TimeUtil;
+import com.example.leaseplatform.common.cache.CacheSpec;
+import com.example.leaseplatform.common.cache.MultiLevelCache;
 import com.example.leaseplatform.mkt.dto.CouponCreateReq;
 import com.example.leaseplatform.mkt.dto.CouponUpdateReq;
 import com.example.leaseplatform.mkt.dto.CouponVO;
@@ -29,6 +31,7 @@ import java.util.List;
 public class MktCouponService {
 
     private final MktCouponMapper couponMapper;
+    private final MultiLevelCache cache;
     private final MktUserCouponMapper userCouponMapper;
     private final ObjectMapper objectMapper;
 
@@ -57,6 +60,7 @@ public class MktCouponService {
                 req.getProductIds(), req.getCategoryIds(), req.getValidityDays(),
                 req.getStatus(), req.getSortOrder());
         couponMapper.insert(coupon);
+        evictPublicList();
         return toVO(coupon);
     }
 
@@ -68,6 +72,7 @@ public class MktCouponService {
                 req.getProductIds(), req.getCategoryIds(), req.getValidityDays(),
                 req.getStatus(), req.getSortOrder());
         couponMapper.updateById(coupon);
+        evictPublicList();
         return toVO(coupon);
     }
 
@@ -81,15 +86,28 @@ public class MktCouponService {
             throw BizException.conflict("该优惠券已被用户领取，无法删除（可停用）");
         }
         couponMapper.deleteById(id);
+        evictPublicList();
     }
 
-    /** 公开可领列表（仅启用） */
+    /** 券模板变更后失效公开列表缓存（提交后生效） */
+    private void evictPublicList() {
+        cache.evictAfterCommit(CacheSpec.COUPON_LIST, MultiLevelCache.l2Key(CacheSpec.COUPON_LIST));
+    }
+
+    /**
+     * 公开可领列表（仅启用）。
+     *
+     * <p>整表缓存（L1 + L2）：券模板是参照数据，整表只有几行；
+     * 原实现每次请求都走一次索引查找 + filesort（sort_order 无索引）。
+     */
     public List<CouponVO> publicList() {
-        return couponMapper.selectList(new LambdaQueryWrapper<MktCoupon>()
-                        .eq(MktCoupon::getStatus, MktCoupon.STATUS_ENABLED)
-                        .orderByAsc(MktCoupon::getSortOrder)
-                        .orderByAsc(MktCoupon::getId))
-                .stream().map(this::toVO).toList();
+        return cache.getList(CacheSpec.COUPON_LIST, MultiLevelCache.l2Key(CacheSpec.COUPON_LIST),
+                CouponVO.class, CacheSpec.L2_TTL,
+                () -> couponMapper.selectList(new LambdaQueryWrapper<MktCoupon>()
+                                .eq(MktCoupon::getStatus, MktCoupon.STATUS_ENABLED)
+                                .orderByAsc(MktCoupon::getSortOrder)
+                                .orderByAsc(MktCoupon::getId))
+                        .stream().map(this::toVO).toList());
     }
 
     MktCoupon require(Long id) {

@@ -3,9 +3,11 @@ package com.example.leaseplatform.mkt;
 import com.example.leaseplatform.mkt.entity.MktUserCoupon;
 import com.example.leaseplatform.mkt.mapper.MktUserCouponMapper;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import com.example.leaseplatform.support.CacheTestSupport;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
@@ -56,6 +58,11 @@ class MktCouponIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(body).path("data").path("accessToken").asText();
+    }
+
+    @BeforeEach
+    void flushCacheNamespace() {
+        CacheTestSupport.flushCacheNamespace(redisTemplate);
     }
 
     @Test

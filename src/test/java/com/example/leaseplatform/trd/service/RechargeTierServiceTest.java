@@ -3,6 +3,7 @@ package com.example.leaseplatform.trd.service;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
+import com.example.leaseplatform.common.cache.MultiLevelCache;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.trd.dto.RechargeTierReq;
 import com.example.leaseplatform.trd.dto.RechargeTierVO;
@@ -19,6 +20,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,12 +35,20 @@ class RechargeTierServiceTest {
     @Mock
     private TrdRechargeTierMapper tierMapper;
 
+    @Mock
+    private MultiLevelCache cache;
+
     private RechargeTierService service;
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
         // 须在 @Mock 注入后构造（字段初始化器在注入前执行会拿到 null mock）
-        service = new RechargeTierService(tierMapper);
+        service = new RechargeTierService(tierMapper, cache);
+        // MultiLevelCache 为透传 mock：直接调用 loader，使既有断言仍校验真实查询与映射逻辑
+        // 用 lenient：只有部分用例会走到缓存读取路径
+        lenient().when(cache.getList(anyString(), anyString(), any(), any(), any()))
+                .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(4)).get());
+
     }
 
     private RechargeTierReq req(Long amount, Long bonus) {

@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.common.TimeUtil;
+import com.example.leaseplatform.common.cache.CacheSpec;
+import com.example.leaseplatform.common.cache.MultiLevelCache;
 import com.example.leaseplatform.trd.dto.RechargeTierReq;
 import com.example.leaseplatform.trd.dto.RechargeTierVO;
 import com.example.leaseplatform.trd.entity.TrdRechargeTier;
@@ -25,14 +27,22 @@ import java.util.List;
 public class RechargeTierService {
 
     private final TrdRechargeTierMapper tierMapper;
+    private final MultiLevelCache cache;
 
-    /** 公开列表：仅启用，按 sort_order 升序 */
+    /**
+     * 公开列表：仅启用，按 sort_order 升序。
+     *
+     * <p>整表缓存（L1 + L2）：充值档位是参照数据，整表只有几行；
+     * 原实现每次请求都走一次全表扫描 + filesort（status/sort_order 均无索引）。
+     */
     public List<RechargeTierVO> publicList() {
-        return tierMapper.selectList(new LambdaQueryWrapper<TrdRechargeTier>()
-                        .eq(TrdRechargeTier::getStatus, 1)
-                        .orderByAsc(TrdRechargeTier::getSortOrder)
-                        .orderByAsc(TrdRechargeTier::getId))
-                .stream().map(this::toVO).toList();
+        return cache.getList(CacheSpec.TIER_LIST, MultiLevelCache.l2Key(CacheSpec.TIER_LIST),
+                RechargeTierVO.class, CacheSpec.L2_TTL,
+                () -> tierMapper.selectList(new LambdaQueryWrapper<TrdRechargeTier>()
+                                .eq(TrdRechargeTier::getStatus, 1)
+                                .orderByAsc(TrdRechargeTier::getSortOrder)
+                                .orderByAsc(TrdRechargeTier::getId))
+                        .stream().map(this::toVO).toList());
     }
 
     /** 管理端分页 */
@@ -55,6 +65,7 @@ public class RechargeTierService {
         TrdRechargeTier tier = new TrdRechargeTier();
         apply(tier, req);
         tierMapper.insert(tier);
+        evictPublicList();
         return toVO(tier);
     }
 
@@ -64,6 +75,7 @@ public class RechargeTierService {
         checkDuplicateAmount(req.getRechargeAmount(), id);
         apply(tier, req);
         tierMapper.updateById(tier);
+        evictPublicList();
         return toVO(tier);
     }
 
@@ -71,6 +83,12 @@ public class RechargeTierService {
     public void delete(Long id) {
         require(id);
         tierMapper.deleteById(id);
+        evictPublicList();
+    }
+
+    /** 充值档位变更后失效公开列表缓存（提交后生效） */
+    private void evictPublicList() {
+        cache.evictAfterCommit(CacheSpec.TIER_LIST, MultiLevelCache.l2Key(CacheSpec.TIER_LIST));
     }
 
     private void apply(TrdRechargeTier tier, RechargeTierReq req) {

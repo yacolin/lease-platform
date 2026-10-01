@@ -3,6 +3,7 @@ package com.example.leaseplatform.mtg.service;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
+import com.example.leaseplatform.common.cache.MultiLevelCache;
 import com.example.leaseplatform.mtg.dto.RoomReq;
 import com.example.leaseplatform.mtg.dto.RoomVO;
 import com.example.leaseplatform.mtg.entity.MtgRoom;
@@ -18,6 +19,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -31,11 +34,19 @@ class RoomServiceTest {
     @Mock
     private MtgRoomMapper roomMapper;
 
+    @Mock
+    private MultiLevelCache cache;
+
     private RoomService service;
 
     @BeforeEach
     void setUp() {
-        service = new RoomService(roomMapper);
+        service = new RoomService(roomMapper, cache);
+        // MultiLevelCache 为透传 mock：直接调用 loader，使既有断言仍校验真实查询与映射逻辑
+        // 用 lenient：只有部分用例会走到缓存读取路径
+        lenient().when(cache.getList(anyString(), anyString(), any(), any(), any()))
+                .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(4)).get());
+
     }
 
     private MtgRoom room(Long id) {

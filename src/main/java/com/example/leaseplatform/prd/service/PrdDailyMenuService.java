@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.common.TimeUtil;
+import com.example.leaseplatform.common.cache.CacheSpec;
+import com.example.leaseplatform.common.cache.MultiLevelCache;
 import com.example.leaseplatform.prd.dto.MenuBatchReq;
 import com.example.leaseplatform.prd.dto.MenuCopyReq;
 import com.example.leaseplatform.prd.dto.MenuCreateReq;
@@ -30,6 +32,7 @@ import java.util.stream.Collectors;
 public class PrdDailyMenuService {
 
     private final PrdDailyMenuMapper menuMapper;
+    private final MultiLevelCache cache;
     private final PrdProductMapper productMapper;
 
     /** 管理端分页列表：可按日期 / 套餐筛选 */
@@ -59,21 +62,26 @@ public class PrdDailyMenuService {
         PrdDailyMenu entity = new PrdDailyMenu();
         apply(entity, req);
         menuMapper.insert(entity);
+        evictDate(req.getMenuDate());
         return toVO(entity);
     }
 
     public MenuVO update(Long id, MenuUpdateReq req) {
-        require(id);
         requireProduct(req.getProductId());
         PrdDailyMenu entity = require(id);
+        LocalDate oldDate = entity.getMenuDate();
         apply(entity, req);
         menuMapper.updateById(entity);
+        // 日期可能被改动：新旧两天的缓存都要失效
+        evictDate(oldDate);
+        evictDate(req.getMenuDate());
         return toVO(entity);
     }
 
     public void delete(Long id) {
-        require(id);
+        PrdDailyMenu entity = require(id);
         menuMapper.deleteById(id);
+        evictDate(entity.getMenuDate());
     }
 
     /** 整单配置：覆盖式替换指定日期的全部菜品（先删后插，事务内） */
@@ -93,6 +101,7 @@ public class PrdDailyMenuService {
             menuMapper.insert(entity);
             created.add(entity);
         }
+        evictDate(req.getMenuDate());
         return toVOList(created);
     }
 
@@ -121,18 +130,39 @@ public class PrdDailyMenuService {
     public void deleteByDate(LocalDate menuDate) {
         menuMapper.delete(new LambdaQueryWrapper<PrdDailyMenu>()
                 .eq(PrdDailyMenu::getMenuDate, menuDate));
+        evictDate(menuDate);
     }
 
-    /** 小程序公开查询：指定日期（缺省今天）菜单，仅供应中，按套餐/类型/排序 */
+    /**
+     * 小程序公开查询：指定日期（缺省今天）菜单，仅供应中，按套餐/类型/排序。
+     *
+     * <p>按<b>日期</b>缓存（L1 + L2）：菜单是按天生成的参照数据，同一天内被反复读取；
+     * 原实现每次请求都要扫一遍该日全部菜品并在 toVOList 里回查商品名。
+     * 写路径（create/update/delete/batchCreate/copy/deleteByDate）均会失效对应日期。
+     */
     public List<MenuVO> publicList(LocalDate date) {
         LocalDate target = date == null ? LocalDate.now() : date;
-        List<PrdDailyMenu> menus = menuMapper.selectList(new LambdaQueryWrapper<PrdDailyMenu>()
-                .eq(PrdDailyMenu::getMenuDate, target)
-                .eq(PrdDailyMenu::getIsAvailable, 1)
-                .orderByAsc(PrdDailyMenu::getProductId)
-                .orderByAsc(PrdDailyMenu::getDishType)
-                .orderByAsc(PrdDailyMenu::getSortOrder));
-        return toVOList(menus);
+        return cache.getList(CacheSpec.MENU_LIST, MultiLevelCache.l2Key(menuKey(target)),
+                MenuVO.class, CacheSpec.MENU_L2_TTL,
+                () -> toVOList(menuMapper.selectList(new LambdaQueryWrapper<PrdDailyMenu>()
+                        .eq(PrdDailyMenu::getMenuDate, target)
+                        .eq(PrdDailyMenu::getIsAvailable, 1)
+                        .orderByAsc(PrdDailyMenu::getProductId)
+                        .orderByAsc(PrdDailyMenu::getDishType)
+                        .orderByAsc(PrdDailyMenu::getSortOrder))));
+    }
+
+    /** 菜单按日期分片缓存；逻辑缓存名统一为 menu:list，L2 key 带日期后缀 */
+    private static String menuKey(LocalDate date) {
+        return CacheSpec.MENU_LIST + ':' + date;
+    }
+
+    /** 失效某一天的公开菜单缓存（提交后生效） */
+    private void evictDate(LocalDate date) {
+        if (date == null) {
+            return;
+        }
+        cache.evictAfterCommit(CacheSpec.MENU_LIST, MultiLevelCache.l2Key(menuKey(date)));
     }
 
     private PrdDailyMenu require(Long id) {
