@@ -87,3 +87,20 @@ done
 
 TABLES="$("${MYSQL[@]}" "$DB_NAME" -N -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '$DB_NAME';")"
 echo "==> 完成，当前共 ${TABLES} 张表"
+
+# 清空应用缓存命名空间（cache:*）。
+# 数据库被重建后，进程内 L1（最长 2min）与 Redis L2（最长 30min）里的旧值
+# 会让运行中的应用继续返回陈旧参照数据——reset 之后必须一并清掉。
+# 只删本项目的 cache: 前缀，不动 auth:refresh:* 等其它 key；
+# redis-cli 不可用或 Redis 未启动时仅提示，不影响 reset 结果。
+if command -v redis-cli >/dev/null 2>&1; then
+    REDIS_CLI=(redis-cli -h "${REDIS_HOST:-127.0.0.1}" -p "${REDIS_PORT:-6379}")
+    [ -n "${REDIS_PASSWORD:-}" ] && REDIS_CLI+=(-a "$REDIS_PASSWORD" --no-auth-warning)
+    KEYS="$("${REDIS_CLI[@]}" --scan --pattern 'cache:*' 2>/dev/null || true)"
+    if [ -n "$KEYS" ]; then
+        echo "$KEYS" | xargs "${REDIS_CLI[@]}" DEL >/dev/null 2>&1 || true
+        echo "==> 已清理应用缓存（cache:*）"
+    fi
+else
+    echo "==> 提示：未找到 redis-cli，若 Redis 中有残留 cache:* 键请手动清理"
+fi
