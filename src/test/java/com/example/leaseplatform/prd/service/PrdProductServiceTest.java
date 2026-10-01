@@ -289,7 +289,7 @@ class PrdProductServiceTest {
      */
     @Test
     void publicPage_shouldGoThroughGenerationAwareCache() {
-        when(cache.currentGeneration(anyString())).thenReturn(7L);
+        when(cache.generationOrNull(anyString())).thenReturn(7L);
         when(productMapper.selectPage(any(Page.class), any(LambdaQueryWrapper.class))).thenAnswer(inv -> {
             Page<PrdProduct> p = inv.getArgument(0);
             p.setRecords(List.of());

@@ -264,30 +264,47 @@ public class MultiLevelCache {
     // ── 缓存代（generation）──────────────────────────────────────────────────
 
     /**
-     * 读取「缓存代」版本号（键不存在视为 0）。
+     * 读取「缓存代」。
      *
-     * <p>用途：让<b>一族键</b>整体失效。分页缓存会随 (筛选, 页码, 页大小) 组合产生很多键，
-     * 逐个删除需要 {@code KEYS}/{@code SCAN}（生产禁用）；把版本号编进键名后，
-     * 写入方只需 {@link #bumpGeneration} 一次，旧代的键就永远不再被请求到，
-     * 随各自的 TTL 自然过期。
+     * <p><b>键不存在时用「当前时间戳」初始化（SET NX），而不是回退到 0</b> ——
+     * 这一点是修一个真实脏读 bug 得到的教训：
+     * 计数器被 Redis 淘汰（maxmemory）/ 丢失 / 进程重启后，若回退到 0，
+     * 就会重新命中上一轮遗留的 {@code v0} 分页键，读到过期数据
+     * （实测复现：真实 total 已是 3866，接口却返回 3867）。
+     * 根因是「0」本身是一个<b>历史上真实用过的代</b>。
+     * 用时间戳初始化可保证新代一定大于历史任何一代，旧键立即不可达。
      *
-     * <p>每次读多一次 Redis GET（亚毫秒级），相比它省下的分页 COUNT(*) 全表扫是划算的；
-     * Redis 不可用时返回 0，缓存整体降级为直查（不影响正确性）。
+     * @return 当前缓存代；<b>返回 null 表示计数器不可用</b>，
+     *         调用方应当跳过缓存直查（安全降级，而不是拿一个可能撞代的数字去查缓存）
      */
-    public long currentGeneration(String name) {
+    public Long generationOrNull(String name) {
+        String key = KEY_PREFIX + name;
         try {
-            String v = redisTemplate.opsForValue().get(KEY_PREFIX + name);
-            return v == null ? 0L : Long.parseLong(v);
+            String v = redisTemplate.opsForValue().get(key);
+            if (v != null) {
+                return Long.parseLong(v);
+            }
+            long seeded = System.currentTimeMillis();
+            redisTemplate.opsForValue().setIfAbsent(key, String.valueOf(seeded));
+            String after = redisTemplate.opsForValue().get(key);
+            return after == null ? seeded : Long.parseLong(after);
         } catch (Exception e) {
-            log.warn("读取缓存代失败，按 0 处理（缓存降级为直查）: {}", name, e);
-            return 0L;
+            log.warn("缓存代不可用，跳过缓存直查: {}", name, e);
+            return null;
         }
     }
 
-    /** 推进「缓存代」（写入方调用）。语义等同让该族缓存整体失效。 */
+    /**
+     * 推进「缓存代」（写入方调用）。语义等同让该族缓存整体失效。
+     *
+     * <p>先 {@code SET NX <时间戳>} 再 {@code INCR}：若键已缺失就直接 INCR 会得到 1，
+     * 可能与历史上真实出现过的 {@code v1} 撞代 —— 同 {@link #generationOrNull} 的理由。
+     */
     public void bumpGeneration(String name) {
+        String key = KEY_PREFIX + name;
         try {
-            redisTemplate.opsForValue().increment(KEY_PREFIX + name);
+            redisTemplate.opsForValue().setIfAbsent(key, String.valueOf(System.currentTimeMillis()));
+            redisTemplate.opsForValue().increment(key);
         } catch (Exception e) {
             log.warn("推进缓存代失败（该族缓存最迟 TTL 后自愈）: {}", name, e);
         }

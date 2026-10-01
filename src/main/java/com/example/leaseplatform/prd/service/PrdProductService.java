@@ -154,9 +154,19 @@ public class PrdProductService {
     public PageResult<ProductVO> publicPage(int page, int size, Long categoryId, Integer productType) {
         int p = PrdCategoryService.normalizePage(page);
         int s = Math.min(Math.max(size, 1), 100);
-        long gen = cache.currentGeneration(CacheSpec.PRODUCT_LIST_GENERATION);
+        // 缓存代不可用（Redis 异常）→ 直接回源，不拿可能撞代的数字去查缓存
+        Long gen = cache.generationOrNull(CacheSpec.PRODUCT_LIST_GENERATION);
+        // 深页 / 超大页大小不进缓存：约束 L2 键数量（匿名接口可被枚举 page×size）
+        if (gen == null
+                || p > CacheSpec.PRODUCT_PAGE_MAX_CACHEABLE_PAGE
+                || s > CacheSpec.PRODUCT_PAGE_MAX_CACHEABLE_SIZE) {
+            return loadPublicPage(p, s, categoryId, productType);
+        }
+        // null 维度用 '-' 占位，避免键名里出现 "null" 字样
         String key = String.format("%s:v%d:c%s:t%s:p%d:s%d",
-                CacheSpec.PRODUCT_PAGE, gen, categoryId, productType, p, s);
+                CacheSpec.PRODUCT_PAGE, gen,
+                categoryId == null ? "-" : categoryId,
+                productType == null ? "-" : productType, p, s);
         JavaType type = objectMapper.getTypeFactory()
                 .constructParametricType(PageResult.class, ProductVO.class);
         return cache.getTyped(CacheSpec.PRODUCT_PAGE, MultiLevelCache.l2Key(key), type,

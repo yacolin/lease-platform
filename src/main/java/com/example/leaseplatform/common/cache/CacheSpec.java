@@ -68,6 +68,19 @@ public final class CacheSpec {
     public static final Duration PRODUCT_PAGE_L2_TTL = Duration.ofMinutes(10);
 
     /**
+     * 只有「浅页 + 常规页大小」才进缓存，用于约束 L2 键数量。
+     *
+     * <p>为什么需要上限：分页键按 (筛选, 页码, 页大小) 分片，而这是<b>匿名接口</b>，
+     * 枚举 page × size 就能造出大量键（实测已出现 {@code p1..p9:s10} 这类键）。
+     * 25 种筛选 × 100 种 size × 上千页在最坏情况下能把 Redis 撑爆。
+     * 深页本身命中率极低、缓存价值也小，直接绕过缓存回源即可。
+     */
+    public static final int PRODUCT_PAGE_MAX_CACHEABLE_PAGE = 20;
+
+    /** 同上：超过该页大小不缓存（controller 允许到 100） */
+    public static final int PRODUCT_PAGE_MAX_CACHEABLE_SIZE = 50;
+
+    /**
      * 订单统计缓存 TTL（30s）。
      *
      * <p>刻意<b>只靠 TTL 失效、不做写时失效</b>：该接口是后台仪表盘的聚合查询
