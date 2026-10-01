@@ -374,17 +374,25 @@ public class MeetingReservationService {
         UsrUser user = requireUser(userId);
         java.time.YearMonth target = month == null ? java.time.YearMonth.now() : month;
         BigDecimal total = monthlyFreeHours(user);
-        LocalDate monthStart = target.atDay(1);
-        LocalDate monthEnd = target.plusMonths(1).atDay(1);
         BigDecimal used = ZERO;
-        List<MtgReservation> freeRes = reservationMapper.selectList(new LambdaQueryWrapper<MtgReservation>()
-                .eq(MtgReservation::getEnterpriseId, enterpriseKey(user))
-                .ge(MtgReservation::getReservationDate, monthStart)
-                .lt(MtgReservation::getReservationDate, monthEnd)
-                .eq(MtgReservation::getIsFree, 1)
-                .in(MtgReservation::getStatus, List.of(STATUS_CONFIRMED, STATUS_IN_USE, STATUS_COMPLETED)));
-        for (MtgReservation r : freeRes) {
-            used = used.add(r.getDurationHours());
+        // 仅「有效企业会员」才有免费时长：total > 0 蕴含 user.enterpriseId 有效
+        // （monthlyFreeHours → effectiveLevelCode 对个人用户 / 会员已过期一律返回 null → 0）。
+        //
+        // ⚠️ 个人用户时若仍执行下面的查询，enterpriseKey(user) 为 NO_ENTERPRISE(0)，
+        // 会把「所有个人用户」的免费预约都统计进来：usedHours 口径错误（个人用户本应为 0），
+        // 且扫描量随平台个人用户总量线性增长。见 docs/缓存与查询效率评估.md §2.3。
+        if (total.compareTo(ZERO) > 0) {
+            LocalDate monthStart = target.atDay(1);
+            LocalDate monthEnd = target.plusMonths(1).atDay(1);
+            List<MtgReservation> freeRes = reservationMapper.selectList(new LambdaQueryWrapper<MtgReservation>()
+                    .eq(MtgReservation::getEnterpriseId, enterpriseKey(user))
+                    .ge(MtgReservation::getReservationDate, monthStart)
+                    .lt(MtgReservation::getReservationDate, monthEnd)
+                    .eq(MtgReservation::getIsFree, 1)
+                    .in(MtgReservation::getStatus, List.of(STATUS_CONFIRMED, STATUS_IN_USE, STATUS_COMPLETED)));
+            for (MtgReservation r : freeRes) {
+                used = used.add(r.getDurationHours());
+            }
         }
         MeetingFreeHoursVO vo = new MeetingFreeHoursVO();
         vo.setTotalHours(total);

@@ -551,4 +551,19 @@ class MeetingReservationServiceTest {
         assertThat(vo.getUsedHours()).isEqualByComparingTo("2.0");
         assertThat(vo.getRemainingHours()).isEqualByComparingTo("2.0");
     }
+
+    @Test
+    void freeHours_individualUser_shouldNotQueryNorCountOtherIndividuals() {
+        // 个人用户（无企业）没有任何免费时长
+        when(userMapper.selectById(1L)).thenReturn(user(null));
+
+        var vo = service.freeHours(1L, java.time.YearMonth.now());
+
+        assertThat(vo.getTotalHours()).isEqualByComparingTo("0");
+        assertThat(vo.getUsedHours()).isEqualByComparingTo("0");
+        assertThat(vo.getRemainingHours()).isEqualByComparingTo("0");
+        // 关键回归点：不得再按 enterprise_id=0 查询 —— 那会匹配「全部个人用户」的预约，
+        // 导致 usedHours 口径错误且扫描量随个人用户总量线性增长（docs 评估 §2.3）
+        verify(reservationMapper, never()).selectList(any(Wrapper.class));
+    }
 }
