@@ -169,8 +169,10 @@ public class EnterpriseService {
                 .eq(UsrEnterpriseMember::getUserId, userId)
                 .eq(UsrEnterpriseMember::getInviteStatus, INVITE_PENDING)
                 .orderByDesc(UsrEnterpriseMember::getInvitedAt));
+        // 批量取企业，替代原先「每行一次 selectById」（1+N → 2 条 SQL）
+        Map<Long, UsrEnterprise> enterprises = enterprisesOf(pending);
         return pending.stream().map(m -> {
-            UsrEnterprise e = enterpriseMapper.selectById(m.getEnterpriseId());
+            UsrEnterprise e = enterprises.get(m.getEnterpriseId());
             EnterpriseInviteVO vo = new EnterpriseInviteVO();
             vo.setId(m.getId());
             vo.setEnterpriseName(e == null ? null : e.getEnterpriseName());
@@ -365,10 +367,16 @@ public class EnterpriseService {
     private void releaseEnterpriseMembers(Long enterpriseId) {
         List<UsrEnterpriseMember> members = memberMapper.selectList(new LambdaQueryWrapper<UsrEnterpriseMember>()
                 .eq(UsrEnterpriseMember::getEnterpriseId, enterpriseId));
-        for (UsrEnterpriseMember m : members) {
-            memberMapper.deleteById(m.getId());
-            clearUserEnterprise(m.getUserId());
+        if (members.isEmpty()) {
+            return;
         }
+        // 原实现逐个 deleteById + 逐个 UPDATE 用户（2M 条 SQL）；改为 2 条批量语句
+        memberMapper.deleteByIds(members.stream().map(UsrEnterpriseMember::getId).toList());
+        userMapper.update(null, new LambdaUpdateWrapper<UsrUser>()
+                .in(UsrUser::getId, members.stream().map(UsrEnterpriseMember::getUserId).toList())
+                .set(UsrUser::getEnterpriseId, null)
+                .set(UsrUser::getIsEnterpriseAdmin, 0)
+                .set(UsrUser::getMemberLevel, 0));
     }
 
     private void clearUserEnterprise(Long userId) {
@@ -399,6 +407,19 @@ public class EnterpriseService {
             return 0;
         }
         return enterprise.getMemberLevel();
+    }
+
+    /** 批量取成员所属企业（与 {@link #usersOf} 同为「一次 IN 查询」范式） */
+    private Map<Long, UsrEnterprise> enterprisesOf(List<UsrEnterpriseMember> members) {
+        List<Long> ids = members.stream()
+                .map(UsrEnterpriseMember::getEnterpriseId)
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return enterpriseMapper.selectBatchIds(ids).stream()
+                .collect(Collectors.toMap(UsrEnterprise::getId, Function.identity()));
     }
 
     private Map<Long, UsrUser> usersOf(List<UsrEnterpriseMember> members) {

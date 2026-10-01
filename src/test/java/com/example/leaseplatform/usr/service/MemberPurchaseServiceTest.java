@@ -39,6 +39,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -174,8 +175,6 @@ class MemberPurchaseServiceTest {
         when(levelMapper.selectById(2L)).thenReturn(vipLevel());
         when(memberMapper.selectList(any(Wrapper.class)))
                 .thenReturn(List.of(empMember(2L), empMember(3L)));
-        when(userMapper.selectById(2L)).thenReturn(user(2L));
-        when(userMapper.selectById(3L)).thenReturn(user(3L));
 
         MemberPurchaseVO vo = service.mockPay(500L);
 
@@ -185,8 +184,10 @@ class MemberPurchaseServiceTest {
         verify(enterpriseMapper).updateById(eCaptor.capture());
         assertThat(eCaptor.getValue().getMemberLevel()).isEqualTo(2); // VIP → 2
         assertThat(eCaptor.getValue().getMemberExpireAt()).isNotNull();
-        // 员工同步
-        verify(userMapper, times(2)).updateById(any(UsrUser.class));
+        // 员工同步：一条批量 UPDATE 设置 member_level
+        // （原实现逐个 selectById + updateById，2M 条 SQL 且整行覆盖）
+        verify(userMapper, times(1)).update(isNull(), any(Wrapper.class));
+        verify(userMapper, never()).updateById(any(UsrUser.class));
     }
 
     @Test
@@ -225,7 +226,8 @@ class MemberPurchaseServiceTest {
             p.setTotal(1);
             return p;
         });
-        when(levelMapper.selectById(2L)).thenReturn(vipLevel());
+        // 分页结果批量取等级（一次 IN 查询，替代原先逐行 selectById）
+        when(levelMapper.selectBatchIds(any())).thenReturn(List.of(vipLevel()));
 
         PageResult<MemberPurchaseVO> result = service.myPurchases(1, 10);
 

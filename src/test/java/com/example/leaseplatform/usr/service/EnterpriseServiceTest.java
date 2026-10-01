@@ -353,8 +353,11 @@ class EnterpriseServiceTest {
 
         assertThat(vo.getAuditStatus()).isEqualTo(2);
         assertThat(vo.getAuditReason()).isEqualTo("资料不完整");
-        verify(memberMapper, org.mockito.Mockito.times(2)).deleteById(any(Long.class));
-        verify(userMapper, org.mockito.Mockito.times(2)).update(isNull(), any(Wrapper.class));
+        // 批量释放：1 条 deleteByIds（软删全部成员）+ 1 条批量 UPDATE 清空用户企业关联
+        // （原实现为逐个 deleteById + 逐个 UPDATE，2M 条 SQL）
+        verify(memberMapper, org.mockito.Mockito.times(1)).deleteByIds(any(java.util.Collection.class));
+        verify(memberMapper, org.mockito.Mockito.never()).deleteById(any(Long.class));
+        verify(userMapper, org.mockito.Mockito.times(1)).update(isNull(), any(Wrapper.class));
     }
 
     @Test

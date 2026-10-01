@@ -1,6 +1,7 @@
 package com.example.leaseplatform.usr.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
@@ -30,6 +31,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -145,9 +150,25 @@ public class MemberPurchaseService {
         purchaseMapper.selectPage(p, new LambdaQueryWrapper<UsrMemberPurchase>()
                 .eq(UsrMemberPurchase::getEnterpriseId, enterprise.getId())
                 .orderByDesc(UsrMemberPurchase::getId));
+        // 批量取等级，替代原先「每行一次 selectById」（原为 2(分页) + 2(鉴权) + N 条 SQL）
+        Map<Long, UsrMemberLevel> levels = levelsOf(p.getRecords());
         return PageResult.of(p.getTotal(), p.getRecords().stream()
-                .map(pr -> toVO(pr, levelMapper.selectById(pr.getMemberLevelId())))
+                .map(pr -> toVO(pr, levels.get(pr.getMemberLevelId())))
                 .toList());
+    }
+
+    /** 批量取购买记录对应的会员等级（一次 IN 查询） */
+    private Map<Long, UsrMemberLevel> levelsOf(List<UsrMemberPurchase> purchases) {
+        List<Long> ids = purchases.stream()
+                .map(UsrMemberPurchase::getMemberLevelId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return levelMapper.selectBatchIds(ids).stream()
+                .collect(Collectors.toMap(UsrMemberLevel::getId, Function.identity()));
     }
 
     /** 会员生效：更新企业等级/到期时间，同步企业已接受员工的 usr_users.member_level */
@@ -160,12 +181,13 @@ public class MemberPurchaseService {
         List<UsrEnterpriseMember> members = memberMapper.selectList(new LambdaQueryWrapper<UsrEnterpriseMember>()
                 .eq(UsrEnterpriseMember::getEnterpriseId, enterprise.getId())
                 .eq(UsrEnterpriseMember::getInviteStatus, EnterpriseService.INVITE_ACCEPTED));
-        for (UsrEnterpriseMember m : members) {
-            UsrUser user = userMapper.selectById(m.getUserId());
-            if (user != null) {
-                user.setMemberLevel(memberLevel);
-                userMapper.updateById(user);
-            }
+        // 原实现逐个 selectById + updateById（2M 条 SQL，且 updateById 会整行覆盖）；
+        // 改为一条定向 UPDATE，只改 member_level（不存在的用户天然被 WHERE IN 跳过）
+        List<Long> userIds = members.stream().map(UsrEnterpriseMember::getUserId).toList();
+        if (!userIds.isEmpty()) {
+            userMapper.update(null, new LambdaUpdateWrapper<UsrUser>()
+                    .in(UsrUser::getId, userIds)
+                    .set(UsrUser::getMemberLevel, memberLevel));
         }
     }
 
