@@ -61,6 +61,12 @@ public class MultiLevelCache {
     /** L1 失效广播频道 */
     public static final String EVICT_CHANNEL = "cache:evict";
 
+    /** 空值哨兵在 L2 中的字面量（JSON 字符串字面量，与正常值不会冲突） */
+    private static final String NULL_MARKER = "\"__CACHE_NULL__\"";
+
+    /** 空值哨兵在 L1 中的单例标记 */
+    private static final Object NULL_SENTINEL = new Object();
+
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
@@ -82,15 +88,58 @@ public class MultiLevelCache {
         return get(cacheName, l2Key, objectMapper.getTypeFactory().constructType(type), l2Ttl, loader);
     }
 
-    private <T> T get(String cacheName, String l2Key, JavaType type,
+    /**
+     * 单值缓存读，<b>并缓存 null</b>（空值哨兵 / negative cache）。
+     *
+     * <p>用途：缓存「确认不可见」的结果（如商品已下架 / 已逻辑删除的详情 404），
+     * 避免同一批不存在的 ID 反复打穿到 DB（缓存穿透）。
+     * null 用较短的 {@code nullTtl} 缓存，给数据恢复留出较短的纠错窗口。
+     *
+     * <p>注意 L1 中的哨兵条目仍按 {@link CacheSpec#L1_TTL} 过期（Caffeine 的 Expiry
+     * 对本门面统一使用 L1_TTL），仅 L2 使用 {@code nullTtl}；两者都远短于正常值的 TTL 语义。
+     */
+    public <T> T getOrNull(String cacheName, String rawKey, Class<T> type,
+                           Duration l2Ttl, Duration nullTtl, Supplier<T> loader) {
+        // 必须是 final 才能被下方的 lambda 捕获
+        final String l2Key = normalize(rawKey);
+        Cache<String, Object> l1 = l1(cacheName);
+        Object hit = l1.getIfPresent(l2Key);
+        if (hit != null) {
+            return hit == NULL_SENTINEL ? null : cast(hit);
+        }
+        Object value = l1.get(l2Key, k -> {
+            String json = readL2Raw(l2Key);
+            if (json != null) {
+                if (NULL_MARKER.equals(json)) {
+                    return NULL_SENTINEL;
+                }
+                try {
+                    return objectMapper.readValue(json, objectMapper.getTypeFactory().constructType(type));
+                } catch (Exception e) {
+                    log.warn("L2 缓存反序列化失败，降级直查数据库: key={}", l2Key, e);
+                }
+            }
+            T loaded = loader.get();
+            if (loaded == null) {
+                writeL2Raw(l2Key, NULL_MARKER, nullTtl);
+                return NULL_SENTINEL;
+            }
+            writeL2(l2Key, loaded, l2Ttl);
+            return loaded;
+        });
+        return value == NULL_SENTINEL ? null : cast(value);
+    }
+
+    private <T> T get(String cacheName, String rawKey, JavaType type,
                       Duration l2Ttl, Supplier<T> loader) {
+        final String l2Key = normalize(rawKey);
         Cache<String, Object> l1 = l1(cacheName);
         Object hit = l1.getIfPresent(l2Key);
         if (hit != null) {
             return cast(hit);
         }
         // Caffeine 的 get(key, fn) 对同一 key 是互斥的：并发只放一个线程进来
-        Object value = l1.get(l2Key, key -> {
+        Object value = l1.get(l2Key, k -> {
             T fromL2 = readL2(l2Key, type);
             if (fromL2 != null) {
                 return fromL2;
@@ -110,9 +159,22 @@ public class MultiLevelCache {
     }
 
     private <T> T readL2(String l2Key, JavaType type) {
+        String json = readL2Raw(l2Key);
+        if (json == null) {
+            return null;
+        }
         try {
-            String json = redisTemplate.opsForValue().get(l2Key);
-            return json == null ? null : objectMapper.readValue(json, type);
+            return objectMapper.readValue(json, type);
+        } catch (Exception e) {
+            log.warn("L2 缓存反序列化失败，降级直查数据库: key={}", l2Key, e);
+            return null;
+        }
+    }
+
+    /** 读 L2 原始字符串；任何异常都降级为「未命中」 */
+    private String readL2Raw(String l2Key) {
+        try {
+            return redisTemplate.opsForValue().get(l2Key);
         } catch (Exception e) {
             // 缓存读失败不应影响业务：降级为穿透到 DB
             log.warn("L2 缓存读取失败，降级直查数据库: key={}", l2Key, e);
@@ -122,7 +184,15 @@ public class MultiLevelCache {
 
     private void writeL2(String l2Key, Object value, Duration ttl) {
         try {
-            redisTemplate.opsForValue().set(l2Key, objectMapper.writeValueAsString(value), ttl);
+            writeL2Raw(l2Key, objectMapper.writeValueAsString(value), ttl);
+        } catch (Exception e) {
+            log.warn("L2 缓存写入失败（不影响本次返回）: key={}", l2Key, e);
+        }
+    }
+
+    private void writeL2Raw(String l2Key, String payload, Duration ttl) {
+        try {
+            redisTemplate.opsForValue().set(l2Key, payload, ttl);
         } catch (Exception e) {
             log.warn("L2 缓存写入失败（不影响本次返回）: key={}", l2Key, e);
         }
@@ -136,7 +206,8 @@ public class MultiLevelCache {
      * <p>应在写操作<b>提交后</b>调用（见调用方对 {@code afterCommit} 的处理），
      * 否则事务回滚会留下已被清空但实际未变更的缓存（无正确性问题，只是白白失效一次）。
      */
-    public void evict(String cacheName, String l2Key) {
+    public void evict(String cacheName, String rawKey) {
+        final String l2Key = normalize(rawKey);
         l1(cacheName).invalidate(l2Key);
         try {
             redisTemplate.delete(l2Key);
@@ -148,7 +219,8 @@ public class MultiLevelCache {
 
     /** 仅清本实例 L1（供 Pub/Sub 订阅者调用） */
     void evictLocal(String l2Key) {
-        l1Caches.values().forEach(c -> c.invalidate(l2Key));
+        String key = normalize(l2Key);
+        l1Caches.values().forEach(c -> c.invalidate(key));
     }
 
     /**
@@ -209,5 +281,20 @@ public class MultiLevelCache {
     /** L2 Redis key：{@code cache:} + 名称（名称本身可含日期等后缀） */
     public static String l2Key(String name) {
         return KEY_PREFIX + name;
+    }
+
+    /**
+     * 统一补全 L2 key 前缀的<b>安全网</b>。
+     *
+     * <p>存在的原因：读路径与失效路径若一处写了前缀、另一处漏写，缓存仍能正常工作
+     * （能读能写），但<b>失效会静默失败</b>——留下一份永远不更新的脏缓存。
+     * 这类 bug 不报错、测试也可能通过，只会在生产上表现为「改了数据但页面不变」。
+     * （开发过程中确实发生过一次：读用了裸 key、失效用了带前缀 key。）
+     *
+     * <p>故此处对两种写法都接受：未带前缀的自动补上，已带前缀的原样返回，
+     * 使读与失效必然落在同一个 key 上。
+     */
+    static String normalize(String l2Key) {
+        return l2Key != null && l2Key.startsWith(KEY_PREFIX) ? l2Key : KEY_PREFIX + l2Key;
     }
 }

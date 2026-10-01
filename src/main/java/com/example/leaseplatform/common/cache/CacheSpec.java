@@ -29,6 +29,8 @@ public final class CacheSpec {
     public static final String COUPON_LIST = "coupon:list";
     /** 每日菜单公开列表（按日期分片：逻辑缓存名为本值，L2 key 追加 :yyyy-MM-dd） */
     public static final String MENU_LIST = "menu:list";
+    /** 商品详情（按 ID） */
+    public static final String PRODUCT_DETAIL = "product:detail";
 
     // ── TTL ──────────────────────────────────────────────────────────────────
 
@@ -38,6 +40,12 @@ public final class CacheSpec {
     public static final Duration L2_TTL = Duration.ofMinutes(30);
     /** 菜单按日期缓存：L2 保留到当日结束后一段时间即可 */
     public static final Duration MENU_L2_TTL = Duration.ofMinutes(30);
+
+    /** 商品详情 L2 TTL */
+    public static final Duration PRODUCT_L2_TTL = Duration.ofMinutes(10);
+
+    /** 商品「不可见」空值缓存 TTL：短，给重新上架留出较短的纠错窗口 */
+    public static final Duration PRODUCT_NULL_TTL = Duration.ofSeconds(60);
 
     private CacheSpec() {
     }

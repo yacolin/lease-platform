@@ -3,6 +3,8 @@ package com.example.leaseplatform.prd.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
+import com.example.leaseplatform.common.cache.MultiLevelCache;
+import com.example.leaseplatform.common.cache.ProductBloomRegistry;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.prd.dto.ProductCreateReq;
 import com.example.leaseplatform.prd.dto.ProductStatusReq;
@@ -29,7 +31,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,11 +55,24 @@ class PrdProductServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    @Mock
+    private MultiLevelCache cache;
+    @Mock
+    private ProductBloomRegistry productBloom;
+
     private PrdProductService service;
 
     @BeforeEach
     void setUp() {
-        service = new PrdProductService(productMapper, categoryMapper, menuMapper, skuService, objectMapper);
+        service = new PrdProductService(productMapper, categoryMapper, menuMapper, skuService,
+                cache, productBloom, objectMapper);
+        // 缓存为透传 mock：直接调用 loader，使既有断言仍校验真实查询与映射逻辑
+        lenient().when(cache.getList(anyString(), anyString(), any(), any(), any()))
+                .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(4)).get());
+        lenient().when(cache.getOrNull(anyString(), anyString(), any(), any(), any(), any()))
+                .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(5)).get());
+        // 布隆默认放行（mock 的 boolean 默认值是 false，会把所有商品判为不存在）
+        lenient().when(productBloom.mayExist(anyLong())).thenReturn(true);
     }
 
     private PrdCategory category(Long id) {

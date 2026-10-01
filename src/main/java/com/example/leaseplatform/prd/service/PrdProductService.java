@@ -5,6 +5,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.common.PageResult;
 import com.example.leaseplatform.common.TimeUtil;
+import com.example.leaseplatform.common.cache.CacheSpec;
+import com.example.leaseplatform.common.cache.MultiLevelCache;
+import com.example.leaseplatform.common.cache.ProductBloomRegistry;
 import com.example.leaseplatform.prd.dto.ProductCreateReq;
 import com.example.leaseplatform.prd.dto.ProductStatusReq;
 import com.example.leaseplatform.prd.dto.ProductUpdateReq;
@@ -45,6 +48,8 @@ public class PrdProductService {
     private final PrdCategoryMapper categoryMapper;
     private final PrdDailyMenuMapper menuMapper;
     private final PrdSkuService skuService;
+    private final MultiLevelCache cache;
+    private final ProductBloomRegistry productBloom;
     private final ObjectMapper objectMapper;
 
     /** 管理端分页列表：可按分类 / 类型 / 上下架 / 状态 / 名称关键字筛选 */
@@ -79,6 +84,8 @@ public class PrdProductService {
         apply(entity, req);
         productMapper.insert(entity);
         skuService.createDefault(entity.getId(), entity.getPrice());
+        // 布隆只增不删：新建即加入，避免本实例把它判为「一定不存在」
+        productBloom.add(entity.getId());
         return toVO(entity);
     }
 
@@ -89,6 +96,7 @@ public class PrdProductService {
         PrdProduct entity = require(id);
         apply(entity, req);
         productMapper.updateById(entity);
+        evictDetail(entity.getId());
         return toVO(entity);
     }
 
@@ -107,6 +115,7 @@ public class PrdProductService {
                     ? STATUS_ON_SHELF : STATUS_OFF_SHELF);
         }
         productMapper.updateById(entity);
+        evictDetail(entity.getId());
         return toVO(entity);
     }
 
@@ -121,6 +130,7 @@ public class PrdProductService {
         }
         productMapper.deleteById(id);
         skuService.deleteByProduct(id);
+        evictDetail(id);
     }
 
     /** 小程序公开分页：仅上架商品 */
@@ -137,14 +147,54 @@ public class PrdProductService {
         return PageResult.of(p.getTotal(), toVOList(p.getRecords()));
     }
 
-    /** 小程序公开详情：仅上架商品，下架视为不存在（404）；含 SKU 列表 + 规格组 */
+    /**
+     * 小程序公开详情：仅上架商品，下架视为不存在（404）；含 SKU 列表 + 规格组。
+     *
+     * <p>这是全项目<b>唯一</b>同时满足「按 ID 点查 + ID 空间稀疏 + 存在匿名探测流量 + 表足够大」
+     * 的接口，因此也是唯一值得上布隆过滤器的链路（docs 评估 §5.2）。读路径：
+     * <pre>
+     *   布隆（一定不存在 → 直接 404，不查库）
+     *     ↓ 可能存在
+     *   L1 → L2 → DB（null 结果进 60s 空值缓存，防穿透）
+     * </pre>
+     *
+     * <p>空值缓存的必要性：布隆只能拦「从来没存在过」的 ID；
+     * 「存在但当前不可见」（已下架 / 已逻辑删除）会落到 DB 并返回 404，
+     * 这类请求同样会被反复打，故用短 TTL 空值缓存兜住。
+     */
     public ProductVO publicGet(Long id) {
+        // 1. 布隆：未预热时 mayExist 恒为 true（放行），保证启动瞬间不误判
+        if (!productBloom.mayExist(id)) {
+            throw BizException.notFound("商品不存在");
+        }
+        // 2. L1 → L2 → DB；null 走短 TTL 空值缓存
+        ProductVO vo = cache.getOrNull(CacheSpec.PRODUCT_DETAIL,
+                MultiLevelCache.l2Key(detailKey(id)), ProductVO.class,
+                CacheSpec.PRODUCT_L2_TTL, CacheSpec.PRODUCT_NULL_TTL,
+                () -> loadPublicProduct(id));
+        if (vo == null) {
+            throw BizException.notFound("商品不存在");
+        }
+        return vo;
+    }
+
+    /** 查库并做「仅上架可见」判定；不可见返回 null（由空值缓存兜住，不再抛异常） */
+    private ProductVO loadPublicProduct(Long id) {
         PrdProduct entity = productMapper.selectById(id);
         if (entity == null || entity.getIsAvailable() == null || entity.getIsAvailable() != 1
                 || (entity.getProductStatus() != null && entity.getProductStatus() != STATUS_ON_SHELF)) {
-            throw BizException.notFound("商品不存在");
+            return null;
         }
         return withSkuDetail(toVO(entity), id);
+    }
+
+    private static String detailKey(Long id) {
+        return CacheSpec.PRODUCT_DETAIL + ':' + id;
+    }
+
+    /** 商品变更后失效详情缓存（提交后生效） */
+    private void evictDetail(Long id) {
+        cache.evictAfterCommit(CacheSpec.PRODUCT_DETAIL, MultiLevelCache.l2Key(detailKey(id)));
     }
 
     private PrdProduct require(Long id) {

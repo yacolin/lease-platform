@@ -143,4 +143,88 @@ class MultiLevelCacheTest {
     void l2Key_shouldBeNamespaced() {
         assertThat(MultiLevelCache.l2Key("category:list")).isEqualTo("cache:category:list");
     }
+
+    /**
+     * 回归防护：读用裸 key、失效用带前缀 key（或反之）时必须落在同一个 key 上。
+     *
+     * <p>漏写前缀是开发过程中真实发生过的 bug：缓存读写看似正常（能读能写），
+     * 但失效会静默失败，留下一份永不更新的脏缓存——不报错、单测也可能通过。
+     */
+    @Test
+    void readAndEvict_shouldTargetSameKey_evenIfPrefixOmittedOnOneSide() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(anyString())).thenReturn(null);
+        AtomicInteger loads = new AtomicInteger();
+
+        cache.getOrNull("n1", "n1:1", String.class,        // 读：漏写前缀
+                Duration.ofMinutes(5), Duration.ofSeconds(60),
+                () -> { loads.incrementAndGet(); return "v1"; });
+
+        cache.evict("n1", MultiLevelCache.l2Key("n1:1"));   // 失效：写了前缀
+
+        verify(redisTemplate).delete("cache:n1:1");         // 删除必须落在带前缀的 key 上
+
+        cache.getOrNull("n1", "n1:1", String.class,
+                Duration.ofMinutes(5), Duration.ofSeconds(60),
+                () -> { loads.incrementAndGet(); return "v2"; });
+        assertThat(loads).as("失效后应重新加载，说明读写落在同一个 key").hasValue(2);
+    }
+
+    @Test
+    void l2Writes_shouldAlwaysCarryNamespacePrefix() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(anyString())).thenReturn(null);
+
+        cache.getList("n2", "n2:list", String.class, Duration.ofMinutes(5), () -> List.of("a"));
+
+        verify(valueOps).set(eq("cache:n2:list"), anyString(), any(Duration.class));
+    }
+
+    // ── getOrNull（空值缓存）────────────────────────────────────────────────
+
+    @Test
+    void getOrNull_shouldCacheNullInL2_withNullTtl_andNotCallLoaderAgain() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(anyString())).thenReturn(null);
+        AtomicInteger loads = new AtomicInteger();
+
+        String first = cache.getOrNull("d1", "cache:d1", String.class,
+                Duration.ofMinutes(10), Duration.ofSeconds(60),
+                () -> { loads.incrementAndGet(); return null; });
+        String second = cache.getOrNull("d1", "cache:d1", String.class,
+                Duration.ofMinutes(10), Duration.ofSeconds(60),
+                () -> { loads.incrementAndGet(); return null; });
+
+        assertThat(first).isNull();
+        assertThat(second).isNull();
+        assertThat(loads).as("空值被缓存，第二次不应再查库").hasValue(1);
+        // 空值用较短的 nullTtl 写入 L2
+        verify(valueOps).set(eq("cache:d1"), eq("\"__CACHE_NULL__\""), eq(Duration.ofSeconds(60)));
+    }
+
+    @Test
+    void getOrNull_whenL2HoldsNullMarker_shouldReturnNullWithoutLoading() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("cache:d2")).thenReturn("\"__CACHE_NULL__\"");
+        AtomicInteger loads = new AtomicInteger();
+
+        String result = cache.getOrNull("d2", "cache:d2", String.class,
+                Duration.ofMinutes(10), Duration.ofSeconds(60),
+                () -> { loads.incrementAndGet(); return "should-not-load"; });
+
+        assertThat(result).isNull();
+        assertThat(loads).as("L2 中的空值哨兵应直接返回 null").hasValue(0);
+    }
+
+    @Test
+    void getOrNull_withNonNullValue_shouldCacheWithNormalTtl() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(anyString())).thenReturn(null);
+
+        String result = cache.getOrNull("d3", "cache:d3", String.class,
+                Duration.ofMinutes(10), Duration.ofSeconds(60), () -> "value");
+
+        assertThat(result).isEqualTo("value");
+        verify(valueOps).set(eq("cache:d3"), eq("\"value\""), eq(Duration.ofMinutes(10)));
+    }
 }
