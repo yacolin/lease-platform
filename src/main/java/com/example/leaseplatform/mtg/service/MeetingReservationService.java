@@ -111,16 +111,21 @@ public class MeetingReservationService {
     @Transactional
     public MeetingReservationVO create(Long userId, MeetingReservationCreateReq req) {
         UsrUser user = requireUser(userId);
-        MtgRoom room = requireBookableRoom(req.getRoomId());
+        // 行锁与「可预约」校验合并为 1 次查询：原实现先 selectById 再由 lockRoom 查同一行，
+        // 同一请求内把 mtg_rooms 查了两次（见 docs/缓存与查询效率评估.md §2.2）
+        MtgRoom room = requireBookable(lockRoom(req.getRoomId()));
         validateTimeWindow(req);
-        lockRoom(room.getId());
         checkConflict(room.getId(), req.getReservationDate(), req.getStartTime(), req.getEndTime(), null);
+
+        // 会员与计费上下文只解析一次：原实现经 monthlyFreeHours / resolveOvertimeFee
+        // 重复查询 usr_enterprises ×2 与 usr_member_levels ×2
+        MembershipContext member = resolveMembership(user);
 
         BigDecimal duration = durationHours(req.getStartTime(), req.getEndTime());
         // 免费时长抵扣 + 超时计费（费用为整数「分」；单价=会议室覆盖价→等级默认价）
-        FreeUsage free = calcFreeUsage(user, req.getReservationDate(), duration);
+        FreeUsage free = calcFreeUsage(user, req.getReservationDate(), duration, member);
         BigDecimal paidHours = duration.subtract(free.freeHours());
-        long unitPrice = resolveOvertimeFee(room.getId(), user);
+        long unitPrice = resolveOvertimeFee(room.getId(), member);
         long fee = roundCents(paidHours.multiply(BigDecimal.valueOf(unitPrice)));
 
         MtgReservation reservation = new MtgReservation();
@@ -296,9 +301,10 @@ public class MeetingReservationService {
 
         BigDecimal duration = durationHours(req.getStartTime(), req.getEndTime());
         UsrUser user = requireUser(userId);
-        FreeUsage free = calcFreeUsage(user, req.getReservationDate(), duration);
+        MembershipContext member = resolveMembership(user);
+        FreeUsage free = calcFreeUsage(user, req.getReservationDate(), duration, member);
         BigDecimal paidHours = duration.subtract(free.freeHours());
-        long unitPrice = resolveOvertimeFee(reservation.getRoomId(), user);
+        long unitPrice = resolveOvertimeFee(reservation.getRoomId(), member);
         long fee = roundCents(paidHours.multiply(BigDecimal.valueOf(unitPrice)));
         if (status == STATUS_CONFIRMED && fee > 0) {
             throw BizException.conflict("改期后超出免费时长需付费，请取消后重新预约");
@@ -373,7 +379,8 @@ public class MeetingReservationService {
     public MeetingFreeHoursVO freeHours(Long userId, java.time.YearMonth month) {
         UsrUser user = requireUser(userId);
         java.time.YearMonth target = month == null ? java.time.YearMonth.now() : month;
-        BigDecimal total = monthlyFreeHours(user);
+        MembershipContext member = resolveMembership(user);
+        BigDecimal total = monthlyFreeHours(member);
         BigDecimal used = ZERO;
         // 仅「有效企业会员」才有免费时长：total > 0 蕴含 user.enterpriseId 有效
         // （monthlyFreeHours → effectiveLevelCode 对个人用户 / 会员已过期一律返回 null → 0）。
@@ -426,10 +433,19 @@ public class MeetingReservationService {
     }
 
     /** 会议室行锁：SELECT ... FOR UPDATE 串行化同会议室并发预约 */
-    private void lockRoom(Long roomId) {
-        roomMapper.selectOne(new LambdaQueryWrapper<MtgRoom>()
+    /** 行锁锁定会议室（并发预约串行化）；返回锁定到的行，不存在时为 null */
+    private MtgRoom lockRoom(Long roomId) {
+        return roomMapper.selectOne(new LambdaQueryWrapper<MtgRoom>()
                 .eq(MtgRoom::getId, roomId)
                 .last("FOR UPDATE"));
+    }
+
+    /** 校验会议室可预约（在行锁内校验，避免与并发下架竞争）；不可预约抛 400 */
+    private MtgRoom requireBookable(MtgRoom room) {
+        if (room == null || room.getStatus() == null || room.getStatus() != 1) {
+            throw BizException.badRequest("会议室不存在或不可预约");
+        }
+        return room;
     }
 
     /** 占用冲突校验：查 mtg_bookings（占用中）同会议室时间重叠；excludeReservationId 为改期排除自身 */
@@ -503,8 +519,8 @@ public class MeetingReservationService {
     }
 
     /** 免费时长使用计算：免费部分 + 付费部分 */
-    private FreeUsage calcFreeUsage(UsrUser user, LocalDate date, BigDecimal duration) {
-        BigDecimal monthlyFree = monthlyFreeHours(user);
+    private FreeUsage calcFreeUsage(UsrUser user, LocalDate date, BigDecimal duration, MembershipContext member) {
+        BigDecimal monthlyFree = monthlyFreeHours(member);
         if (monthlyFree.compareTo(ZERO) <= 0) {
             return new FreeUsage(ZERO, duration);
         }
@@ -527,10 +543,41 @@ public class MeetingReservationService {
     }
 
     /** 企业会员每月免费时长（小时）：企业有效会员等级的 monthly_meeting_hours；个人/无会员 0 */
-    private BigDecimal monthlyFreeHours(UsrUser user) {
-        UsrMemberLevel level = levelByCode(effectiveLevelCode(user));
+    private BigDecimal monthlyFreeHours(MembershipContext member) {
+        UsrMemberLevel level = member.level();
         return level == null || level.getMonthlyMeetingHours() == null
                 ? ZERO : BigDecimal.valueOf(level.getMonthlyMeetingHours());
+    }
+
+    /**
+     * 会员与计费上下文：在一次预约操作内<b>只解析一次</b>，避免同一请求重复查询
+     * {@code usr_enterprises} / {@code usr_member_levels}
+     * （原实现各查 2 次，见 docs/缓存与查询效率评估.md §2.2）。
+     *
+     * @param levelCode     有效会员等级编码；个人用户 / 无企业 / 会员已过期为 null
+     * @param level         {@code levelCode} 对应的启用中等级配置；无则 null
+     *                      （免费时长取自此项，为 null 即无免费时长）
+     * @param fallbackLevel 超时计费的兜底等级：{@code levelCode} 为 null 时为 BASIC 配置，
+     *                      否则与 {@code level} 同源（保持与原实现完全一致的取值语义）
+     */
+    private record MembershipContext(String levelCode, UsrMemberLevel level, UsrMemberLevel fallbackLevel) {
+    }
+
+    /**
+     * 解析会员与计费上下文：1 次 {@code usr_enterprises} + 至多 1~2 次 {@code usr_member_levels}。
+     *
+     * <p>注意两个取值口径的差异（原实现如此，此处保持不变）：
+     * 免费时长严格按 {@code levelCode} 查；超时单价在 {@code levelCode} 为 null 时按 BASIC 兜底。
+     */
+    private MembershipContext resolveMembership(UsrUser user) {
+        String levelCode = effectiveLevelCode(user);
+        if (levelCode == null) {
+            // 非会员：无免费时长（level=null），超时单价按 BASIC 兜底
+            return new MembershipContext(null, null, levelByCode(BASIC_LEVEL_CODE));
+        }
+        UsrMemberLevel level = levelByCode(levelCode);
+        // 等级编码非空时，兜底等级与自身同源，无需二次查询
+        return new MembershipContext(levelCode, level, level);
     }
 
     /** 用户当前有效会员等级编码；个人/无企业/等级已过期 → null */
@@ -562,8 +609,8 @@ public class MeetingReservationService {
     }
 
     /** 超时单价（分/小时）：会议室等级定价覆盖价 → 等级默认价（非会员按 BASIC 兜底）→ 0 */
-    private long resolveOvertimeFee(Long roomId, UsrUser user) {
-        String levelCode = effectiveLevelCode(user);
+    private long resolveOvertimeFee(Long roomId, MembershipContext member) {
+        String levelCode = member.levelCode();
         if (levelCode != null) {
             MtgRoomLevelPrice override = roomLevelPriceMapper.selectOne(new LambdaQueryWrapper<MtgRoomLevelPrice>()
                     .eq(MtgRoomLevelPrice::getRoomId, roomId)
@@ -573,7 +620,7 @@ public class MeetingReservationService {
                 return override.getOvertimeFee();
             }
         }
-        UsrMemberLevel level = levelByCode(levelCode == null ? BASIC_LEVEL_CODE : levelCode);
+        UsrMemberLevel level = member.fallbackLevel();
         return level == null || level.getMeetingOvertimeFee() == null
                 ? 0L : level.getMeetingOvertimeFee();
     }
@@ -645,14 +692,6 @@ public class MeetingReservationService {
             }
         }
         return expired.size();
-    }
-
-    private MtgRoom requireBookableRoom(Long roomId) {
-        MtgRoom room = roomMapper.selectById(roomId);
-        if (room == null || room.getStatus() == null || room.getStatus() != 1) {
-            throw BizException.badRequest("会议室不存在或不可预约");
-        }
-        return room;
     }
 
     private String generateNo(String prefix) {

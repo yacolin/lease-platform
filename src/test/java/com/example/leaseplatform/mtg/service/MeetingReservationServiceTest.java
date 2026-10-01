@@ -52,6 +52,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -189,7 +190,7 @@ class MeetingReservationServiceTest {
     /** 创建基础 stub：用户/会议室/行锁/无占用冲突/免费时长查询为空 */
     private void stubCreateBase(UsrUser user, UsrMemberLevel level) {
         when(userMapper.selectById(1L)).thenReturn(user);
-        when(roomMapper.selectById(1L)).thenReturn(room());
+        // 创建预约时行锁与可预约校验合并为一次 selectOne（原为 selectById + selectOne 两次）
         when(roomMapper.selectOne(any(Wrapper.class))).thenReturn(room()); // 行锁
         when(memberLevelMapper.selectOne(any(Wrapper.class))).thenReturn(level);
         when(reservationMapper.insert(any(MtgReservation.class))).thenAnswer(inv -> {
@@ -264,11 +265,39 @@ class MeetingReservationServiceTest {
         assertThat(vo.getFreeHoursDeducted()).isEqualByComparingTo("1.0");
     }
 
+    /**
+     * 回归防护（docs/缓存与查询效率评估.md §2.2）：创建预约时同一行数据不得被重复查询。
+     * 原实现：mtg_rooms 查 2 次（selectById + 行锁 selectOne）、usr_enterprises 查 2 次、
+     * usr_member_levels 查 2 次。
+     */
+    @Test
+    void create_shouldNotQuerySameRowTwice() {
+        when(bookingMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
+        stubCreateBase(user(5L), vipLevel());
+        when(enterpriseMapper.selectById(5L)).thenReturn(vipEnterprise());
+        // 本月已用 3h（VIP 4h/月）→ 本次 2h 中 1h 免费、1h 超时 → fee>0，走付费路径
+        MtgReservation used = new MtgReservation();
+        used.setIsFree(1);
+        used.setStatus(1);
+        used.setDurationHours(new BigDecimal("3.0"));
+        when(reservationMapper.selectList(any(Wrapper.class))).thenReturn(List.of(used));
+        when(orderMapper.insert(any(OrdOrder.class))).thenReturn(1);
+
+        service.create(1L, req(LocalTime.of(11, 0), LocalTime.of(13, 0)));
+
+        // 会议室：仅行锁那一次 selectOne（返回值直接用于可预约校验），不再额外 selectById
+        verify(roomMapper, times(1)).selectOne(any(Wrapper.class));
+        verify(roomMapper, never()).selectById(any());
+        // 企业会员有效性：仅解析上下文时查一次
+        verify(enterpriseMapper, times(1)).selectById(5L);
+        // 会员等级配置：仅解析上下文时查一次（原为 monthlyFreeHours 与 resolveOvertimeFee 各一次）
+        verify(memberLevelMapper, times(1)).selectOne(any(Wrapper.class));
+    }
+
     @Test
     void create_conflict_should409() {
         when(userMapper.selectById(1L)).thenReturn(user(null));
-        when(roomMapper.selectById(1L)).thenReturn(room());
-        when(roomMapper.selectOne(any(Wrapper.class))).thenReturn(room()); // 行锁
+        when(roomMapper.selectOne(any(Wrapper.class))).thenReturn(room()); // 行锁 + 可预约校验
         when(bookingMapper.selectList(any(Wrapper.class)))
                 .thenReturn(List.of(booking(1L, LocalTime.of(9, 30), LocalTime.of(10, 30))));
 
@@ -294,7 +323,7 @@ class MeetingReservationServiceTest {
     @Test
     void create_today_should400() {
         when(userMapper.selectById(1L)).thenReturn(user(null));
-        when(roomMapper.selectById(1L)).thenReturn(room());
+        when(roomMapper.selectOne(any(Wrapper.class))).thenReturn(room()); // 行锁 + 可预约校验
         MeetingReservationCreateReq req = req(LocalTime.of(9, 0), LocalTime.of(10, 0));
         req.setReservationDate(LocalDate.now());
 
