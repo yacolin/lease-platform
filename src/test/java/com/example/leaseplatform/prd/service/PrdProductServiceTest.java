@@ -61,13 +61,19 @@ class PrdProductServiceTest {
     private MultiLevelCache cache;
     @Mock
     private ProductBloomRegistry productBloom;
+    @Mock
+    private PrdProductCache productCache;
 
     private PrdProductService service;
 
     @BeforeEach
     void setUp() {
         service = new PrdProductService(productMapper, categoryMapper, menuMapper, skuService,
-                cache, productBloom, objectMapper);
+                cache, productBloom, objectMapper, productCache);
+        // 缓存代由 PrdProductCache 提供；其余透传 mock（同包，无需 import）
+        lenient().when(productCache.listGeneration()).thenReturn(7L);
+        lenient().when(productCache.detailKey(anyLong()))
+                .thenAnswer(inv -> "product:detail:" + inv.getArgument(0));
         // 缓存为透传 mock：直接调用 loader，使既有断言仍校验真实查询与映射逻辑
         lenient().when(cache.getList(anyString(), anyString(), any(), any(), any()))
                 .thenAnswer(inv -> ((java.util.function.Supplier<?>) inv.getArgument(4)).get());
@@ -289,7 +295,6 @@ class PrdProductServiceTest {
      */
     @Test
     void publicPage_shouldGoThroughGenerationAwareCache() {
-        when(cache.generationOrNull(anyString())).thenReturn(7L);
         when(productMapper.selectPage(any(Page.class), any(LambdaQueryWrapper.class))).thenAnswer(inv -> {
             Page<PrdProduct> p = inv.getArgument(0);
             p.setRecords(List.of());
@@ -307,7 +312,7 @@ class PrdProductServiceTest {
     }
 
     @Test
-    void updateStatus_shouldBumpListGeneration_andEvictDetail() {
+    void updateStatus_shouldEvictDetailAndList() {
         when(productMapper.selectById(1L)).thenReturn(product(1L, 1L, "美式", 1));
         when(productMapper.updateById(any(PrdProduct.class))).thenReturn(1);
         ProductStatusReq req = new ProductStatusReq();
@@ -316,6 +321,6 @@ class PrdProductServiceTest {
 
         service.updateStatus(1L, req);
 
-        verify(cache).bumpGenerationAfterCommit(eq(CacheSpec.PRODUCT_LIST_GENERATION));
+        verify(productCache).evictList();
     }
 }

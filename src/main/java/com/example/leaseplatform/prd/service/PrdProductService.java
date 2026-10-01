@@ -52,6 +52,8 @@ public class PrdProductService {
     private final MultiLevelCache cache;
     private final ProductBloomRegistry productBloom;
     private final ObjectMapper objectMapper;
+    /** 商品缓存键与失效的唯一出处（与 PrdSkuService 共用，避免键各写一份而失效不生效） */
+    private final PrdProductCache productCache;
 
     /** 管理端分页列表：可按分类 / 类型 / 上下架 / 状态 / 名称关键字筛选 */
     public PageResult<ProductVO> page(int page, int size, Long categoryId, Integer productType,
@@ -87,7 +89,7 @@ public class PrdProductService {
         skuService.createDefault(entity.getId(), entity.getPrice());
         // 布隆只增不删：新建即加入，避免本实例把它判为「一定不存在」
         productBloom.add(entity.getId());
-        evictListGeneration();
+        productCache.evictList();
         return toVO(entity);
     }
 
@@ -98,8 +100,8 @@ public class PrdProductService {
         PrdProduct entity = require(id);
         apply(entity, req);
         productMapper.updateById(entity);
-        evictDetail(entity.getId());
-        evictListGeneration();
+        productCache.evictDetail(entity.getId());
+        productCache.evictList();
         return toVO(entity);
     }
 
@@ -118,8 +120,8 @@ public class PrdProductService {
                     ? STATUS_ON_SHELF : STATUS_OFF_SHELF);
         }
         productMapper.updateById(entity);
-        evictDetail(entity.getId());
-        evictListGeneration();
+        productCache.evictDetail(entity.getId());
+        productCache.evictList();
         return toVO(entity);
     }
 
@@ -134,8 +136,8 @@ public class PrdProductService {
         }
         productMapper.deleteById(id);
         skuService.deleteByProduct(id);
-        evictDetail(id);
-        evictListGeneration();
+        productCache.evictDetail(id);
+        productCache.evictList();
     }
 
     /**
@@ -155,7 +157,7 @@ public class PrdProductService {
         int p = PrdCategoryService.normalizePage(page);
         int s = Math.min(Math.max(size, 1), 100);
         // 缓存代不可用（Redis 异常）→ 直接回源，不拿可能撞代的数字去查缓存
-        Long gen = cache.generationOrNull(CacheSpec.PRODUCT_LIST_GENERATION);
+        Long gen = productCache.listGeneration();
         // 深页 / 超大页大小不进缓存：约束 L2 键数量（匿名接口可被枚举 page×size）
         if (gen == null
                 || p > CacheSpec.PRODUCT_PAGE_MAX_CACHEABLE_PAGE
@@ -209,7 +211,7 @@ public class PrdProductService {
         }
         // 2. L1 → L2 → DB；null 走短 TTL 空值缓存
         ProductVO vo = cache.getOrNull(CacheSpec.PRODUCT_DETAIL,
-                MultiLevelCache.l2Key(detailKey(id)), ProductVO.class,
+                MultiLevelCache.l2Key(productCache.detailKey(id)), ProductVO.class,
                 CacheSpec.PRODUCT_L2_TTL, CacheSpec.PRODUCT_NULL_TTL,
                 () -> loadPublicProduct(id));
         if (vo == null) {
@@ -226,25 +228,6 @@ public class PrdProductService {
             return null;
         }
         return withSkuDetail(toVO(entity), id);
-    }
-
-    private static String detailKey(Long id) {
-        return CacheSpec.PRODUCT_DETAIL + ':' + id;
-    }
-
-    /** 商品变更后失效详情缓存（提交后生效） */
-    private void evictDetail(Long id) {
-        cache.evictAfterCommit(CacheSpec.PRODUCT_DETAIL, MultiLevelCache.l2Key(detailKey(id)));
-    }
-
-    /**
-     * 商品变更后让公开列表缓存整体失效（提交后生效）。
-     *
-     * <p>只推进一个「缓存代」计数器，不枚举分页键 —— 见 {@link #publicPage} 的说明。
-     * 注意：SKU 变更（{@code PrdSkuService}）不需要推进，因为公开列表只展示 SPU 字段、不含 SKU。
-     */
-    private void evictListGeneration() {
-        cache.bumpGenerationAfterCommit(CacheSpec.PRODUCT_LIST_GENERATION);
     }
 
     private PrdProduct require(Long id) {

@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.example.leaseplatform.common.BizException;
 import com.example.leaseplatform.ord.entity.OrdOrderItem;
 import com.example.leaseplatform.ord.mapper.OrdOrderItemMapper;
+import com.example.leaseplatform.prd.dto.SkuUpdateReq;
 import com.example.leaseplatform.prd.dto.SkuCreateReq;
 import com.example.leaseplatform.prd.dto.SkuVO;
 import com.example.leaseplatform.prd.dto.SpecGroupCreateReq;
@@ -54,6 +55,8 @@ class PrdSkuServiceTest {
     private PrdProductMapper productMapper;
     @Mock
     private OrdOrderItemMapper orderItemMapper;
+    @Mock
+    private PrdProductCache productCache;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -74,7 +77,7 @@ class PrdSkuServiceTest {
     @BeforeEach
     void setUp() {
         service = new PrdSkuService(skuMapper, groupMapper, valueMapper, productMapper,
-                orderItemMapper, objectMapper);
+                orderItemMapper, objectMapper, productCache);
     }
 
     private PrdProduct product(Long id) {
@@ -257,5 +260,33 @@ class PrdSkuServiceTest {
         s.setPrice(1200L);
         s.setStatus(PrdSkuService.STATUS_ON);
         return s;
+    }
+
+    /**
+     * 回归防护：改 SKU 库存必须失效商品详情缓存。
+     *
+     * <p>公开详情的 VO 里含 {@code skus[].stock}（PrdProductService.withSkuDetail），
+     * 而详情缓存 TTL 10 分钟 —— 漏了失效就会让「改了库存但前端 10 分钟看不到」。
+     * 这类漏失效是静默的：读写都正常、也不报错，只有端到端才暴露。
+     */
+    @Test
+    void update_shouldEvictProductDetailCache() {
+        PrdSku sku = new PrdSku();
+        sku.setId(9L);
+        sku.setProductId(1L);
+        sku.setSkuCode("SKU-1");
+        sku.setPrice(1000L);
+        sku.setStock(5);
+        sku.setStatus(1);
+        // requireSku 只查 skuMapper.selectById，不查商品表
+        when(skuMapper.selectById(9L)).thenReturn(sku);
+        when(skuMapper.updateById(any(PrdSku.class))).thenReturn(1);
+
+        SkuUpdateReq req = new SkuUpdateReq();
+        req.setStock(99);
+        service.update(1L, 9L, req);
+
+        assertThat(sku.getStock()).isEqualTo(99);
+        verify(productCache).evictDetail(1L);
     }
 }

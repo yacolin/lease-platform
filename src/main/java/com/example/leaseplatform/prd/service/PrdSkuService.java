@@ -59,6 +59,8 @@ public class PrdSkuService {
     private final PrdProductMapper productMapper;
     private final OrdOrderItemMapper orderItemMapper;
     private final ObjectMapper objectMapper;
+    /** 公开详情的 VO 里含 skus[].stock 与 specGroups，故 SKU/规格组的所有写操作都要失效详情缓存 */
+    private final PrdProductCache productCache;
 
     // ==================== SKU ====================
 
@@ -98,6 +100,7 @@ public class PrdSkuService {
         } catch (org.springframework.dao.DuplicateKeyException e) {
             throw BizException.conflict("SKU 编码重复：" + sku.getSkuCode());
         }
+        productCache.evictDetail(productId);
         return toSkuVO(sku);
     }
 
@@ -137,6 +140,7 @@ public class PrdSkuService {
         } catch (org.springframework.dao.DuplicateKeyException e) {
             throw BizException.conflict("SKU 编码重复：" + sku.getSkuCode());
         }
+        productCache.evictDetail(productId);
         return toSkuVO(sku);
     }
 
@@ -150,6 +154,7 @@ public class PrdSkuService {
             throw BizException.conflict("该 SKU 已被订单引用，无法删除");
         }
         skuMapper.deleteById(skuId);
+        productCache.evictDetail(productId);
     }
 
     /** SKU 上下架 */
@@ -158,6 +163,7 @@ public class PrdSkuService {
         PrdSku sku = requireSku(productId, skuId);
         sku.setStatus(status);
         skuMapper.updateById(sku);
+        productCache.evictDetail(productId);
         return toSkuVO(sku);
     }
 
@@ -196,6 +202,7 @@ public class PrdSkuService {
         sku.setStatus(STATUS_ON);
         sku.setSortOrder(0);
         skuMapper.insert(sku);
+        productCache.evictDetail(productId);
         return sku;
     }
 
@@ -203,6 +210,7 @@ public class PrdSkuService {
     @Transactional
     public void deleteByProduct(Long productId) {
         skuMapper.delete(new LambdaQueryWrapper<PrdSku>().eq(PrdSku::getProductId, productId));
+        productCache.evictDetail(productId);
     }
 
     // ==================== 规格组 / 规格值 ====================
@@ -241,6 +249,7 @@ public class PrdSkuService {
         group.setSortOrder(req.getSortOrder() == null ? 0 : req.getSortOrder());
         groupMapper.insert(group);
         List<PrdSpecValue> values = insertValues(group.getId(), req.getValues());
+        productCache.evictDetail(productId);
         return toGroupVO(group, values);
     }
 
@@ -257,6 +266,7 @@ public class PrdSkuService {
         // 全量替换规格值
         valueMapper.delete(new LambdaQueryWrapper<PrdSpecValue>().eq(PrdSpecValue::getGroupId, groupId));
         List<PrdSpecValue> values = insertValues(groupId, req.getValues());
+        productCache.evictDetail(productId);
         return toGroupVO(group, values);
     }
 
@@ -267,6 +277,7 @@ public class PrdSkuService {
         ensureGroupNotReferenced(groupId, "删除");
         valueMapper.delete(new LambdaQueryWrapper<PrdSpecValue>().eq(PrdSpecValue::getGroupId, groupId));
         groupMapper.deleteById(groupId);
+        productCache.evictDetail(productId);
     }
 
     // ==================== 内部 ====================
