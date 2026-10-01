@@ -465,14 +465,23 @@ class OrderServiceTest {
 
     @Test
     void stats_shouldAggregate() {
-        when(orderMapper.selectCount(any(Wrapper.class))).thenReturn(1L);
-        OrdOrder order = order(100L, OrderService.STATUS_COMPLETED);
-        when(orderMapper.selectList(any(Wrapper.class))).thenReturn(List.of(order));
+        // ① 今日聚合（4 个指标 1 行）② 全时段运营队列（GROUP BY 2 行）
+        when(orderMapper.selectMaps(any(Wrapper.class)))
+                .thenReturn(List.of(Map.<String, Object>of(
+                        "today_orders", 1L, "today_amount", 2400L,
+                        "today_completed", 1L, "today_cancelled", 0L)))
+                .thenReturn(List.of(
+                        Map.<String, Object>of("order_status", 1, "cnt", 2L),
+                        Map.<String, Object>of("order_status", 2, "cnt", 3L)));
 
         var stats = service.stats();
 
         assertThat(stats.getTodayOrders()).isEqualTo(1L);
         assertThat(stats.getTodayAmount()).isEqualTo(2400L);
+        assertThat(stats.getTodayCompleted()).isEqualTo(1L);
+        assertThat(stats.getTodayCancelled()).isZero();
+        assertThat(stats.getPendingPickupCount()).isEqualTo(2L);
+        assertThat(stats.getMakingCount()).isEqualTo(3L);
     }
 
     private OrdOrder order(Long id, int status) {

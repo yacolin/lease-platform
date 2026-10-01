@@ -1,6 +1,7 @@
 package com.example.leaseplatform.ord.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.leaseplatform.common.BizException;
@@ -359,31 +360,60 @@ public class OrderService {
         return toVO(requireOrder(orderId), itemsOf(orderId));
     }
 
-    /** 商家统计：今日订单/金额 + 各状态待处理数 */
+    /**
+     * 商家统计：今日订单/金额 + 各状态待处理数。
+     *
+     * <p>原实现为 6 条 SQL，其中「今日金额」是把当天全部订单**整行**捞进 JVM 再求和
+     * （无 LIMIT，含 remark 等大字段），见 docs/缓存与查询效率评估.md §2.4。
+     *
+     * <p>现改为 2 条聚合 SQL：
+     * <ol>
+     *   <li>今日指标一次聚合取回：{@code COUNT(*) + SUM(payable_amount) + SUM(状态条件)}
+     *       —— 4 个指标 1 次往返、只回传 1 行，不再搬运整行；</li>
+     *   <li>待取餐/制作中为<b>全时段</b>运营队列（保持原语义），一次 {@code GROUP BY} 取回
+     *       —— 走 idx_order_status 覆盖索引，1 次往返替代原先 2 次 COUNT。</li>
+     * </ol>
+     *
+     * <p>注：此处用 {@link QueryWrapper} 的 {@code select(...)} + {@code selectMaps(...)}
+     * 表达聚合，仍是 MyBatis-Plus 的 Mapper API（未引入 XML mapper 或 {@code @Select}），
+     * 与「SQL 全部由条件构造器生成」的项目约定一致。
+     */
     public OrderStatsVO stats() {
         LocalDateTime start = LocalDate.now().atStartOfDay();
         LocalDateTime end = start.plusDays(1);
         OrderStatsVO vo = new OrderStatsVO();
-        vo.setTodayOrders(orderMapper.selectCount(new LambdaQueryWrapper<OrdOrder>()
-                .ge(OrdOrder::getCreatedAt, start).lt(OrdOrder::getCreatedAt, end)));
-        List<OrdOrder> today = orderMapper.selectList(new LambdaQueryWrapper<OrdOrder>()
-                .ge(OrdOrder::getCreatedAt, start).lt(OrdOrder::getCreatedAt, end));
-        vo.setTodayAmount(today.stream()
-                .mapToLong(o -> o.getPayableAmount() == null ? 0L : o.getPayableAmount())
-                .sum());
-        vo.setPendingPickupCount(orderMapper.selectCount(new LambdaQueryWrapper<OrdOrder>()
-                .eq(OrdOrder::getOrderStatus, STATUS_PICKUP)));
-        vo.setMakingCount(orderMapper.selectCount(new LambdaQueryWrapper<OrdOrder>()
-                .eq(OrdOrder::getOrderStatus, STATUS_MAKING)));
-        vo.setTodayCompleted(countByStatusToday(start, end, STATUS_COMPLETED));
-        vo.setTodayCancelled(countByStatusToday(start, end, STATUS_CANCELLED));
+
+        // ① 今日 4 个指标：1 条 SQL
+        Map<String, Object> today = orderMapper.selectMaps(new QueryWrapper<OrdOrder>()
+                        .select("COUNT(*) AS today_orders",
+                                "IFNULL(SUM(payable_amount), 0) AS today_amount",
+                                "IFNULL(SUM(order_status = " + STATUS_COMPLETED + "), 0) AS today_completed",
+                                "IFNULL(SUM(order_status = " + STATUS_CANCELLED + "), 0) AS today_cancelled")
+                        .ge("created_at", start)
+                        .lt("created_at", end))
+                .stream().findFirst().orElse(Map.of());
+        vo.setTodayOrders(toLong(today.get("today_orders")));
+        vo.setTodayAmount(toLong(today.get("today_amount")));
+        vo.setTodayCompleted(toLong(today.get("today_completed")));
+        vo.setTodayCancelled(toLong(today.get("today_cancelled")));
+
+        // ② 全时段运营队列（待取餐 / 制作中）：1 条 GROUP BY
+        Map<Integer, Long> queues = orderMapper.selectMaps(new QueryWrapper<OrdOrder>()
+                        .select("order_status", "COUNT(*) AS cnt")
+                        .in("order_status", STATUS_PICKUP, STATUS_MAKING)
+                        .groupBy("order_status"))
+                .stream()
+                .collect(Collectors.toMap(
+                        m -> ((Number) m.get("order_status")).intValue(),
+                        m -> toLong(m.get("cnt"))));
+        vo.setPendingPickupCount(queues.getOrDefault(STATUS_PICKUP, 0L));
+        vo.setMakingCount(queues.getOrDefault(STATUS_MAKING, 0L));
         return vo;
     }
 
-    private Long countByStatusToday(LocalDateTime start, LocalDateTime end, int status) {
-        return orderMapper.selectCount(new LambdaQueryWrapper<OrdOrder>()
-                .ge(OrdOrder::getCreatedAt, start).lt(OrdOrder::getCreatedAt, end)
-                .eq(OrdOrder::getOrderStatus, status));
+    /** 聚合结果取值：null / 非数值一律按 0 处理 */
+    private static long toLong(Object value) {
+        return value instanceof Number n ? n.longValue() : 0L;
     }
 
     // ==================== 内部工具 ====================
