@@ -42,6 +42,7 @@ DROP TABLE ...
 | 008 | 会议室资源化（1.4）：新增 mtg_bookings 资源占用表；mtg_reservations 增 order_id（预约订单化）+ 状态补「使用中」（0-待确认,1-已确认,2-使用中,3-已完成,4-已取消,5-已过期）；ord_orders.order_type 补 4-会议室；ord_order_status_history.biz_type 补 3-会议室订单（roadmap 1.4） |
 | 009 | 账户/钱包（1.5）：新增 acct_accounts 账户表（余额唯一事实源，可用/赠送/冻结）；usr_users.balance/gift_balance 回填后删除（余额从用户资料剥离）；trd_balance_transactions 增 frozen_balance_before/after（冻结/解冻审计）（roadmap 1.5） |
 | 010 | 运营/营销（1.6）：新增 mkt_coupons 优惠券模板 / mkt_user_coupons 用户券（领取快照）；ord_orders 增 coupon_id / coupon_name_snapshot / coupon_discount（优惠券快照）（roadmap 1.6） |
+| 011 | 查询效率优化：补齐热点查询缺失的索引（24 条）+ 修复 3 处 schema 漂移。背景：001~010 无任何 ADD INDEX，而查询谓词已演进 10 个版本；EXPLAIN 实测 8 个 `/api/v1/public/**` 匿名接口全部表扫描或 filesort。详见 `docs/缓存与查询效率评估.md` |
 
 ## 开发流程
 
@@ -49,4 +50,30 @@ DROP TABLE ...
 - 已有数据的环境（含测试环境）接入迁移工具后一律增量升级，**禁止**改 `db/*.sql` 后重跑重建；
 - **Flyway（已接入）**：改表时同步 `src/main/resources/db/migration/`（Flyway 命名
   `Vx__desc.sql`，去掉 `+migrate Down` 段），生产启动自动迁移；已验证全新库
-  V1~V10 建 33 表 + 种子数据。
+  V1~V11 建 33 表 + 种子数据。
+
+## 双轨一致性校验（改表后必做）
+
+`db/*.sql` 与 `src/main/resources/db/migration/` 是两条独立建库轨道，**历史上已发生过 3 次
+schema 漂移**（011 修复）：`mtg_reservations.idx_order_id`（008 加列漏建索引）、
+`prd_categories.idx_parent_id` 与 `ord_order_items.idx_sku_id`（007 加列漏建索引）。
+原因都是「往 `db/*.sql` 直接补了索引，却没同步迁移」。
+
+改表后请用以下方式比对两条轨道的最终形态（应完全一致，
+`schema_migrations` 为 `reset_db.sh` 自有表，需排除）：
+
+```bash
+# 轨道 A：全量重建
+MYSQL_PASSWORD=*** ./reset_db.sh
+# 轨道 B：Flyway 迁移（注意 sort -V，否则 V10 会排在 V1 之前）
+mysql -e "DROP DATABASE IF EXISTS lease_flyway_check; CREATE DATABASE lease_flyway_check CHARACTER SET utf8mb4;"
+for f in $(ls src/main/resources/db/migration/V*.sql | sort -V); do mysql lease_flyway_check < "$f"; done
+
+# 比对索引与列定义
+Q="SELECT CONCAT(table_name,'|',index_name,'|',GROUP_CONCAT(column_name ORDER BY seq_in_index)) FROM information_schema.statistics WHERE table_schema="
+mysql -N -e "${Q}'lease_db' GROUP BY table_name,index_name ORDER BY table_name,index_name;" > /tmp/a.txt
+mysql -N -e "${Q}'lease_flyway_check' GROUP BY table_name,index_name ORDER BY table_name,index_name;" > /tmp/b.txt
+diff <(grep -v '^schema_migrations|' /tmp/a.txt) <(grep -v '^schema_migrations|' /tmp/b.txt) && echo "两轨一致"
+```
+
+> ⚠️ 迁移文件按**行尾分号**切分，禁止出现含分号的复合语句；每个 `ALTER` 建议独占一行。

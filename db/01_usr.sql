@@ -64,7 +64,9 @@ CREATE TABLE `usr_enterprises` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_credit_code` (`unified_social_credit_code`),
-  KEY `idx_contact_phone` (`contact_phone`)
+  KEY `idx_contact_phone` (`contact_phone`),
+  -- 管理端 GET /enterprises 按审核状态过滤 + ORDER BY id（audit_status 此前无索引，COUNT+分页双扫描）
+  KEY `idx_audit_id` (`audit_status`, `is_deleted`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='企业表';
 
 -- 会员等级表：会员等级配置（基础版 / VIP / SVIP）
@@ -83,7 +85,9 @@ CREATE TABLE `usr_member_levels` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_level_code` (`level_code`)
+  UNIQUE KEY `uk_level_code` (`level_code`),
+  -- GET /public/member-levels 按启用状态过滤 + ORDER BY price（此前全表扫描 + filesort）
+  KEY `idx_status_price` (`status`, `price`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会员等级表';
 
 -- 企业员工表：记录企业与其员工的关联关系
@@ -100,7 +104,11 @@ CREATE TABLE `usr_enterprise_members` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_enterprise_user` (`enterprise_id`, `user_id`),
-  KEY `idx_user_id` (`user_id`)
+  KEY `idx_user_id` (`user_id`),
+  -- 企业侧高频鉴权：WHERE user_id=? AND invite_status=? AND role=?（原 idx_user_id 无法覆盖后两列）
+  KEY `idx_user_invite_role` (`user_id`, `invite_status`, `role`, `is_deleted`),
+  -- 成员列表 ORDER BY role DESC, accepted_at ASC
+  KEY `idx_ent_role_accepted` (`enterprise_id`, `role`, `accepted_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='企业员工表';
 
 -- 会员购买记录表：记录企业购买会员服务包的记录

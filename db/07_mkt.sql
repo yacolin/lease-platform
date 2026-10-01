@@ -28,7 +28,10 @@ CREATE TABLE `mkt_coupons` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
-  KEY `idx_status` (`status`)
+  KEY `idx_status` (`status`),
+  -- GET /public/coupons 与管理端分页：WHERE status=? ORDER BY sort_order,id
+  -- （原 idx_status 命中后仍需 filesort；coupon_type 过滤也无索引）
+  KEY `idx_status_sort` (`status`, `sort_order`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='优惠券模板表';
 
 -- 用户优惠券表：领取时快照券规则，使用绑定订单
@@ -53,5 +56,7 @@ CREATE TABLE `mkt_user_coupons` (
   PRIMARY KEY (`id`),
   KEY `idx_user_status` (`user_id`, `status`),
   KEY `idx_coupon_id` (`coupon_id`),
-  KEY `idx_order_id` (`order_id`)
+  KEY `idx_order_id` (`order_id`),
+  -- GET /me/coupons：expireUnused 按 expire_at 扫描 + 列表 ORDER BY id DESC
+  KEY `idx_user_status_expire` (`user_id`, `status`, `expire_at`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户优惠券表';

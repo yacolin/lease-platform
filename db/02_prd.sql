@@ -34,7 +34,10 @@ CREATE TABLE `prd_categories` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   KEY `idx_category_type` (`category_type`),
-  KEY `idx_parent_id` (`parent_id`)
+  KEY `idx_parent_id` (`parent_id`),
+  -- GET /public/categories：WHERE status=? AND is_show=? AND is_deleted=? ORDER BY sort_order,id
+  -- （此前全表扫描 + filesort）
+  KEY `idx_status_show_sort` (`status`, `is_show`, `is_deleted`, `sort_order`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品分类表';
 
 -- 商品表（SPU，1.3 起收拢为 SPU，价格/库存下沉到 prd_skus）
@@ -57,7 +60,12 @@ CREATE TABLE `prd_products` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   KEY `idx_category_id` (`category_id`),
-  KEY `idx_product_type` (`product_type`)
+  KEY `idx_product_type` (`product_type`),
+  -- GET /public/products 无筛选：WHERE is_available=1 AND product_status=2 AND is_deleted=0
+  --   ORDER BY sort_order,id（实测：全表扫 5 万行 + filesort 57.4ms -> 索引 0.061ms）
+  KEY `idx_avail_status_sort` (`is_available`, `product_status`, `is_deleted`, `sort_order`, `id`),
+  -- GET /public/products?categoryId= ：按分类过滤后再按同一排序键分页
+  KEY `idx_cat_avail_sort` (`category_id`, `is_available`, `product_status`, `is_deleted`, `sort_order`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品表（SPU）';
 
 -- 商品规格组表（1.3）：同一商品的一组规格维度（如 杯型/温度/糖度）
@@ -120,5 +128,8 @@ CREATE TABLE `prd_daily_menus` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   KEY `idx_menu_date` (`menu_date`),
-  KEY `idx_product_id` (`product_id`)
+  KEY `idx_product_id` (`product_id`),
+  -- GET /public/menus?date= ：WHERE menu_date=? AND is_available=1
+  --   ORDER BY product_id,dish_type,sort_order（原 idx_menu_date 命中后仍需 filesort）
+  KEY `idx_date_avail_sort` (`menu_date`, `is_available`, `product_id`, `dish_type`, `sort_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='每日菜单表';

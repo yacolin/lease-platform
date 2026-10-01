@@ -39,7 +39,10 @@ CREATE TABLE `mtg_rooms` (
   `is_deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0-未删除, 1-已删除',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  -- GET /public/rooms 与 GET /rooms：WHERE status=? AND is_deleted=? ORDER BY id
+  -- （本表原本只有主键，status/is_deleted 无索引）
+  KEY `idx_status_deleted` (`status`, `is_deleted`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会议室表';
 
 -- 会议室等级定价表：某会议室对某会员等级的超出费用覆盖（Override）
@@ -88,7 +91,12 @@ CREATE TABLE `mtg_reservations` (
   KEY `idx_enterprise_id` (`enterprise_id`),
   KEY `idx_order_id` (`order_id`),
   KEY `idx_reservation_date` (`reservation_date`),
-  KEY `idx_status` (`status`)
+  KEY `idx_status` (`status`),
+  -- 过期清理（原惰性清理挂在 GET 上，将改为 @Scheduled 分批 + 日期下限）：
+  -- WHERE status IN (0,1) AND reservation_date < ? ORDER BY reservation_date
+  KEY `idx_status_date` (`status`, `reservation_date`),
+  -- GET /me/meeting-reservations：WHERE user_id=? [AND status=?] ORDER BY id DESC
+  KEY `idx_user_status_id` (`user_id`, `status`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会议室预约表';
 
 -- 会议室资源占用表（1.4 Booking）：每次预约一条占用记录，时间冲突校验查本表
@@ -105,5 +113,8 @@ CREATE TABLE `mtg_bookings` (
   PRIMARY KEY (`id`),
   KEY `idx_room_time` (`room_id`, `start_at`, `end_at`),
   KEY `idx_reservation_id` (`reservation_id`),
-  KEY `idx_status` (`status`)
+  KEY `idx_status` (`status`),
+  -- 时段冲突检测：WHERE room_id=? AND status=0 AND start_at<? AND end_at>?
+  -- （原 idx_room_time 未含 status，只能事后过滤；本索引让 status 也走索引）
+  KEY `idx_room_status_time` (`room_id`, `status`, `start_at`, `end_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='会议室资源占用表（Booking）';

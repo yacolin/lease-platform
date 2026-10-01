@@ -57,7 +57,16 @@ CREATE TABLE `ord_orders` (
   KEY `idx_order_status` (`order_status`),
   KEY `idx_reservation_date` (`reservation_date`),
   KEY `idx_out_trade_no` (`out_trade_no`),
-  KEY `idx_enterprise_id` (`enterprise_id`)
+  KEY `idx_enterprise_id` (`enterprise_id`),
+  -- GET /orders/stats 与 GET /orders 日期筛选：WHERE created_at 范围（此前 created_at 完全无索引，
+  -- 实测全表扫 20 万行 52ms -> 索引 547 行 1.52ms）
+  KEY `idx_created` (`created_at`, `id`),
+  -- GET /me/orders：WHERE user_id=? ORDER BY id DESC（原 idx_user_id 命中后仍 filesort）
+  KEY `idx_user_id_id` (`user_id`, `id`),
+  -- GET /me/orders?status= ：user_id + order_status 过滤后仍按 id 排序
+  KEY `idx_user_status_id` (`user_id`, `order_status`, `id`),
+  -- stats 各状态计数 + 管理端按状态分页
+  KEY `idx_status_created` (`order_status`, `created_at`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='订单表';
 
 -- 订单明细表：订单中每个商品的详细信息（含规格快照；1.3 起含 SKU 快照）
@@ -119,7 +128,12 @@ CREATE TABLE `ord_meal_reservations` (
   KEY `idx_enterprise_id` (`enterprise_id`),
   KEY `idx_menu_date` (`menu_date`),
   KEY `idx_status` (`status`),
-  KEY `idx_order_id` (`order_id`)
+  KEY `idx_order_id` (`order_id`),
+  -- GET /me/meal-reservations：WHERE user_id=? [AND status=?] ORDER BY id DESC（原单列索引需 filesort）
+  KEY `idx_user_id_id` (`user_id`, `id`),
+  -- GET /meal-reservations：WHERE menu_date=? [AND status=?] ORDER BY id DESC
+  -- （原只能二选一用 idx_menu_date/idx_status，均需 filesort）
+  KEY `idx_date_status_id` (`menu_date`, `status`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='正餐预订表';
 
 -- 正餐预订明细表：正餐预订中每个套餐的详细信息

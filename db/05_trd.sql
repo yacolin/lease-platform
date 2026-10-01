@@ -34,7 +34,10 @@ CREATE TABLE `trd_recharge_tiers` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_recharge_amount` (`recharge_amount`)
+  UNIQUE KEY `uk_recharge_amount` (`recharge_amount`),
+  -- GET /public/recharge-tiers 与管理端分页：WHERE status=? ORDER BY sort_order,id
+  -- （此前 status/sort_order 均无索引，全表扫描 + filesort）
+  KEY `idx_status_sort` (`status`, `sort_order`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='充值档位表';
 
 -- 充值记录表：用户充值流水
@@ -106,7 +109,9 @@ CREATE TABLE `trd_payments` (
   UNIQUE KEY `uk_transaction_id` (`transaction_id`),
   KEY `idx_user_id` (`user_id`),
   KEY `idx_biz` (`biz_type`, `biz_id`),
-  KEY `idx_status` (`status`)
+  KEY `idx_status` (`status`),
+  -- GET /payments 管理端：WHERE status=? [AND biz_type=?] ORDER BY id DESC（原单列 idx_status 无组合）
+  KEY `idx_status_biz_id` (`status`, `biz_type`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='支付单表';
 
 -- 退款单表（1.2 交易可靠性）：全额/部分/多次退款，关联支付单，幂等键防重复
